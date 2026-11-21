@@ -1,0 +1,33 @@
+name: Daily Price Truth Pipeline
+
+on:
+  schedule:
+    # Runs daily at 03:00 UTC (05:00 AM Cairo time)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run ingestion / refresh snapshots
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/ingestion/seed_mock_data.py
+
+      - name: Run dbt snapshot, models, and data tests
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/warehouse_dbt/run_dbt.py
