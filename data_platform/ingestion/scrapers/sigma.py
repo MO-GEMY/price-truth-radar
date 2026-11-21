@@ -21,7 +21,9 @@ from bs4 import BeautifulSoup
 
 from .base import (
     BaseScraper,
+    ImpersonatedHttpClient,
     RawProductSnapshot,
+    ThrottledResponseError,
     normalize_snake_slug,
     parse_egp_price,
     utc_now_naive,
@@ -213,6 +215,8 @@ class SigmaScraper(BaseScraper):
     base_url = "https://www.sigma-computer.com"
     catalog_path = "/en/search"
     default_limit = 400
+    min_delay_seconds = 1.5
+    request_timeout = 30.0
     per_page = 16
 
     def _parse_rsc_item(
@@ -372,47 +376,71 @@ class SigmaScraper(BaseScraper):
         # Estimate pages needed with a small buffer in case any item is skipped
         max_pages = max(1, math.ceil(target_limit / self.per_page) + 4)
         catalog_url = f"{self.base_url}{self.catalog_path}"
+        effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
 
-        for page in range(1, max_pages + 1):
-            if len(collected) >= target_limit:
-                break
-
-            logger.info("[sigma] Fetching catalog page %d (%s?page=%d)", page, catalog_url, page)
-            resp = self.http.get(
-                catalog_url,
-                params={"page": page},
-                min_delay_seconds=self.min_delay_seconds,
-                timeout=self.request_timeout,
-            )
-            self.pages_fetched += 1
-
-            raw_items, has_next = _extract_rsc_products(resp.text)
-            page_records: list[RawProductSnapshot] = []
-
-            if raw_items:
-                for raw in raw_items:
-                    record = self._parse_rsc_item(raw, snapshot_date, scraped_at)
-                    if record is not None:
-                        page_records.append(record)
-            else:
-                logger.warning("[sigma] RSC payload not found on page %d; using DOM fallback.", page)
-                page_records = self._parse_dom_fallback(resp.text, snapshot_date, scraped_at)
-
-            if not page_records:
-                logger.info("[sigma] No products found on page %d; stopping pagination.", page)
-                break
-
-            added_this_page = 0
-            for record in page_records:
-                if record.external_id in seen_ids:
-                    continue
-                seen_ids.add(record.external_id)
-                collected.append(record)
-                added_this_page += 1
+        with ImpersonatedHttpClient(
+            impersonate="chrome",
+            timeout=self.request_timeout or 30.0,
+            max_retries=3,
+            backoff_base=2.0,
+            min_delay_seconds=effective_delay,
+            jitter_range=(0.25, 0.8),
+        ) as client:
+            for page in range(1, max_pages + 1):
                 if len(collected) >= target_limit:
                     break
 
-            if not has_next or added_this_page == 0:
-                break
+                logger.info("[sigma] Fetching catalog page %d (%s?page=%d)", page, catalog_url, page)
+                try:
+                    resp = client.get(
+                        catalog_url,
+                        params={"page": page},
+                        min_delay_seconds=effective_delay,
+                        timeout=self.request_timeout,
+                        check_throttle=True,
+                        min_html_bytes=5120,
+                    )
+                except ThrottledResponseError as exc:
+                    logger.warning(
+                        "[sigma] Throttled/blocked on page %d (%s); stopping gracefully with %d snapshots.",
+                        page,
+                        exc,
+                        len(collected),
+                    )
+                    break
+                except Exception as exc:
+                    logger.warning("[sigma] Failed to fetch page %d: %s; stopping gracefully.", page, exc)
+                    break
+
+                self.pages_fetched += 1
+
+                raw_items, has_next = _extract_rsc_products(resp.text)
+                page_records: list[RawProductSnapshot] = []
+
+                if raw_items:
+                    for raw in raw_items:
+                        record = self._parse_rsc_item(raw, snapshot_date, scraped_at)
+                        if record is not None:
+                            page_records.append(record)
+                else:
+                    logger.warning("[sigma] RSC payload not found on page %d; using DOM fallback.", page)
+                    page_records = self._parse_dom_fallback(resp.text, snapshot_date, scraped_at)
+
+                if not page_records:
+                    logger.info("[sigma] No products found on page %d; stopping pagination.", page)
+                    break
+
+                added_this_page = 0
+                for record in page_records:
+                    if record.external_id in seen_ids:
+                        continue
+                    seen_ids.add(record.external_id)
+                    collected.append(record)
+                    added_this_page += 1
+                    if len(collected) >= target_limit:
+                        break
+
+                if not has_next or added_this_page == 0:
+                    break
 
         return collected

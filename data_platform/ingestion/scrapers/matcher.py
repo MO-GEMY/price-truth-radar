@@ -107,6 +107,15 @@ _STORE_SUFFIX_NOISE_RE = re.compile(
 )
 
 _SLASH_RAM_STORAGE_RE = re.compile(r"\b(\d{1,2})\s*(?:gb)?\s*[+/]\s*(64|128|256|512|1024)\s*gb\b", re.I)
+_SLASH_STORAGE_RAM_RE = re.compile(r"\b(64|128|256|512|1024)\s*(?:gb)?\s*[+/]\s*(\d{1,2})\s*gb?\b", re.I)
+_PHONE_SPEC_NOISE_RE = re.compile(
+    r"(?:\b\d(?:\.\d{1,2})?\s*(?:\"|''|-?\s*inch(?:es)?)\b|"
+    r"\b\d{2,3}\s*mp\b|"
+    r"\b\d{4,5}\s*mah\b|"
+    r"\b\d{2,3}\s*w\b|"
+    r"\b\d{2,3}\s*hz\b)",
+    re.I,
+)
 
 
 def _strip_marketplace_noise(title: str) -> str:
@@ -127,6 +136,7 @@ _PHONE_NOISE_RE = re.compile(
     r"5g|4g|lte|nfc|wifi|wi[\s-]?fi|bluetooth|gps|"
     r"global\s+version|local\s+version|middle\s+east\s+version|international\s+version|official\s+warranty|local\s+warranty|international\s+warranty|warranty|egypt|"
     r"android|ios|smartphone|mobile\s+phone|cell\s*phone|mobile|phone|tablet|ram|rom|storage|internal|memory|"
+    r"display|screen|amoled|super\s+amoled|oled|lcd|ips|fhd\+?|hd\+?|camera|battery|ois|ip\d{2}|official\s+store|"
     r"new|sealed|original|edition|unlocked|with|free|gift"
     r")\b",
     re.I,
@@ -224,6 +234,17 @@ _COLOR_WORDS: frozenset[str] = frozenset(
         "luna",
         "eclipse",
         "storm",
+        "iceblue",
+        "darkblue",
+        "lightblue",
+        "skyblue",
+        "navyblue",
+        "rosegold",
+        "spacegray",
+        "spacegrey",
+        "midnightblack",
+        "phantomblack",
+        "obsidianblack",
     }
 )
 
@@ -279,12 +300,19 @@ def _extract_ram_storage(record: RawProductSnapshot) -> tuple[Optional[int], Opt
     if ram_gb is not None and storage_gb is not None:
         return ram_gb, storage_gb
 
-    # Handle compact "8+256GB" or "8/256GB" notation common on Amazon/Noon
+    # Handle compact "8+256GB" / "8/256GB" (Amazon/Noon) or "256GB/8GB" / "256/8GB" (Jumia)
     if m := _SLASH_RAM_STORAGE_RE.search(record.product_title):
         if ram_gb is None:
             ram_gb = int(m.group(1))
         if storage_gb is None:
             storage_gb = int(m.group(2))
+        return ram_gb, storage_gb
+
+    if m := _SLASH_STORAGE_RAM_RE.search(record.product_title):
+        if storage_gb is None:
+            storage_gb = int(m.group(1))
+        if ram_gb is None:
+            ram_gb = int(m.group(2))
         return ram_gb, storage_gb
 
     # Parse all GB/TB tokens from title; smaller value (<= 24 for phones, <= 64 for laptops) is RAM, larger is storage
@@ -325,7 +353,10 @@ def _smartphone_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[
         "" if all(w.lower() in _COLOR_WORDS for w in m.group(0).lstrip("-–— ").split()) else m.group(0)
     ), text)
 
-    # Remove capacity specs and marketing noise
+    # Remove capacity specs, screen/camera/battery spec noise, and marketing noise
+    text = _SLASH_RAM_STORAGE_RE.sub(" ", text)
+    text = _SLASH_STORAGE_RAM_RE.sub(" ", text)
+    text = _PHONE_SPEC_NOISE_RE.sub(" ", text)
     text = _CAPACITY_TOKEN_RE.sub(" ", text)
     text = text.replace("+", " plus ")
     text = re.sub(r"[\u200b\u200c\u200d®™]", "", text)

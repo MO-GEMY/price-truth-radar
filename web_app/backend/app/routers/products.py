@@ -56,6 +56,7 @@ def _is_tracking_param(name: str) -> bool:
 
 _NOON_SKU_RE = re.compile(r"/([a-z0-9_-]+)/p(?:/|$)", re.I)
 _AMAZON_ASIN_RE = re.compile(r"/(?:dp|gp/product)/([a-z0-9]{10})(?:/|$)", re.I)
+_JUMIA_SKU_RE = re.compile(r"-(\d{5,15})\.html$", re.I)
 
 
 def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
@@ -63,8 +64,8 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
 
     Preserves meaningful query params (e.g. Sigma `id`, B.TECH `offering_id`,
     `q`, `s`, `k`, `ref`) while stripping `utm_*`, `fbclid`, `gclid`, etc.
-    Also extracts deterministic store identifiers for Noon (`/SKU/p/`) and
-    Amazon Egypt (`/dp/ASIN`).
+    Also extracts deterministic store identifiers for Noon (`/SKU/p/`),
+    Amazon Egypt (`/dp/ASIN`), and Jumia Egypt (`-<SKU>.html`).
     """
     cleaned = raw_url.strip()
     if not cleaned:
@@ -78,6 +79,7 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
             "offering_id": None,
             "noon_sku": None,
             "amazon_asin": None,
+            "jumia_sku": None,
         }
     if not cleaned.lower().startswith(("http://", "https://")):
         cleaned = f"https://{cleaned}"
@@ -113,6 +115,11 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
         if m := _AMAZON_ASIN_RE.search(path):
             amazon_asin = m.group(1).lower()
 
+    jumia_sku = None
+    if netloc == "jumia.com.eg":
+        if m := _JUMIA_SKU_RE.search(path):
+            jumia_sku = m.group(1).lower()
+
     return {
         "full_key": full_key,
         "host": netloc,
@@ -123,6 +130,7 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
         "offering_id": offering_id,
         "noon_sku": noon_sku,
         "amazon_asin": amazon_asin,
+        "jumia_sku": jumia_sku,
     }
 
 
@@ -145,6 +153,7 @@ def search_products(
         btech_slug = parts["btech_slug"]
         noon_sku = parts["noon_sku"]
         amazon_asin = parts["amazon_asin"]
+        jumia_sku = parts["jumia_sku"]
 
         exact_sql = text(
             f"""
@@ -280,7 +289,34 @@ def search_products(
                 .all()
             )
 
-        # Deterministic fallback 5: `(host, ref)` when `ref` query param is present
+        # Deterministic fallback 5: Jumia Egypt trailing numeric SKU `-<SKU>.html`
+        if not rows and jumia_sku:
+            jumia_pattern = rf"-{re.escape(jumia_sku)}\.html(\?|$)"
+            jumia_sql = text(
+                f"""
+                SELECT {PRODUCT_SELECT_COLS}
+                FROM gold.mart_product_verdicts
+                WHERE SPLIT_PART(
+                    SPLIT_PART(
+                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
+                        '?',
+                        1
+                    ),
+                    '/',
+                    1
+                ) = 'jumia.com.eg'
+                  AND LOWER(product_url) ~ :jumia_pattern
+                ORDER BY product_sk ASC
+                LIMIT :limit
+                """
+            )
+            rows = (
+                db.execute(jumia_sql, {"jumia_pattern": jumia_pattern, "limit": limit})
+                .mappings()
+                .all()
+            )
+
+        # Deterministic fallback 6: `(host, ref)` when `ref` query param is present
         if not rows and netloc and ref_param:
             ref_pattern = rf"(^|[?&])ref={re.escape(ref_param)}(&|$)"
             ref_sql = text(

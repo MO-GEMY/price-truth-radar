@@ -855,6 +855,7 @@ function parseUrlParts(rawUrl: string): {
   btechSlug: string | null;
   noonSku: string | null;
   amazonAsin: string | null;
+  jumiaSku: string | null;
 } {
   const cleaned = rawUrl.trim();
   if (!cleaned) {
@@ -867,6 +868,7 @@ function parseUrlParts(rawUrl: string): {
       btechSlug: null,
       noonSku: null,
       amazonAsin: null,
+      jumiaSku: null,
     };
   }
   try {
@@ -896,6 +898,8 @@ function parseUrlParts(rawUrl: string): {
     const amzMatch =
       host === "amazon.eg" ? path.match(/\/(?:dp|gp\/product)\/([a-z0-9]{10})(?:\/|$)/i) : null;
     const amazonAsin = amzMatch ? amzMatch[1].toLowerCase() : null;
+    const jumiaMatch = host === "jumia.com.eg" ? path.match(/-(\d{5,15})\.html$/i) : null;
+    const jumiaSku = jumiaMatch ? jumiaMatch[1].toLowerCase() : null;
     return {
       fullKey,
       host,
@@ -905,6 +909,7 @@ function parseUrlParts(rawUrl: string): {
       btechSlug,
       noonSku,
       amazonAsin,
+      jumiaSku,
     };
   } catch {
     const fallback = cleaned
@@ -923,6 +928,7 @@ function parseUrlParts(rawUrl: string): {
       btechSlug: null,
       noonSku: null,
       amazonAsin: null,
+      jumiaSku: null,
     };
   }
 }
@@ -970,6 +976,14 @@ export function mockSearch(params: SearchParams): SearchResponse {
         );
         if (amzMatch) {
           return { match_type: "url_exact", items: [amzMatch], total: 1 };
+        }
+      }
+      if (target.jumiaSku) {
+        const jumiaMatch = products.find(
+          (p) => parseUrlParts(p.product_url).jumiaSku === target.jumiaSku,
+        );
+        if (jumiaMatch) {
+          return { match_type: "url_exact", items: [jumiaMatch], total: 1 };
         }
       }
       if (target.host && target.ref) {
