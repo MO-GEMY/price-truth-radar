@@ -31,13 +31,6 @@ jobs:
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
         run: |
-          SCRIPT=$(find data_platform -name "run_dbt.py" | head -n 1)
-          if [ -n "$SCRIPT" ]; then
-            echo "Running $SCRIPT"
-            python "$SCRIPT"
-          else
-            cd data_platform/warehouse_dbt
-            dbt snapshot --profiles-dir .
-            dbt run --profiles-dir .
-            dbt test --profiles-dir .
-          fi
+          python data_platform/run_dbt.py snapshot
+          python data_platform/run_dbt.py run
+          python data_platform/run_dbt.py test
