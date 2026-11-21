@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: stg_products
+    description: "Cleaned and standardized daily product snapshots in the silver schema."
+    columns:
+      - name: product_sk
+        description: "MD5 surrogate key of store_name + external_id."
+        tests:
+          - not_null
+      - name: store_name
+        tests:
+          - not_null
+      - name: category
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['electronics', 'fashion']
+      - name: current_price
+        tests:
+          - not_null
+      - name: snapshot_date
+        tests:
+          - not_null
