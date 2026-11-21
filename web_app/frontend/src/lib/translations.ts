@@ -75,7 +75,9 @@ export const translations = {
     "explain.GENUINE_DEAL":
       "The current price sits clearly below the 60-day median, so the discount is real.",
     "explain.FAKE_DISCOUNT":
-      "A large discount is advertised, yet the price is close to its recent 60-day median — the markdown is cosmetic.",
+      "A large discount is advertised, yet the price is close to its recent 60-day median — the strikethrough is inflated on this store (this does not mean it is the most expensive retailer).",
+    "verdict.fakeDiscountNote":
+      "Fake Discount flags an inflated strikethrough/claimed discount on a specific store — not the highest price across retailers. Use Lowest / Cheapest to find the best buy price.",
     "explain.PRESALE_HIKE":
       "The price was raised sharply before a likely sale event — any upcoming \u201cdiscount\u201d may be inflated.",
     "explain.NORMAL_PRICE":
@@ -236,7 +238,9 @@ export const translations = {
     "explain.GENUINE_DEAL":
       "السعر الحالي أقل بوضوح من وسيط 60 يوماً، فالخصم حقيقي وليس شعارات.",
     "explain.FAKE_DISCOUNT":
-      "يُعلَن عن خصم كبير، لكن السعر قريب من وسيط 60 يوماً الأخير — الخصم شكلي فقط.",
+      "يُعلَن عن خصم كبير، لكن السعر قريب من وسيط 60 يوماً الأخير — السعر المشطوب مضخّم في هذا المتجر (ولا يعني بالضرورة أنه الأغلى بين المتاجر).",
+    "verdict.fakeDiscountNote":
+      "«خصم وهمي» يعني أن الخصم أو السعر المشطوب في متجر محدد مضخّم مقارنة بالسعر الحقيقي، وليس أنه الأغلى بين المتاجر. اعتمد على «الأقل سعراً / الأرخص» لمعرفة أفضل سعر شراء.",
     "explain.PRESALE_HIKE":
       "رُفع السعر بحدّة قبل عرض مرتقب — قد يكون \u201cالخصم\u201d اللاحق وهمياً.",
     "explain.NORMAL_PRICE":

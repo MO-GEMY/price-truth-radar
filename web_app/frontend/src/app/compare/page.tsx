@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Crown,
   ExternalLink,
+  Info,
   PiggyBank,
   TrendingDown,
   TrendingUp,
@@ -306,6 +307,11 @@ export default function ComparePage() {
             </div>
           </div>
         </div>
+
+        <p className="flex items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-cyan-400/80" />
+          <span>{t("verdict.fakeDiscountNote")}</span>
+        </p>
 
         {data && data.total > 0 ? (
           <p className="num text-xs font-semibold text-slate-400">

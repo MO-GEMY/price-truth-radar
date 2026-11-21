@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Radar, SearchX } from "lucide-react";
+import { Info, Radar, SearchX } from "lucide-react";
 import type { RadarFeedResponse, StatsOverview } from "@/types/contract";
 import { fetchRadarFeed, fetchStatsOverview, type DataSource } from "@/lib/api";
 import { useLanguage } from "@/lib/i18n";
@@ -142,6 +142,11 @@ export default function HomePage() {
 
         {/* Filters + feed — §5.3 /api/v1/radar/feed */}
         <FeedFilters value={filters} stores={stores} onChange={updateFilters} />
+
+        <p className="flex items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-cyan-400/80" />
+          <span>{t("verdict.fakeDiscountNote")}</span>
+        </p>
 
         <section className="space-y-5">
           <div className="flex items-center justify-between gap-3">
