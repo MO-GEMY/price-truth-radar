@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: "Raw daily product price snapshots ingested from Egyptian e-commerce stores."
+    tables:
+      - name: raw_product_snapshots
+        description: "Daily product price, stock, and attribute snapshots at (store_name, external_id, snapshot_date) grain."
+        columns:
+          - name: store_name
+            tests:
+              - not_null
+          - name: external_id
+            tests:
+              - not_null
+          - name: current_price
+            tests:
+              - not_null
+          - name: snapshot_date
+            tests:
+              - not_null

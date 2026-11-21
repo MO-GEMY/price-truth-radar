@@ -1,0 +1,15 @@
+price_truth_radar:
+  target: prod
+  outputs:
+    prod:
+      type: postgres
+      host: "{{ env_var('DATABASE_URL_ADMIN').split('://', 1)[1].split('@', 1)[1].split('/', 1)[0].split(':', 1)[0] }}"
+      user: "{{ env_var('DATABASE_URL_ADMIN').split('://', 1)[1].split('@', 1)[0].split(':', 1)[0] }}"
+      password: "{{ env_var('DATABASE_URL_ADMIN').split('://', 1)[1].split('@', 1)[0].split(':', 1)[1] }}"
+      port: "{{ ((env_var('DATABASE_URL_ADMIN').split('://', 1)[1].split('@', 1)[1].split('/', 1)[0].split(':', 1)[1]) if ':' in env_var('DATABASE_URL_ADMIN').split('://', 1)[1].split('@', 1)[1].split('/', 1)[0] else 5432) | as_number }}"
+      dbname: "{{ env_var('DATABASE_URL_ADMIN').split('://', 1)[1].split('@', 1)[1].split('/', 1)[1].split('?', 1)[0] }}"
+      schema: silver
+      threads: 4
+      sslmode: require
+      keepalives_idle: 0
+      connect_timeout: 30
