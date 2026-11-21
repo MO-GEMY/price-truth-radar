@@ -90,20 +90,32 @@ metrics AS (
         CASE
             WHEN cp.claimed_original_price IS NOT NULL
                  AND cp.claimed_original_price > cp.current_price
-                THEN ROUND(
-                    ((cp.claimed_original_price - cp.current_price) / cp.claimed_original_price) * 100.0,
-                    2
+                THEN GREATEST(
+                    0.00,
+                    LEAST(
+                        999.99,
+                        ROUND(
+                            ((cp.claimed_original_price - cp.current_price) / cp.claimed_original_price) * 100.0,
+                            2
+                        )
+                    )
                 )::NUMERIC(5,2)
             ELSE 0.00::NUMERIC(5,2)
         END AS claimed_discount_pct,
         CASE
             WHEN COALESCE(hs.rolling_60d_median, cp.current_price) > 0
-                THEN ROUND(
-                    (
-                        (COALESCE(hs.rolling_60d_median, cp.current_price) - cp.current_price)
-                        / COALESCE(hs.rolling_60d_median, cp.current_price)
-                    ) * 100.0,
-                    2
+                THEN GREATEST(
+                    -999.99,
+                    LEAST(
+                        999.99,
+                        ROUND(
+                            (
+                                (COALESCE(hs.rolling_60d_median, cp.current_price) - cp.current_price)
+                                / COALESCE(hs.rolling_60d_median, cp.current_price)
+                            ) * 100.0,
+                            2
+                        )
+                    )
                 )::NUMERIC(5,2)
             ELSE 0.00::NUMERIC(5,2)
         END AS real_discount_pct,

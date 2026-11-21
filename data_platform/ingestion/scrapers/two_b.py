@@ -197,6 +197,7 @@ class TwoBScraper(BaseScraper):
     category = "electronics"
     base_url = "https://2b.com.eg"
     min_delay_seconds = 2.5
+    request_timeout = 45.0
     page_limit = 48
 
     def _build_record(
@@ -291,12 +292,15 @@ class TwoBScraper(BaseScraper):
         collected: list[RawProductSnapshot] = []
         seen_ids: set[str] = set()
 
+        per_cat_cap = max(24, (limit + 1) // 2)
+
         for sub_category, category_url in TWO_B_CATEGORIES:
             if len(collected) >= limit:
                 break
 
+            cat_collected = 0
             page = 1
-            while len(collected) < limit:
+            while len(collected) < limit and cat_collected < per_cat_cap:
                 logger.info(
                     "[2b] Fetching %s page %d (%s?p=%d&product_list_limit=%d)",
                     sub_category,
@@ -309,6 +313,7 @@ class TwoBScraper(BaseScraper):
                     category_url,
                     params={"p": page, "product_list_limit": self.page_limit},
                     min_delay_seconds=self.min_delay_seconds,
+                    timeout=self.request_timeout,
                 )
                 self.pages_fetched += 1
 
@@ -343,8 +348,9 @@ class TwoBScraper(BaseScraper):
 
                     seen_ids.add(record.external_id)
                     collected.append(record)
+                    cat_collected += 1
                     added_this_page += 1
-                    if len(collected) >= limit:
+                    if len(collected) >= limit or cat_collected >= per_cat_cap:
                         break
 
                 has_next = soup.find("link", rel="next") is not None

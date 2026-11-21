@@ -58,7 +58,11 @@ _SUBCATEGORY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
     (("laptop", "notebook", "macbook"), "laptops"),
     (("monitor", "display", "screen"), "monitors"),
     (("headset", "headphone", "earphone", "earbud", "airpods"), "headphones"),
-    (("smartphone", "mobile", "phone", "iphone"), "smartphones"),
+    (
+        ("mouse", "keyboard", "controller", "gamepad", "game pad", "joystick", "webcam", "microphone", "speaker", "mousepad", "mouse pad"),
+        "peripherals",
+    ),
+    (("smartphone", "mobile phone", "iphone", "galaxy a", "galaxy s", "redmi", "poco"), "smartphones"),
     (("tablet", "ipad"), "tablets"),
     (("ssd", "hdd", "hard drive", "storage", "nvme", "flash"), "storage"),
     (("ram", "memory", "ddr4", "ddr5"), "memory"),
@@ -68,10 +72,6 @@ _SUBCATEGORY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
     (("power supply", "psu"), "power_supplies"),
     (("case", "chassis"), "cases"),
     (("cooler", "cooling", "fan", "thermal"), "cooling"),
-    (
-        ("mouse", "keyboard", "controller", "gamepad", "game pad", "joystick", "webcam", "microphone", "speaker", "mousepad", "mouse pad"),
-        "peripherals",
-    ),
     (("router", "switch", "network", "wifi", "wi-fi"), "networking"),
     (("printer", "scanner"), "printers"),
     (("cable", "adapter", "hub", "charger", "bag", "stand", "chair", "accessory", "accessories"), "accessories"),

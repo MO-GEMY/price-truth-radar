@@ -5,7 +5,7 @@
     )
 }}
 
-WITH matched_base AS (
+WITH matched_raw AS (
     SELECT
         canonical_product_key,
         TRIM(
@@ -23,9 +23,31 @@ WITH matched_base AS (
         current_price,
         in_stock,
         product_url,
-        discount_verdict
+        discount_verdict,
+        ROW_NUMBER() OVER (
+            PARTITION BY canonical_product_key, store_name
+            ORDER BY in_stock DESC, current_price ASC, product_sk ASC
+        ) AS store_rn
     FROM {{ ref('mart_product_verdicts') }}
     WHERE canonical_product_key IS NOT NULL
+),
+
+-- Keep one representative (cheapest in-stock) listing per store per canonical product
+-- so multi-color variants at the same store never duplicate rows in listings_json.
+matched_base AS (
+    SELECT
+        canonical_product_key,
+        clean_title_candidate,
+        category,
+        brand,
+        product_sk,
+        store_name,
+        current_price,
+        in_stock,
+        product_url,
+        discount_verdict
+    FROM matched_raw
+    WHERE store_rn = 1
 ),
 
 lowest_ranked AS (
@@ -74,9 +96,15 @@ SELECT
     lr.lowest_price_store::VARCHAR AS lowest_price_store,
     a.highest_price::NUMERIC(12,2) AS highest_price,
     (a.highest_price - a.lowest_price)::NUMERIC(12,2) AS price_spread_egp,
-    ROUND(
-        ((a.highest_price - a.lowest_price) / NULLIF(a.lowest_price, 0)) * 100.0,
-        2
+    COALESCE(
+        LEAST(
+            999.99,
+            ROUND(
+                ((a.highest_price - a.lowest_price) / NULLIF(a.lowest_price, 0)) * 100.0,
+                2
+            )
+        ),
+        0.00
     )::NUMERIC(5,2) AS price_spread_pct,
     a.listings_json::JSONB AS listings_json
 FROM aggregated a

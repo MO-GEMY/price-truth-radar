@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
@@ -23,15 +23,54 @@ from app.schemas import (
 router = APIRouter(prefix="/api/v1/products", tags=["products"])
 
 
-def _parse_url_parts(raw_url: str) -> tuple[str, str, Optional[str]]:
-    """Return (normalized_full_key, normalized_host, ref_param).
+TRACKING_QUERY_PARAMS: frozenset[str] = frozenset(
+    {
+        "fbclid",
+        "gclid",
+        "gbraid",
+        "wbraid",
+        "dclid",
+        "msclkid",
+        "yclid",
+        "mc_cid",
+        "mc_eid",
+        "igshid",
+        "ttclid",
+        "si",
+        "_ga",
+        "_gl",
+        "srsltid",
+        "gad_source",
+        "gad_campaignid",
+        "trk",
+        "spm",
+        "scid",
+    }
+)
 
-    Normalizes scheme, strips optional `www.` prefix, strips trailing `/`
-    before `?` or end-of-path, drops `#fragment`, and preserves query params.
+
+def _is_tracking_param(name: str) -> bool:
+    low = name.strip().lower()
+    return low.startswith("utm_") or low in TRACKING_QUERY_PARAMS
+
+
+def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
+    """Parse and normalize a pasted URL while stripping ad/analytics tracking params.
+
+    Preserves meaningful query params (e.g. Sigma `id`, B.TECH `offering_id`,
+    `q`, `s`, `k`, `ref`) while stripping `utm_*`, `fbclid`, `gclid`, etc.
     """
     cleaned = raw_url.strip()
     if not cleaned:
-        return "", "", None
+        return {
+            "full_key": "",
+            "host": "",
+            "path": "",
+            "ref": None,
+            "sigma_id": None,
+            "btech_slug": None,
+            "offering_id": None,
+        }
     if not cleaned.lower().startswith(("http://", "https://")):
         cleaned = f"https://{cleaned}"
     parsed = urlparse(cleaned)
@@ -39,11 +78,32 @@ def _parse_url_parts(raw_url: str) -> tuple[str, str, Optional[str]]:
     if netloc.startswith("www."):
         netloc = netloc[4:]
     path = parsed.path.rstrip("/")
-    query = parsed.query
-    full_key = f"{netloc}{path}?{query}".lower() if query else f"{netloc}{path}".lower()
-    ref_values = parse_qs(query, keep_blank_values=False).get("ref")
-    ref_param = ref_values[0].strip().lower() if ref_values and ref_values[0].strip() else None
-    return full_key, netloc, ref_param
+
+    kept_pairs = [
+        (k, v)
+        for k, v in parse_qsl(parsed.query, keep_blank_values=False)
+        if not _is_tracking_param(k)
+    ]
+    clean_query = urlencode(kept_pairs, doseq=True)
+    full_key = f"{netloc}{path}?{clean_query}".lower() if clean_query else f"{netloc}{path}".lower()
+
+    params_ci = {k.lower(): v.strip().lower() for k, v in kept_pairs if v.strip()}
+    ref_param = params_ci.get("ref")
+    sigma_id = params_ci.get("id") if (netloc == "sigma-computer.com" and path.lower() == "/en/item") else None
+    offering_id = params_ci.get("offering_id") if netloc == "btech.com" else None
+    btech_slug = None
+    if netloc == "btech.com" and path.lower().startswith("/en/p/") and len(path) > len("/en/p/"):
+        btech_slug = path.lower()
+
+    return {
+        "full_key": full_key,
+        "host": netloc,
+        "path": path.lower(),
+        "ref": ref_param,
+        "sigma_id": sigma_id,
+        "btech_slug": btech_slug,
+        "offering_id": offering_id,
+    }
 
 
 @router.get("/search", response_model=SearchResponse)
@@ -53,10 +113,16 @@ def search_products(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
-    # 1. If url is provided, match deterministically (exact normalized URL first,
-    #    then optional deterministic (host + ref) match; never loose path-only fallback).
+    # 1. If url is provided, match deterministically (exact normalized URL after
+    #    stripping tracking params first, then deterministic store-specific key
+    #    matching; never loose path-only fallback on search pages).
     if url is not None and url.strip():
-        exact_key, netloc, ref_param = _parse_url_parts(url)
+        parts = _parse_url_parts(url)
+        exact_key = parts["full_key"] or ""
+        netloc = parts["host"] or ""
+        ref_param = parts["ref"]
+        sigma_id = parts["sigma_id"]
+        btech_slug = parts["btech_slug"]
 
         exact_sql = text(
             f"""
@@ -85,6 +151,60 @@ def search_products(
             .mappings()
             .all()
         )
+
+        # Deterministic fallback 1: Sigma `/en/item?id=<slug>` (handles query reordering)
+        if not rows and sigma_id:
+            id_pattern = rf"(^|[?&])id={re.escape(sigma_id)}(&|$)"
+            sigma_sql = text(
+                f"""
+                SELECT {PRODUCT_SELECT_COLS}
+                FROM gold.mart_product_verdicts
+                WHERE SPLIT_PART(
+                    SPLIT_PART(
+                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
+                        '?',
+                        1
+                    ),
+                    '/',
+                    1
+                ) = 'sigma-computer.com'
+                  AND LOWER(product_url) ~ :id_pattern
+                ORDER BY product_sk ASC
+                LIMIT :limit
+                """
+            )
+            rows = (
+                db.execute(sigma_sql, {"id_pattern": id_pattern, "limit": limit})
+                .mappings()
+                .all()
+            )
+
+        # Deterministic fallback 2: B.TECH product page `/en/p/<slug>` (when offering_id omitted/changed)
+        if not rows and btech_slug:
+            btech_path_key = f"btech.com{btech_slug}"
+            btech_sql = text(
+                f"""
+                SELECT {PRODUCT_SELECT_COLS}
+                FROM gold.mart_product_verdicts
+                WHERE LOWER(
+                    REGEXP_REPLACE(
+                        RTRIM(SPLIT_PART(product_url, '?', 1), '/'),
+                        '^https?://(www\\.)?',
+                        '',
+                        'i'
+                    )
+                ) = :btech_path_key
+                ORDER BY product_sk ASC
+                LIMIT :limit
+                """
+            )
+            rows = (
+                db.execute(btech_sql, {"btech_path_key": btech_path_key, "limit": limit})
+                .mappings()
+                .all()
+            )
+
+        # Deterministic fallback 3: `(host, ref)` when `ref` query param is present
         if not rows and netloc and ref_param:
             ref_pattern = rf"(^|[?&])ref={re.escape(ref_param)}(&|$)"
             ref_sql = text(

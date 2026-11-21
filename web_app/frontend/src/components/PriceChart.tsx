@@ -51,13 +51,17 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
     median: h.rolling_60d_median,
   }));
 
+  const isSinglePoint = data.length === 1;
   const prices = data.map((d) => d.price);
   const claimedValues = data
     .map((d) => d.claimed)
     .filter((c): c is number => c !== null);
   const min = Math.min(...prices, ...data.map((d) => d.median));
   const max = Math.max(...prices, ...data.map((d) => d.median), ...claimedValues);
-  const pad = Math.max((max - min) * 0.1, 50);
+  const span = max - min;
+  const pad = Math.max(span * 0.1, span === 0 ? min * 0.05 : 0, 50);
+  const yMin = Math.max(0, Math.floor(min - pad));
+  const yMax = Math.ceil(max + pad);
 
   const legend = [
     { color: COLOR_PRICE, label: t("detail.current") },
@@ -69,16 +73,23 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2">
-        {legend.map((item) => (
-          <span key={item.label} className="flex items-center gap-2 text-xs font-medium text-slate-300">
-            <span
-              className="inline-block h-0.5 w-6 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
-            {item.label}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          {legend.map((item) => (
+            <span key={item.label} className="flex items-center gap-2 text-xs font-medium text-slate-300">
+              <span
+                className="inline-block h-0.5 w-6 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              {item.label}
+            </span>
+          ))}
+        </div>
+        {isSinglePoint ? (
+          <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-medium text-cyan-200">
+            {t("chart.singlePointHint", { date: formatChartTick(data[0].date, lang) })}
           </span>
-        ))}
+        ) : null}
       </div>
 
       {mounted ? (
@@ -99,7 +110,7 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               axisLine={false}
               tickLine={false}
               width={56}
-              domain={[min - pad, max + pad]}
+              domain={[yMin, yMax]}
             />
             <Tooltip
               cursor={{ stroke: "rgba(148,163,184,0.3)", strokeDasharray: "4 4" }}
@@ -128,8 +139,8 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               name="price"
               stroke={COLOR_PRICE}
               strokeWidth={2.4}
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 0 }}
+              dot={isSinglePoint ? { r: 6, fill: COLOR_PRICE, stroke: "#05080f", strokeWidth: 2 } : false}
+              activeDot={{ r: 5, strokeWidth: 0 }}
             />
             <Line
               type="monotone"
@@ -138,7 +149,7 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               stroke={COLOR_CLAIMED}
               strokeWidth={1.8}
               strokeDasharray="7 5"
-              dot={false}
+              dot={isSinglePoint ? { r: 5, fill: COLOR_CLAIMED, stroke: "#05080f", strokeWidth: 2 } : false}
               connectNulls
             />
             <Line
@@ -148,7 +159,7 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               stroke={COLOR_MEDIAN}
               strokeWidth={2}
               strokeDasharray="2 5"
-              dot={false}
+              dot={isSinglePoint ? { r: 4, fill: COLOR_MEDIAN, stroke: "#05080f", strokeWidth: 1.5 } : false}
             />
           </LineChart>
         </ResponsiveContainer>

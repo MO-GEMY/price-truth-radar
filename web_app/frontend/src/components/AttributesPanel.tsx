@@ -66,8 +66,17 @@ export function AttributesPanel({ product }: { product: Product }) {
     );
   }
 
+const HIDDEN_INTERNAL_KEYS = new Set([
+  "product_id",
+  "variant_id",
+  "offer_id",
+  "magento_product_id",
+]);
+
   /* -------- Electronics: specification rows -------- */
-  const entries = Object.entries(attrs);
+  const entries = Object.entries(attrs).filter(
+    ([key, value]) => !HIDDEN_INTERNAL_KEYS.has(key) && value !== null && value !== undefined && value !== "",
+  );
   if (entries.length === 0) return null;
 
   const renderValue = (key: string, value: unknown): string => {
@@ -75,6 +84,9 @@ export function AttributesPanel({ product }: { product: Product }) {
     if (typeof value === "number") {
       if (key === "warranty") return String(value);
       return formatNumber(value, lang);
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => prettify(String(item))).join(", ");
     }
     const str = String(value);
     if (key === "warranty" && (str === "local" || str === "international")) {
@@ -92,8 +104,8 @@ export function AttributesPanel({ product }: { product: Product }) {
       <dl className="mt-4 divide-y divide-white/[0.06]">
         {entries.map(([key, value]) => (
           <div key={key} className="flex items-center justify-between gap-4 py-2.5">
-            <dt className="text-xs font-medium text-slate-400">{attributeLabel(key, t)}</dt>
-            <dd className="num text-sm font-semibold text-slate-100">
+            <dt className="shrink-0 text-xs font-medium text-slate-400">{attributeLabel(key, t)}</dt>
+            <dd className="num min-w-0 break-words text-end text-sm font-semibold text-slate-100">
               {renderValue(key, value)}
             </dd>
           </div>

@@ -21,9 +21,11 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from data_platform.ingestion.scrapers import (  # noqa: E402
+    MatchSummary,
     PoliteHttpClient,
     RawProductSnapshot,
     SCRAPER_REGISTRY,
+    assign_canonical_keys,
     upsert_snapshots_to_neon,
 )
 
@@ -101,6 +103,25 @@ def _print_summary(
         print(json.dumps(rec.to_json_dict(), indent=2, ensure_ascii=False))
 
 
+def _print_match_summary(summary: MatchSummary) -> None:
+    print("\n" + "=" * 72)
+    print(
+        f"CROSS-STORE MATCHING | matched_groups={summary.matched_groups} "
+        f"| matched_products={summary.matched_products}"
+    )
+    print("=" * 72)
+    if not summary.group_details:
+        print("  No cross-store matches detected in this batch.")
+        return
+
+    for key, entries in summary.group_details.items():
+        stores_str = ", ".join(f"{store}={price:,.0f} EGP" for store, price, _ in entries)
+        prices = [price for _, price, _ in entries]
+        spread = max(prices) - min(prices)
+        spread_pct = (spread / min(prices) * 100.0) if min(prices) > 0 else 0.0
+        print(f"  * {key} (spread {spread:,.0f} EGP / +{spread_pct:.1f}%): {stores_str}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -115,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
 
     stores = sorted(SCRAPER_REGISTRY.keys()) if args.store == "all" else [args.store]
     all_records: list[RawProductSnapshot] = []
+    per_store_meta: list[tuple[str, list[RawProductSnapshot], int, int]] = []
 
     with PoliteHttpClient(min_delay_seconds=args.delay) as http_client:
         for store_slug in stores:
@@ -122,13 +144,24 @@ def main(argv: list[str] | None = None) -> int:
             scraper = scraper_cls(http_client)
             records = scraper.scrape(limit=args.limit)
             all_records.extend(records)
-            _print_summary(
-                store_slug,
-                records,
-                pages_fetched=scraper.pages_fetched,
-                skipped_count=scraper.skipped_count,
-                dry_run=args.dry_run,
+            per_store_meta.append(
+                (store_slug, records, scraper.pages_fetched, scraper.skipped_count)
             )
+
+    # Run deterministic cross-store canonical matching before printing / upserting
+    match_summary = assign_canonical_keys(all_records)
+
+    for store_slug, records, pages_fetched, skipped_count in per_store_meta:
+        _print_summary(
+            store_slug,
+            records,
+            pages_fetched=pages_fetched,
+            skipped_count=skipped_count,
+            dry_run=args.dry_run,
+        )
+
+    if len(stores) > 1 or match_summary.matched_groups > 0:
+        _print_match_summary(match_summary)
 
     if args.dry_run:
         print("\nDry-run complete. Zero writes made to Neon.")

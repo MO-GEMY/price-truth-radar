@@ -86,7 +86,8 @@ export function KpiBar({ stats }: { stats: StatsOverview }) {
         })}
       </div>
       <p className="text-[11px] text-slate-500">
-        {t("kpi.lastPipelineRun")}: {formatDateTime(stats.last_pipeline_run_at, lang)}
+        {t("kpi.lastPipelineRun")}:{" "}
+        {stats.last_pipeline_run_at ? formatDateTime(stats.last_pipeline_run_at, lang) : "—"}
       </p>
     </section>
   );

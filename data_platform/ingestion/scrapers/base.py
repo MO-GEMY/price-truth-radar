@@ -279,12 +279,14 @@ class PoliteHttpClient:
         *,
         params: Optional[dict[str, Any]] = None,
         min_delay_seconds: Optional[float] = None,
+        timeout: Optional[float] = None,
     ) -> httpx.Response:
         last_exc: Optional[Exception] = None
+        effective_timeout = timeout if timeout is not None else self.timeout
         for attempt in range(1, self.max_retries + 1):
             self._wait_rate_limit(min_delay_override=min_delay_seconds)
             try:
-                resp = self._client.get(url, params=params)
+                resp = self._client.get(url, params=params, timeout=effective_timeout)
                 if resp.status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
                     retry_after = resp.headers.get("Retry-After")
                     sleep_for = (
@@ -332,6 +334,7 @@ class BaseScraper(ABC):
     category: Literal["electronics", "fashion"]
     base_url: str
     min_delay_seconds: float = 1.0
+    request_timeout: Optional[float] = None
 
     def __init__(self, http_client: PoliteHttpClient) -> None:
         self.http = http_client
@@ -356,6 +359,34 @@ class BaseScraper(ABC):
     def scrape(self, limit: int = 30) -> list[RawProductSnapshot]:
         """Scrape up to `limit` validated product snapshots from the store."""
 
+
+DDL_SQL = """
+CREATE SCHEMA IF NOT EXISTS raw;
+CREATE SCHEMA IF NOT EXISTS silver;
+CREATE SCHEMA IF NOT EXISTS gold;
+
+CREATE TABLE IF NOT EXISTS raw.raw_product_snapshots (
+    store_name              VARCHAR(100) NOT NULL,
+    external_id             VARCHAR(120) NOT NULL,
+    canonical_product_key   VARCHAR(160),
+    category                VARCHAR(50)  NOT NULL,
+    sub_category            VARCHAR(80)  NOT NULL,
+    brand                   VARCHAR(100) NOT NULL,
+    product_title           TEXT         NOT NULL,
+    product_url             TEXT         NOT NULL,
+    image_url               TEXT,
+    attributes_json         JSONB        NOT NULL,
+    current_price           NUMERIC(12,2) NOT NULL,
+    claimed_original_price  NUMERIC(12,2),
+    in_stock                BOOLEAN      NOT NULL,
+    snapshot_date           DATE         NOT NULL,
+    scraped_at              TIMESTAMP    NOT NULL,
+    PRIMARY KEY (store_name, external_id, snapshot_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_raw_snapshots_date
+    ON raw.raw_product_snapshots (snapshot_date);
+"""
 
 UPSERT_SQL = """
 INSERT INTO raw.raw_product_snapshots (
@@ -405,6 +436,7 @@ def upsert_snapshots_to_neon(snapshots: list[RawProductSnapshot]) -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                cur.execute(DDL_SQL)
                 execute_values(cur, UPSERT_SQL, rows, page_size=500)
     finally:
         conn.close()

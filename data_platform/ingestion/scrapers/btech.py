@@ -61,14 +61,15 @@ _BRAND_ACRONYMS: dict[str, str] = {
 }
 
 _SUBCATEGORY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
-    (("smartphone", "mobile phone", "iphone", "galaxy a", "galaxy s", "redmi", "poco"), "smartphones"),
-    (("tablet", "ipad", "tab "), "tablets"),
-    (("laptop", "notebook", "macbook", "ideapad", "thinkpad", "victus", "loq", "vivobook"), "laptops"),
-    (("smartwatch", "smart watch", "watch", "band", "wearable"), "wearables"),
+    (("flash drive", "usb flash", "ssd", "hdd", "hard drive", "memory card", "storage"), "storage"),
+    (("monitor", "curved gaming monitor"), "monitors"),
     (("headphone", "headset", "earbud", "airpods", "buds", "earphone"), "headphones"),
-    (("monitor", "display"), "monitors"),
+    (("smartwatch", "smart watch", "watch", "band", "wearable"), "wearables"),
+    (("tablet", "ipad", "tab "), "tablets"),
+    (("smartphone", "mobile phone", "iphone", "galaxy a", "galaxy s", "galaxy z", "redmi", "poco", "reno", "infinix", "tecno", "honor x", "realme"), "smartphones"),
+    (("laptop", "notebook", "macbook", "ideapad", "thinkpad", "victus", "loq", "vivobook", "omnibook", "rog strix", "tuf gaming"), "laptops"),
     (("tv", "television", "qled", "oled", "uhd", "projector"), "tvs"),
-    (("playstation", "ps5", "xbox", "nintendo", "console", "gaming"), "gaming"),
+    (("playstation", "ps5", "xbox", "nintendo", "console"), "gaming"),
     (("speaker", "soundbar", "subwoofer"), "speakers"),
     (("printer", "scanner"), "printers"),
     (("router", "extender", "modem", "switch"), "networking"),
@@ -97,25 +98,32 @@ def _normalize_brand(raw_brand: Optional[str], title: str) -> str:
 
 
 def _resolve_sub_category(raw_item: dict[str, Any], default_subcat: str, title: str) -> str:
-    parts: list[str] = []
+    # Check specific leaf category (l3/l2) and product title BEFORE broad parent_category
+    # (e.g., monitors & USB drives sit under "Laptops, PCs & Accessories").
+    leaf_parts: list[str] = []
     cats = raw_item.get("categories")
     if isinstance(cats, dict):
-        for level in ("l3", "l2", "l1"):
+        for level in ("l3", "l2"):
             lvl = cats.get(level)
             if isinstance(lvl, dict) and lvl.get("name"):
-                parts.append(str(lvl["name"]))
-    if raw_item.get("parent_category"):
-        parts.append(str(raw_item["parent_category"]))
+                leaf_parts.append(str(lvl["name"]))
 
-    haystack = " ".join(parts).lower()
-    for keywords, mapped in _SUBCATEGORY_KEYWORDS:
-        if any(kw in haystack for kw in keywords):
-            return mapped
+    leaf_haystack = " ".join(leaf_parts).lower()
+    if leaf_haystack:
+        for keywords, mapped in _SUBCATEGORY_KEYWORDS:
+            if any(kw in leaf_haystack for kw in keywords):
+                return mapped
 
     title_lower = title.lower()
     for keywords, mapped in _SUBCATEGORY_KEYWORDS:
         if any(kw in title_lower for kw in keywords):
             return mapped
+
+    parent_haystack = str(raw_item.get("parent_category") or "").lower()
+    if parent_haystack:
+        for keywords, mapped in _SUBCATEGORY_KEYWORDS:
+            if any(kw in parent_haystack for kw in keywords):
+                return mapped
 
     return normalize_snake_slug(default_subcat, fallback="electronics", max_len=80)
 

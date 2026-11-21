@@ -818,22 +818,69 @@ export function mockRadarFeed(params: RadarFeedParams): RadarFeedResponse {
   };
 }
 
+const TRACKING_QUERY_PARAMS = new Set([
+  "fbclid",
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "dclid",
+  "msclkid",
+  "yclid",
+  "mc_cid",
+  "mc_eid",
+  "igshid",
+  "ttclid",
+  "si",
+  "_ga",
+  "_gl",
+  "srsltid",
+  "gad_source",
+  "gad_campaignid",
+  "trk",
+  "spm",
+  "scid",
+]);
+
+function isTrackingParam(name: string): boolean {
+  const low = name.trim().toLowerCase();
+  return low.startsWith("utm_") || TRACKING_QUERY_PARAMS.has(low);
+}
+
 function parseUrlParts(rawUrl: string): {
   fullKey: string;
   host: string;
+  path: string;
   ref: string | null;
+  sigmaId: string | null;
+  btechSlug: string | null;
 } {
   const cleaned = rawUrl.trim();
-  if (!cleaned) return { fullKey: "", host: "", ref: null };
+  if (!cleaned) {
+    return { fullKey: "", host: "", path: "", ref: null, sigmaId: null, btechSlug: null };
+  }
   try {
     const withScheme = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
     const parsed = new URL(withScheme);
     const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
     const path = parsed.pathname.replace(/\/+$/, "");
-    const query = parsed.search.replace(/^\?/, "");
+    const kept = new URLSearchParams();
+    parsed.searchParams.forEach((v, k) => {
+      if (!isTrackingParam(k) && v.trim() !== "") {
+        kept.append(k, v);
+      }
+    });
+    const query = kept.toString();
     const fullKey = (query ? `${host}${path}?${query}` : `${host}${path}`).toLowerCase();
-    const refVal = parsed.searchParams.get("ref")?.trim().toLowerCase() || null;
-    return { fullKey, host, ref: refVal };
+    const refVal = kept.get("ref")?.trim().toLowerCase() || null;
+    const sigmaId =
+      host === "sigma-computer.com" && path.toLowerCase() === "/en/item"
+        ? kept.get("id")?.trim().toLowerCase() || null
+        : null;
+    const btechSlug =
+      host === "btech.com" && path.toLowerCase().startsWith("/en/p/") && path.length > "/en/p/".length
+        ? path.toLowerCase()
+        : null;
+    return { fullKey, host, path: path.toLowerCase(), ref: refVal, sigmaId, btechSlug };
   } catch {
     const fallback = cleaned
       .toLowerCase()
@@ -842,7 +889,7 @@ function parseUrlParts(rawUrl: string): {
       .replace(/#.*$/, "")
       .replace(/\/\?/, "?")
       .replace(/\/+$/, "");
-    return { fullKey: fallback, host: "", ref: null };
+    return { fullKey: fallback, host: "", path: "", ref: null, sigmaId: null, btechSlug: null };
   }
 }
 
@@ -858,6 +905,22 @@ export function mockSearch(params: SearchParams): SearchResponse {
       );
       if (exact) {
         return { match_type: "url_exact", items: [exact], total: 1 };
+      }
+      if (target.sigmaId) {
+        const sigmaMatch = products.find(
+          (p) => parseUrlParts(p.product_url).sigmaId === target.sigmaId,
+        );
+        if (sigmaMatch) {
+          return { match_type: "url_exact", items: [sigmaMatch], total: 1 };
+        }
+      }
+      if (target.btechSlug) {
+        const btechMatch = products.find(
+          (p) => parseUrlParts(p.product_url).btechSlug === target.btechSlug,
+        );
+        if (btechMatch) {
+          return { match_type: "url_exact", items: [btechMatch], total: 1 };
+        }
       }
       if (target.host && target.ref) {
         const refMatch = products.find((p) => {

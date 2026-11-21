@@ -10,6 +10,7 @@ from .base import (
     upsert_snapshots_to_neon,
 )
 from .btech import BTechScraper
+from .matcher import MatchSummary, assign_canonical_keys, compute_candidate_key
 from .sigma import SigmaScraper
 from .two_b import TwoBScraper
 
@@ -22,11 +23,14 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
 __all__ = [
     "BaseScraper",
     "BTechScraper",
+    "MatchSummary",
     "PoliteHttpClient",
     "RawProductSnapshot",
     "SCRAPER_REGISTRY",
     "SigmaScraper",
     "TwoBScraper",
+    "assign_canonical_keys",
+    "compute_candidate_key",
     "parse_egp_price",
     "upsert_snapshots_to_neon",
 ]

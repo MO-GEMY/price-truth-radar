@@ -126,6 +126,8 @@ export const translations = {
     "chart.price": "Price",
     "chart.claimedOriginal": "Claimed original",
     "chart.median": "60-day median",
+    "chart.singlePointHint":
+      "Tracking started on {date} — trend lines will build as daily snapshots accumulate.",
     "attr.ram_gb": "RAM",
     "attr.storage_gb": "Storage",
     "attr.screen_size_inch": "Screen size",
@@ -282,6 +284,8 @@ export const translations = {
     "chart.price": "السعر",
     "chart.claimedOriginal": "الأصل المعلن",
     "chart.median": "وسيط 60 يوم",
+    "chart.singlePointHint":
+      "بدأ التتبع في {date} — ستتشكل خطوط الاتجاه مع تراكم اللقطات اليومية.",
     "attr.ram_gb": "الرامات",
     "attr.storage_gb": "التخزين",
     "attr.screen_size_inch": "حجم الشاشة",
