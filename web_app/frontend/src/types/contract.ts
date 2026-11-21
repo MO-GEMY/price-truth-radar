@@ -10,7 +10,7 @@
 /* Enums (CONTRACTS.md §3.1, §5.3, §5.6)                               */
 /* ------------------------------------------------------------------ */
 
-export type Category = "electronics" | "fashion";
+export type Category = "electronics" | "fashion" | "home_appliances";
 
 export type DiscountVerdict =
   | "ALL_TIME_LOW"

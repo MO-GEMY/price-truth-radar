@@ -1,141 +1,86 @@
 # Price Truth Radar — QA & Smoke Test Checklist
 
-**Status: ✅ PASS — re-run against production on 2026-11-21 after commit `79c31fe` (fix(qa): resolve URL search matching, B.TECH/Sigma URLs, image fallback, and store filter). All 4 previous findings verified resolved live. Remaining items are cosmetic (P3).**
+**Status: ✅ PASS — LIVE-DATA SIGN-OFF, 2026-11-21 (production runs 100% live scraped data from `sigma`, `2b`, `btech` after commits `683555e` + `f68c8a1`). All five live-data test groups passed. Only cosmetic P3 notes remain.**
 
 **Targets**
 - Frontend: <https://price-truth-radar.vercel.app>
-- API: <https://price-truth-radar-api.onrender.com> (free tier → expect ~30–60 s cold starts; occasional connection resets between idle periods are environmental, not app bugs)
+- API: <https://price-truth-radar-api.onrender.com> (free tier → expect ~30–60 s cold starts; intermittent connection resets between idle periods are environmental)
 
 **Conventions**
-- ✅ = verified pass in the 2026-11-21 re-run · ☐ = optional manual check · ⚠️ = known cosmetic issue (non-blocking)
-- Viewports: Desktop 1280×720 · Mobile 390×844 (DSC/iPhone-class)
+- ✅ = verified pass in the 2026-11-21 live-data run · ☐ = optional manual check · ⚠️ = cosmetic (non-blocking)
+- Viewports: Desktop 1280×720 · Mobile 390×844
 
 ---
 
-## 0. Preconditions
+## 1. Zero Mock Stores & Live KPIs — ✅ PASS
 
-| # | Check | Status |
+| # | Check | Result |
 |---|-------|--------|
-| 0.1 | `NEXT_PUBLIC_API_URL=https://price-truth-radar-api.onrender.com` set on Vercel; **no** amber "mock data" banner on any page | ✅ |
-| 0.2 | `GET /api/v1/stats/overview` returns 200 with `total_tracked: 100`, `avg_fake_inflation_pct: 22.7` | ✅ |
-| 0.3 | Neon raw + dbt gold rebuilt on the fixed seed (feed `product_url`s use `btech.com/en/s?q=`, `sigma-computer.com/en/search?controller=search&s=` templates) | ✅ |
-| 0.4 | Deployed backend matches `main` commit `79c31fe` (exact-URL + `(host, ref)` matching) | ✅ |
+| 1.1 | `GET /api/v1/stats/overview` → `total_tracked: 300` | ✅ |
+| 1.2 | Full feed sweep (6 pages × 50) → exactly 300 items: **sigma 100, 2b 100, btech 100** | ✅ |
+| 1.3 | **Zero fictional stores** — `cairo_street`, `nile_threads`, `urban_eg` absent everywhere (feed, dropdown, detail, compare) | ✅ |
+| 1.4 | Store dropdown on `/` = exactly `All stores / 2b / btech / sigma` | ✅ |
+| 1.5 | KPI bar: 300 tracked · 137 Fake Discounts · 0 Genuine · 0 ATL · 0 Hikes · 27.1% Avg Fake Inflation | ✅ (0s are correct Day-1 semantics: no 60-day median history yet → real discount 0%, so any claimed ≥10% classifies FAKE_DISCOUNT) |
+| 1.6 | Product images load from **real store CDNs**: `media.btech.com`, `api.sigma-computer.com`, `2b.com.eg` — 12/12 rendered, **0 broken**, **0 failed (≥400) network requests** | ✅ |
+| 1.7 | Live product URLs in feed: `btech.com/en/p/<slug>?offering_id=…`, `2b.com.eg/en/<slug>.html`, `sigma-computer.com/en/item?id=…` | ✅ |
 
-## 1. API smoke
+## 2. Live URL Search — ✅ PASS (API 8/8 + UI)
 
-| # | Request | Expected | Status |
-|---|---------|----------|--------|
-| 1.1 | `GET /api/v1/stats/overview` | 200, all 5 verdict counts present | ✅ |
-| 1.2 | `GET /api/v1/radar/feed?limit=50&page=1&sort=price_asc` (+ page 2) | 200; all 7 stores represented across the sweep | ✅ |
-| 1.3 | Same `product_sk` from feed → `GET /api/v1/products/{sk}` | Product fields identical to feed item; `history` has 60 daily rows | ✅ |
-| 1.4 | `GET /api/v1/products/search?q=samsung&limit=6` | `match_type: "text_search"` | ✅ |
-| 1.5 | `search?url=<exact stored product_url>` for btech / sigma / cairo_street | **exactly 1 item — the correct product**, `url_exact` | ✅ |
-| 1.6 | Same URL + `&utm_source=qa&fbclid=xyz123` | correct product via deterministic `(host, ref)` match, `url_exact` | ✅ |
-| 1.7 | Same URL with `http://` + `www.` scheme/host variants | still `url_exact` (normalization) | ✅ |
-| 1.8 | `search?url=<search-page URL without query>` (e.g. `https://btech.com/en/s`) | `url_not_found`, total 0 — no loose path-only fallback | ✅ |
-| 1.9 | `GET /api/v1/compare?limit=10` | Electronics-only canonical groups, `stores_count ≥ 2`, spread math consistent | ✅ |
-| 1.10 | `GET /api/v1/compare?category=fashion` | Empty result (fashion has no canonical keys) — UI shows empty state | ✅ (API) / ☐ (UI state) |
+Backend matcher (`products.py`) now strips tracking params (`utm_*`, `fbclid`, `gclid`, …) and builds per-store deterministic keys (`sigma /en/item?id=`, `btech /en/p/<slug>` + `offering_id`, generic `ref`).
 
-## 2. Home `/`
+| # | Case | Result |
+|---|------|--------|
+| 2.1 | Clean live URL → `url_exact`, exactly 1 item, correct `product_sk` — verified for **sigma**, **2b**, **btech** | ✅ 3/3 |
+| 2.2 | Same URL + `&utm_source=qa&fbclid=123` → `url_exact`, correct product — verified for all 3 stores | ✅ 3/3 |
+| 2.3 | Unknown URL (`jumia.com.eg/catalog/?q=nonexistent…`) → `url_not_found`, total 0 | ✅ |
+| 2.4 | Query-less/stripped URL → `url_not_found` (no loose fallback) | ✅ |
+| 2.5 | UI: paste 2b URL with `?utm_source=qa&fbclid=123` → **single** correct "DIRECT LINK MATCH" (Tecno Spark Go 3, 2b, EGP 6,999) | ✅ |
+| 2.6 | UI: unknown URL → "No matching products found." | ✅ |
 
-| # | Check | Status |
+## 3. Day-1 Product Detail & Chart — ✅ PASS
+
+Verified on live products: 2b Tecno Spark Go 3 (`e5fe0433…`), sigma MEETION M360 (`a908cbbe…`), btech Sony MDR-ZX110AP (`9577a272…`).
+
+| # | Check | Result |
 |---|-------|--------|
-| 2.1 | Hero, KPI bar (6 tiles), filters, 12-card feed, pagination render; zero console errors / zero failed network requests | ✅ |
-| 2.2 | Every card image loads (Unsplash); graceful fallback path exists (`ProductImage` component) | ✅ |
-| 2.3 | Verdict badges color-coded correctly | ✅ |
-| 2.4 | Category buttons filter the feed (Electronics clicked during test) and reset to page 1 | ✅ |
-| 2.5 | **Store dropdown lists all 7 stores** — `2b, btech, cairo_street, dubai_phone, nile_threads, sigma, urban_eg` (P2-1 fixed via all-page sweep) | ✅ |
-| 2.6 | Pagination: ellipsis window, page count matches `total_pages` (9 pages × 12/page = 100) | ✅ |
-| 2.7 | Out-of-stock card shows greyed image + "Out of stock"; low-stock shows flame chip | ✅ |
+| 3.1 | **Day-1 chart renders visible dots** (cyan current + violet median at EGP 6,999; amber claimed at 10,349) plotted at "21 Nov"; tooltip shows all three values | ✅ |
+| 3.2 | **Day-1 tracking notice** chip: "Tracking started on 21 Nov — trend lines will build as daily snapshots accumulate." (desktop + mobile) | ✅ |
+| 3.3 | **Specs clean — no raw internal UUIDs** anywhere (page text scanned for UUID regex: none). Values are store data: `Sku: M360` / `Sku: 59FA752552DA2C9D2A25`, `Fulfillment: Delivery, Pickup`, `Is best seller: Yes` | ✅ |
+| 3.4 | **"Open at store"** links to the exact live store URL, `target="_blank"` + `rel="noopener noreferrer"` (2b → `2b.com.eg/en/tecno-spark-go-3….html`, sigma → `sigma-computer.com/en/item?id=…`, btech → `btech.com/en/p/…?offering_id=…`) | ✅ |
+| 3.5 | Price tiles: current 6,999 = median 6,999 = ATL = ATH (Day-1 correct); claimed 10,349; claimed +32.4% vs real 0.0%; inflation callout 32.4% | ✅ |
+| 3.6 | Alternatives panel: correct "No matched alternatives in other stores yet." for non-canonical products | ✅ |
 
-## 3. Search / direct-link checker (home hero)
+## 4. Live Cross-Store Compare — ✅ PASS
 
-| # | Check | Status |
+| # | Check | Result |
 |---|-------|--------|
-| 3.1 | Paste exact stored URL (btech Anker Q45) with extra tracking params → **single** correct "DIRECT LINK MATCH" result in UI | ✅ |
-| 3.2 | Paste query-less URL (`https://btech.com/en/s`) → "No matching products found." — no misleading matches | ✅ |
-| 3.3 | Paste untracked URL (`https://example.com/x`) → "No results" state, no mock-data leak | ☐ |
-| 3.4 | Text query `"Galaxy S24"` → text-match dropdown, click navigates to detail page | ☐ |
-| 3.5 | Esc/click-outside closes dropdown; clear (×) resets state | ☐ |
+| 4.1 | Exactly **6 live cross-store matches** rendered ("6 products") | ✅ |
+| 4.2 | **Spread math verified for all 6** from API `listings_json`: `highest − lowest = price_spread_egp` and `pct = spread/lowest·100` — 6/6 exact (e.g. Galaxy A27: 19,610 btech → 22,449 2b, spread 2,839 = 14.5%; UI DOM text matches API digit-for-digit) | ✅ |
+| 4.3 | **Deduplicated store listings** — no store appears twice within a match (6/6); one row per store, cheapest crowned, per-listing verdict + stock state correct | ✅ |
+| 4.4 | Match discovery is sane: btech↔2b Samsung Galaxy A17/A27/A57 + Oppo Reno 16F ×2, sigma↔2b Lenovo IdeaPad — plausible same-SKU pairs across stores | ✅ |
 
-## 4. Product detail `/products/[product_sk]`
+## 5. RTL/AR, Mobile & Console Audit — ✅ PASS
 
-Verified with `1f2c4cfab383c496371ca1a8cc2ab435` (FAKE_DISCOUNT, btech Anker Q45).
-
-| # | Check | Status |
+| # | Check | Result |
 |---|-------|--------|
-| 4.1 | Image, store badge, verdict badge, "Matched across stores" chip render | ✅ |
-| 4.2 | 7 price tiles populated (current 6,850 / median 6,800 / ATL 6,600 / ATH 6,850 / claimed 9,100 / +24.7% / −0.7%) | ✅ |
-| 4.3 | Chart: 3 lines (price cyan / claimed dashed amber / median dotted violet), 60 daily points, axes render | ✅ |
-| 4.4 | Verdict explainer matches the badge verdict; inflation callout shows 24.7% | ✅ |
-| 4.5 | Specs panel (electronics): ANC/Warranty/Battery rows | ✅ |
-| 4.6 | Cross-store alternatives: dubai_phone cheapest (EGP 6,250) crowned, "View listing" + external-link buttons | ✅ |
-| 4.7 | **"Open at store"** lands on a live page — btech `/en/s?q=…` → 200 with real results | ✅ |
-| 4.8 | Unknown SK (`/products/abc123`) → friendly not-found card | ☐ |
+| 5.1 | AR toggle flips `dir="rtl" lang="ar"` (verified in DOM); layouts mirror on home/detail/compare; Arabic font + Latin-digit prices; no missing-translation keys observed | ✅ |
+| 5.2 | Mobile 390×844: **0 px horizontal overflow** on home EN, compare AR, product detail | ✅ |
+| 5.3 | Mobile detail: price tiles stack, Day-1 notice + dot visible, chart fits | ✅ |
+| 5.4 | **Console/network audit: 0 console errors, 0 failed (≥400) resources** across home EN desktop (incl. filter interaction), 3 product details, compare EN+AR, mobile AR compare, mobile EN home, mobile detail | ✅ |
 
-## 5. Compare `/compare`
+## 6. Known cosmetic notes (P3, non-blocking)
 
-| # | Check | Status |
-|---|-------|--------|
-| 5.1 | 18 match cards: lowest/highest/gap tiles, stores count, "Save EGP …" chip | ✅ |
-| 5.2 | Expand "Store listings": cheapest crowned, verdict badges, stock state, working "View product" + external links (sigma/dubai_phone/btech rows verified) | ✅ |
-| 5.3 | Category + min-spread filters render and apply | ☐ (render verified; filter clicks ☐) |
+1. **Spec-panel labels leak prettified internal attribute keys**: "Two b category" (2b), "Btech category" (btech), "Sigma category" (sigma). Values are clean store data; consider renaming to a neutral "Store category" or filtering in `AttributesPanel`.
+2. **Day-1 KPI semantics**: Genuine/ATL/Presale = 0 by design until the second daily snapshot builds 60-day history — communicate so nobody files it as a bug.
+3. Search dropdown glass background remains slightly translucent over bright content (pre-existing).
+4. Render free-tier cold starts cause occasional connection resets between idle requests — environmental; the 8 s timeout + mock fallback absorbs it.
 
-## 6. EN / AR switching
+## 7. Historical sign-offs
 
-| # | Check | Status |
-|---|-------|--------|
-| 6.1 | Toggle flips `<html lang="ar" dir="rtl">` live; verified values `dir:"rtl" lang:"ar"` in DOM | ✅ |
-| 6.2 | Arabic font applied; digits stay Latin (`ar-EG-u-nu-latn`); no missing-translation keys observed on any page | ✅ |
-| 6.3 | Layout mirrors on home, detail, and compare (badges/chips/pagination flip sides) | ✅ |
-| 6.4 | Choice persists across reloads and routes | ✅ |
-| 6.5 | Known/accepted: price chart remains LTR in AR mode (standard for financial charts) | ✅ |
+| Date | Commit | Scope | Result |
+|------|--------|-------|--------|
+| 2026-11-21 (run 3) | `683555e` + `f68c8a1` | **Live scraped data (sigma/2b/btech, 300 products)** — full battery above | ✅ PASS |
+| 2026-11-21 (run 2) | `79c31fe` | Mock-store smoke after URL/store-filter fixes | ✅ PASS (all 4 findings resolved) |
+| 2026-11-21 (run 1) | `79c31fe` review | Initial QA — found P1-1/P1-2/P1-3/P2-1 (all subsequently fixed) | ⚠️ → fixed |
 
-## 7. Narrow / mobile viewports (390×844)
-
-| # | Check | Status |
-|---|-------|--------|
-| 7.1 | **0 px horizontal overflow** verified on home EN, compare AR/EN | ✅ |
-| 7.2 | Header collapses to icons + language toggle | ✅ |
-| 7.3 | Feed grid single-column; images and chips fit | ✅ |
-| 7.4 | Compare filters stack vertically; match cards stack | ✅ |
-| 7.5 | Detail page: price tiles 2-col, chart fits, alternatives table scrolls horizontally | ✅ |
-| 7.6 | Tap targets ≥ 40 px | ☐ |
-
-## 8. External store URL spot checks (seed templates, all 7 verified)
-
-| Store | Live template | curl (bot UA) | Real browser |
-|-------|--------------|---------------|--------------|
-| btech | `https://btech.com/en/s?q={query}&ref={slug}` | **200** (search results render) | ✅ |
-| sigma | `https://www.sigma-computer.com/en/search?controller=search&s={query}&ref={slug}` | **200** | ✅ |
-| 2b | `https://2b.com.eg/en/catalogsearch/result/?q={query}&ref={slug}` | **200** | ✅ |
-| nile_threads | `https://www.amazon.eg/s?k={query}&ref={slug}` | 503 bot-block | ✅ renders search page (0 results for fictional product — expected, no error page) |
-| cairo_street | `https://www.jumia.com.eg/catalog/?q={query}&ref={slug}` | 403 bot-block | ✅ renders search page with query (newsletter popup is Jumia-standard) |
-| urban_eg | `https://www.noon.com/egypt-en/search/?q={query}&ref={slug}` | TLS bot-block (curl 000) | ✅ renders search page ("We couldn't find what you were looking for" — expected, no 404) |
-| dubai_phone | `https://dubaiphone.net/?s={query}&post_type=product&ref={slug}` | 429 rate-limit | ✅ renders (slow site; redirects to www host) |
-
-> Note: `cairo_street`/`nile_threads`/`urban_eg` map fictional stores to Jumia/Amazon.eg/Noon search pages; 0-result searches are the designed behavior for mock data on real marketplaces. Store badge and linked site brand intentionally differ.
-
-## 9. Console / network error audit
-
-| Phase | console errors | failed resources (≥400) |
-|-------|----------------|--------------------------|
-| Home desktop EN (incl. filter interaction, store sweep) | 0 | 0 |
-| Detail page (btech Anker Q45, chart + alternatives) | 0 | 0 |
-| Compare desktop EN (listings expanded) | 0 | 0 |
-| Compare AR RTL + mobile 390×844 | 0 | 0 |
-| Home mobile 390×844 EN | 0 | 0 |
-
-## 10. Findings disposition (2026-11-21 re-run)
-
-| ID | Finding (previous run) | Disposition |
-|----|------------------------|-------------|
-| P1-1 | Deployed API ran old `products.py`; URL checker returned wrong products for new-format URLs | **RESOLVED** — commit `79c31fe` deployed; exact normalized match verified live (API + UI) |
-| P1-2 | Stripped-URL fallback returned arbitrary same-store products | **RESOLVED** — replaced by deterministic `(host, ref)` match; query-less URLs now `url_not_found` (API) / "No matching products found." (UI) |
-| P1-3 | Seed templates for btech (`/en/catalogsearch/result/`) and sigma (`/search?search=`) 404 | **RESOLVED** — templates now `btech.com/en/s?q=` and `sigma-computer.com/en/search?controller=search&s=`; DB re-seeded + gold rebuilt; both 200 |
-| P2-1 | Store dropdown missing `sigma` | **RESOLVED** — store options now sweep all feed pages; all 7 stores listed |
-| P3-2 | Mock search normalization diverged from backend | **RESOLVED** — mock now uses shared `parseUrlParts` (host + ref) semantics |
-| P3-1 | Search dropdown glass background too transparent over bright content | **OPEN (cosmetic)** — `SearchBar.tsx:140` still uses `glass`; readable but content behind shows through |
-| — | Render free-tier cold starts cause intermittent connection resets between idle requests | Environmental; the frontend's 8 s timeout + mock fallback handles it; not an app bug |
-
-**Verdict: production is clean. No blockers remaining before scraper work.**
+**Verdict: production is clean on 100% live data. No blockers for continued scraper/pipeline work.**

@@ -37,8 +37,8 @@ Primary serving table for search, radar feed, and product headers.
 | `product_sk` | `VARCHAR` | Primary Key (MD5 surrogate key of `store_name` + `external_id`) |
 | `canonical_product_key` | `VARCHAR` | Nullable. Normalized match key across stores (e.g., `samsung_s24_ultra_256gb_12gb`) |
 | `store_name` | `VARCHAR` | Not Null. Lowercase slug (e.g., `btech`, `sigma`, `local_brand_x`) |
-| `category` | `VARCHAR` | Enum: `'electronics'`, `'fashion'` |
-| `sub_category` | `VARCHAR` | e.g., `'smartphones'`, `'laptops'`, `'monitors'`, `'hoodies'`, `'sneakers'` |
+| `category` | `VARCHAR` | Enum: `'electronics'`, `'fashion'`, `'home_appliances'` |
+| `sub_category` | `VARCHAR` | e.g., `'smartphones'`, `'laptops'`, `'monitors'`, `'tvs'`, `'air_conditioners'`, `'refrigerators'`, `'hoodies'`, `'sneakers'` |
 | `brand` | `VARCHAR` | Normalized brand name |
 | `product_title` | `TEXT` | Cleaned display title |
 | `product_url` | `TEXT` | Direct store URL |
@@ -76,7 +76,7 @@ Cross-store arbitrage comparison for matched electronics products (`stores_count
 | :--- | :--- | :--- |
 | `canonical_product_key` | `VARCHAR` | Primary Key |
 | `product_title_clean` | `TEXT` | Clean unified title |
-| `category` | `VARCHAR` | `'electronics'` or `'fashion'` |
+| `category` | `VARCHAR` | `'electronics'`, `'fashion'`, or `'home_appliances'` |
 | `brand` | `VARCHAR` | Normalized brand |
 | `stores_count` | `INTEGER` | Number of stores carrying this item |
 | `lowest_price` | `NUMERIC(12,2)` | Lowest current price in EGP |
@@ -128,7 +128,7 @@ Base path: `/api/v1` (except `/health`). CORS must allow frontend origins (`*` i
 ### 5.3 Radar Feed (Paginated & Filterable)
 * `GET /api/v1/radar/feed`
 * Query Params:
-  * `category`: `all` | `electronics` | `fashion` (default `all`)
+  * `category`: `all` | `electronics` | `fashion` | `home_appliances` (default `all`)
   * `verdict`: optional (`ALL_TIME_LOW`, `GENUINE_DEAL`, `FAKE_DISCOUNT`, `PRESALE_HIKE`, `NORMAL_PRICE`)
   * `store`: optional store slug
   * `sort`: `real_discount_pct_desc` | `claimed_vs_real_gap_desc` | `price_asc` | `price_desc` (default `claimed_vs_real_gap_desc`)

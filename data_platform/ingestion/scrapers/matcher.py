@@ -57,6 +57,40 @@ _BRAND_ALIASES: dict[str, str] = {
     "kingston": "kingston",
     "intel": "intel",
     "amd": "amd",
+    "toshiba": "toshiba",
+    "sharp": "sharp",
+    "tornado": "tornado",
+    "fresh": "fresh",
+    "zanussi": "zanussi",
+    "beko": "beko",
+    "bosch": "bosch",
+    "haier": "haier",
+    "midea": "midea",
+    "carrier": "carrier",
+    "unionaire": "unionaire",
+    "kiriazi": "kiriazi",
+    "white whale": "white_whale",
+    "white point": "white_point",
+    "electrolux": "electrolux",
+    "ariston": "ariston",
+    "indesit": "indesit",
+    "hoover": "hoover",
+    "kenwood": "kenwood",
+    "braun": "braun",
+    "philips": "philips",
+    "tefal": "tefal",
+    "moulinex": "moulinex",
+    "black+decker": "black_decker",
+    "black & decker": "black_decker",
+    "de'longhi": "delonghi",
+    "delonghi": "delonghi",
+    "nespresso": "nespresso",
+    "tcl": "tcl",
+    "hisense": "hisense",
+    "ultra": "ultra",
+    "olympic": "olympic",
+    "olympic electric": "olympic",
+    "kieslect": "kieslect",
 }
 
 _PHONE_NOISE_RE = re.compile(
@@ -375,14 +409,55 @@ def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> 
     return normalize_snake_slug("_".join(parts), max_len=160)
 
 
+def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]:
+    """Model-code fingerprint for home appliances (TVs, ACs, fridges, washers, kitchen)."""
+    title = re.sub(r"[\u200b\u200c\u200d®™]", "", record.product_title)
+    cleaned = re.sub(
+        r"\b\d+(?:\.\d+)?\s*(?:hp|btu|kg|kgs|liter|liters|litre|litres|l|w|watt|watts|cm|mm|inch|hz|bar|ml|rpm|v|kw)\b",
+        " ",
+        title,
+        flags=re.I,
+    )
+    cleaned = re.sub(
+        r"\b(?:4k|8k|fhd|uhd|qled|oled|led|hdr10|wifi|wi-fi|smart|inverter|digital|frost|nofrost)\b",
+        " ",
+        cleaned,
+        flags=re.I,
+    )
+    codes = [
+        m.group(1).lower()
+        for m in _GENERIC_MODEL_CODE_RE.finditer(cleaned)
+        if any(c.isalpha() for c in m.group(1))
+        and any(c.isdigit() for c in m.group(1))
+        and len(m.group(1)) >= 5
+    ]
+    if not codes:
+        return None
+
+    # Pick the longest / most specific manufacturer model code (e.g. gr-rt624we, zdf26004xa, ut50sel2)
+    best_code = max(codes, key=len)
+    code_slug = normalize_snake_slug(best_code, max_len=40)
+    if not code_slug:
+        return None
+
+    parts = [brand, record.sub_category, code_slug]
+    if record.sub_category == "tvs":
+        if sm := _SCREEN_INCH_RE.search(title):
+            parts.append(f"{sm.group(1).split('.')[0]}in")
+    return normalize_snake_slug("_".join(parts), max_len=160)
+
+
 def compute_candidate_key(record: RawProductSnapshot) -> Optional[str]:
-    """Compute a deterministic candidate canonical key for an electronics record."""
-    if record.category != "electronics":
+    """Compute a deterministic candidate canonical key for electronics & home appliances."""
+    if record.category not in ("electronics", "home_appliances"):
         return None
 
     brand = _canonical_brand(record.brand)
     if not brand or brand == "unknown":
         return None
+
+    if record.category == "home_appliances":
+        return _appliance_fingerprint(record, brand)
 
     sub = record.sub_category.lower()
     if sub in ("smartphones", "tablets"):

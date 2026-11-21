@@ -28,7 +28,7 @@ import { VerdictBadge } from "@/components/VerdictBadge";
 import { CompareCardSkeletons, ErrorState } from "@/components/states";
 
 const PAGE_LIMIT = 10;
-const CATEGORIES: ("all" | Category)[] = ["all", "electronics", "fashion"];
+const CATEGORIES: ("all" | Category)[] = ["all", "electronics", "home_appliances", "fashion"];
 const SPREAD_OPTIONS = [0, 5, 10, 20];
 
 function MatchCard({ match }: { match: CrossStoreMatch }) {
@@ -49,7 +49,9 @@ function MatchCard({ match }: { match: CrossStoreMatch }) {
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
               {match.category === "electronics"
                 ? t("filters.catElectronics")
-                : t("filters.catFashion")}
+                : match.category === "home_appliances"
+                  ? t("filters.catHomeAppliances")
+                  : t("filters.catFashion")}
             </span>
             <span className="num rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1 font-semibold text-cyan-200">
               {t("compare.storesCount", { count: formatNumber(match.stores_count, lang) })}
@@ -253,7 +255,7 @@ export default function ComparePage() {
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               {t("filters.category")}
             </p>
-            <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
+            <div className="inline-flex flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat}
@@ -272,7 +274,9 @@ export default function ComparePage() {
                     ? t("filters.catAll")
                     : cat === "electronics"
                       ? t("filters.catElectronics")
-                      : t("filters.catFashion")}
+                      : cat === "home_appliances"
+                        ? t("filters.catHomeAppliances")
+                        : t("filters.catFashion")}
                 </button>
               ))}
             </div>

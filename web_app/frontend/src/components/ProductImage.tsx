@@ -4,14 +4,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Fan,
   Footprints,
   Gamepad2,
   Headphones,
+  Home,
   Laptop,
+  Microwave,
   Monitor,
   PackageOpen,
+  Refrigerator,
   Shirt,
   Smartphone,
+  Tv,
+  Wind,
   type LucideIcon,
 } from "lucide-react";
 import type { Category } from "@/types/contract";
@@ -22,12 +28,30 @@ const SUBCATEGORY_ICON: Record<string, LucideIcon> = {
   monitors: Monitor,
   headphones: Headphones,
   gaming_consoles: Gamepad2,
+  gaming: Gamepad2,
+  tvs: Tv,
+  air_conditioners: Wind,
+  fans: Fan,
+  refrigerators: Refrigerator,
+  freezers: Refrigerator,
+  microwaves: Microwave,
+  ovens: Microwave,
+  cookers: Microwave,
+  kitchen_appliances: Microwave,
+  large_appliances: Home,
+  small_appliances: Home,
+  washing_machines: Home,
+  dishwashers: Home,
+  vacuums: Home,
+  water_heaters: Home,
   hoodies: Shirt,
   tees: Shirt,
   t_shirts: Shirt,
   knitwear: Shirt,
   jeans: Shirt,
   sneakers: Footprints,
+  shoes: Footprints,
+  footwear: Footprints,
 };
 
 function isUsableImageUrl(url: string | null | undefined): url is string {
@@ -88,7 +112,11 @@ export function ProductImage({
 
   const FallbackIcon =
     (subCategory ? SUBCATEGORY_ICON[subCategory.toLowerCase()] : undefined) ??
-    (category === "electronics" ? Laptop : Shirt) ??
+    (category === "electronics"
+      ? Laptop
+      : category === "home_appliances"
+        ? Home
+        : Shirt) ??
     PackageOpen;
 
   const fitClass = fit === "contain" ? "object-contain p-3" : "object-cover";

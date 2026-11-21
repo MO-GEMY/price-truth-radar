@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -25,6 +26,7 @@ from bs4 import BeautifulSoup
 
 from .base import (
     BaseScraper,
+    Category,
     RawProductSnapshot,
     parse_egp_price,
     utc_now_naive,
@@ -32,16 +34,35 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-# Ordered electronics categories on 2B Egypt (verified live URLs)
-TWO_B_CATEGORIES: list[tuple[str, str]] = [
-    ("smartphones", "https://2b.com.eg/en/mobile-and-tablet/mobiles.html"),
-    ("laptops", "https://2b.com.eg/en/computers/laptops.html"),
-    ("tablets", "https://2b.com.eg/en/mobile-and-tablet/mobile-tablet.html"),
-    ("headphones", "https://2b.com.eg/en/audio/headphones.html"),
-    ("monitors", "https://2b.com.eg/en/computers/monitor-projector.html"),
-    ("tvs", "https://2b.com.eg/en/televisions/tvs.html"),
-    ("wearables", "https://2b.com.eg/en/mobile-and-tablet/wearables.html"),
-    ("gaming", "https://2b.com.eg/en/gaming.html"),
+# Interleaved electronics + home_appliances categories on 2B Egypt (verified live URLs)
+TWO_B_CATEGORIES: list[tuple[str, Category, str]] = [
+    ("smartphones", "electronics", "https://2b.com.eg/en/mobile-and-tablet/mobiles.html"),
+    ("tvs", "home_appliances", "https://2b.com.eg/en/televisions/tvs.html"),
+    ("laptops", "electronics", "https://2b.com.eg/en/computers/laptops.html"),
+    ("air_conditioners", "home_appliances", "https://2b.com.eg/en/home-appliances/air-conditioners.html"),
+    ("large_appliances", "home_appliances", "https://2b.com.eg/en/home-appliances/large-home-appliances.html"),
+    ("headphones", "electronics", "https://2b.com.eg/en/audio/headphones.html"),
+    ("kitchen_appliances", "home_appliances", "https://2b.com.eg/en/home-appliances/kitchen-appliances.html"),
+    ("monitors", "electronics", "https://2b.com.eg/en/computers/monitor-projector.html"),
+    ("small_appliances", "home_appliances", "https://2b.com.eg/en/home-appliances/small-home-appliances.html"),
+    ("tablets", "electronics", "https://2b.com.eg/en/mobile-and-tablet/mobile-tablet.html"),
+    ("wearables", "electronics", "https://2b.com.eg/en/mobile-and-tablet/wearables.html"),
+    ("gaming", "electronics", "https://2b.com.eg/en/gaming.html"),
+]
+
+_APPLIANCE_SUBCAT_REFINERS: list[tuple[tuple[str, ...], str]] = [
+    (("refrigerator", "fridge"), "refrigerators"),
+    (("freezer",), "freezers"),
+    (("washing machine", "washer", "dryer"), "washing_machines"),
+    (("dishwasher",), "dishwashers"),
+    (("air conditioner", "split ac", "1.5 hp", "2.25 hp", "3 hp"), "air_conditioners"),
+    (("microwave",), "microwaves"),
+    (("cooker", "gas stove", "hob"), "cookers"),
+    (("oven",), "ovens"),
+    (("vacuum",), "vacuums"),
+    (("water heater",), "water_heaters"),
+    (("fan", "air cooler"), "fans"),
+    (("air fryer", "blender", "mixer", "kettle", "coffee", "espresso", "toaster", "juicer", "food processor"), "kitchen_appliances"),
 ]
 
 _BRAND_ACRONYMS: dict[str, str] = {
@@ -190,12 +211,22 @@ def _extract_dom_tiles(soup: BeautifulSoup, base_url: str) -> tuple[dict[str, di
     return by_url, ordered
 
 
+def _refine_sub_category(default_subcat: str, category: Category, title: str) -> str:
+    if category == "home_appliances" and default_subcat in ("large_appliances", "small_appliances", "kitchen_appliances"):
+        low = title.lower()
+        for keywords, mapped in _APPLIANCE_SUBCAT_REFINERS:
+            if any(kw in low for kw in keywords):
+                return mapped
+    return default_subcat
+
+
 class TwoBScraper(BaseScraper):
-    """Live catalog scraper for 2B Egypt."""
+    """Live catalog scraper for 2B Egypt (electronics & home appliances)."""
 
     store_name = "2b"
-    category = "electronics"
+    category: Category = "electronics"
     base_url = "https://2b.com.eg"
+    default_limit = 400
     min_delay_seconds = 2.5
     request_timeout = 45.0
     page_limit = 48
@@ -204,6 +235,7 @@ class TwoBScraper(BaseScraper):
         self,
         ld_item: dict[str, Any],
         tile: Optional[dict[str, Any]],
+        category: Category,
         sub_category: str,
         snapshot_date: Any,
         scraped_at: datetime,
@@ -259,7 +291,8 @@ class TwoBScraper(BaseScraper):
             slug_stem = urlparse(product_url).path.rstrip("/").rsplit("/", 1)[-1].removesuffix(".html")
             external_id = slug_stem[:120]
 
-        attrs = _extract_specs(title, sub_category)
+        refined_subcat = _refine_sub_category(sub_category, category, title)
+        attrs = _extract_specs(title, refined_subcat)
         if dom_pid:
             attrs["magento_product_id"] = str(dom_pid)
 
@@ -268,8 +301,8 @@ class TwoBScraper(BaseScraper):
                 "store_name": self.store_name,
                 "external_id": external_id,
                 "canonical_product_key": None,
-                "category": self.category,
-                "sub_category": sub_category,
+                "category": category,
+                "sub_category": refined_subcat,
                 "brand": brand,
                 "product_title": title,
                 "product_url": product_url,
@@ -283,38 +316,43 @@ class TwoBScraper(BaseScraper):
             }
         )
 
-    def scrape(self, limit: int = 30) -> list[RawProductSnapshot]:
-        if limit <= 0:
+    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
+        target_limit = self.default_limit if limit is None else limit
+        if target_limit <= 0:
             return []
 
         snapshot_date = datetime.now(timezone.utc).date()
         scraped_at = utc_now_naive()
         collected: list[RawProductSnapshot] = []
         seen_ids: set[str] = set()
+        per_cat_cap = max(10, math.ceil(target_limit / min(len(TWO_B_CATEGORIES), 8)))
 
-        per_cat_cap = max(24, (limit + 1) // 2)
-
-        for sub_category, category_url in TWO_B_CATEGORIES:
-            if len(collected) >= limit:
+        for sub_category, cat_name, category_url in TWO_B_CATEGORIES:
+            if len(collected) >= target_limit:
                 break
 
             cat_collected = 0
             page = 1
-            while len(collected) < limit and cat_collected < per_cat_cap:
+            while len(collected) < target_limit and cat_collected < per_cat_cap:
                 logger.info(
-                    "[2b] Fetching %s page %d (%s?p=%d&product_list_limit=%d)",
+                    "[2b] Fetching %s/%s page %d (%s?p=%d&product_list_limit=%d)",
+                    cat_name,
                     sub_category,
                     page,
                     category_url,
                     page,
                     self.page_limit,
                 )
-                resp = self.http.get(
-                    category_url,
-                    params={"p": page, "product_list_limit": self.page_limit},
-                    min_delay_seconds=self.min_delay_seconds,
-                    timeout=self.request_timeout,
-                )
+                try:
+                    resp = self.http.get(
+                        category_url,
+                        params={"p": page, "product_list_limit": self.page_limit},
+                        min_delay_seconds=self.min_delay_seconds,
+                        timeout=self.request_timeout,
+                    )
+                except Exception as exc:
+                    logger.warning("[2b] Error fetching %s page %d: %s; moving on.", category_url, page, exc)
+                    break
                 self.pages_fetched += 1
 
                 soup = BeautifulSoup(resp.text, "html.parser")
@@ -339,6 +377,7 @@ class TwoBScraper(BaseScraper):
                     record = self._build_record(
                         ld_item=ld_item,
                         tile=tile,
+                        category=cat_name,
                         sub_category=sub_category,
                         snapshot_date=snapshot_date,
                         scraped_at=scraped_at,
@@ -350,7 +389,7 @@ class TwoBScraper(BaseScraper):
                     collected.append(record)
                     cat_collected += 1
                     added_this_page += 1
-                    if len(collected) >= limit or cat_collected >= per_cat_cap:
+                    if len(collected) >= target_limit or cat_collected >= per_cat_cap:
                         break
 
                 has_next = soup.find("link", rel="next") is not None

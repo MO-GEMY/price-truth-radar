@@ -242,7 +242,9 @@ export default function ProductDetailPage() {
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
                   {product.category === "electronics"
                     ? t("filters.catElectronics")
-                    : t("filters.catFashion")}
+                    : product.category === "home_appliances"
+                      ? t("filters.catHomeAppliances")
+                      : t("filters.catFashion")}
                   · {product.sub_category.replace(/_/g, " ")}
                 </span>
                 {product.canonical_product_key ? (

@@ -7,6 +7,8 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, field_serializer
 
+Category = Literal["electronics", "fashion", "home_appliances"]
+
 DiscountVerdict = Literal[
     "ALL_TIME_LOW",
     "GENUINE_DEAL",
@@ -49,7 +51,7 @@ class ProductVerdictItem(BaseModel):
     product_sk: str
     canonical_product_key: Optional[str] = None
     store_name: str
-    category: Literal["electronics", "fashion"]
+    category: Category
     sub_category: str
     brand: str
     product_title: str
@@ -114,7 +116,7 @@ class ProductDetailResponse(BaseModel):
 class CrossStoreMatchItem(BaseModel):
     canonical_product_key: str
     product_title_clean: str
-    category: Literal["electronics", "fashion"]
+    category: Category
     brand: str
     stores_count: int
     lowest_price: float

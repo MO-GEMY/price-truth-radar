@@ -9,7 +9,14 @@ import type {
 import { useLanguage } from "@/lib/i18n";
 import type { TranslationKey } from "@/lib/translations";
 
-const CATEGORIES: FeedCategoryFilter[] = ["all", "electronics", "fashion"];
+const CATEGORIES: FeedCategoryFilter[] = ["all", "electronics", "home_appliances", "fashion"];
+
+const CATEGORY_LABEL_KEY: Record<FeedCategoryFilter, TranslationKey> = {
+  all: "filters.catAll",
+  electronics: "filters.catElectronics",
+  home_appliances: "filters.catHomeAppliances",
+  fashion: "filters.catFashion",
+};
 const VERDICTS: DiscountVerdict[] = [
   "FAKE_DISCOUNT",
   "ALL_TIME_LOW",
@@ -55,7 +62,7 @@ export function FeedFilters({
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           {t("filters.category")}
         </p>
-        <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
+        <div className="inline-flex flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
@@ -67,7 +74,7 @@ export function FeedFilters({
                   : "text-slate-400 hover:text-white"
               }`}
             >
-              {t(`filters.cat${cat === "all" ? "All" : cat === "electronics" ? "Electronics" : "Fashion"}` as TranslationKey)}
+              {t(CATEGORY_LABEL_KEY[cat])}
             </button>
           ))}
         </div>

@@ -100,13 +100,16 @@ def utc_now_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
+Category = Literal["electronics", "fashion", "home_appliances"]
+
+
 class RawProductSnapshot(BaseModel):
     """Strict schema matching `raw.raw_product_snapshots` and `CONTRACTS.md`."""
 
     store_name: str = Field(..., min_length=1, max_length=100)
     external_id: str = Field(..., min_length=1, max_length=120)
     canonical_product_key: Optional[str] = Field(default=None, max_length=160)
-    category: Literal["electronics", "fashion"]
+    category: Category
     sub_category: str = Field(..., min_length=1, max_length=80)
     brand: str = Field(..., min_length=1, max_length=100)
     product_title: str = Field(..., min_length=1)
@@ -331,8 +334,9 @@ class BaseScraper(ABC):
     """Abstract base class for all Egyptian e-commerce store scrapers."""
 
     store_name: str
-    category: Literal["electronics", "fashion"]
+    category: Category
     base_url: str
+    default_limit: int = 300
     min_delay_seconds: float = 1.0
     request_timeout: Optional[float] = None
 
@@ -442,3 +446,108 @@ def upsert_snapshots_to_neon(snapshots: list[RawProductSnapshot]) -> int:
         conn.close()
 
     return len(rows)
+
+
+def fetch_latest_snapshots_from_neon(
+    target_date: Optional[date] = None,
+) -> tuple[Optional[date], list[RawProductSnapshot]]:
+    """Load all rows from `raw.raw_product_snapshots` for `target_date` (or latest date)."""
+    db_url = os.getenv("DATABASE_URL_ADMIN")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
+
+    conn = psycopg2.connect(db_url)
+    try:
+        with conn.cursor() as cur:
+            if target_date is None:
+                cur.execute("SELECT MAX(snapshot_date) FROM raw.raw_product_snapshots;")
+                row = cur.fetchone()
+                if not row or row[0] is None:
+                    return None, []
+                target_date = row[0]
+
+            cur.execute(
+                """
+                SELECT
+                    store_name,
+                    external_id,
+                    canonical_product_key,
+                    category,
+                    sub_category,
+                    brand,
+                    product_title,
+                    product_url,
+                    image_url,
+                    attributes_json,
+                    current_price,
+                    claimed_original_price,
+                    in_stock,
+                    snapshot_date,
+                    scraped_at
+                FROM raw.raw_product_snapshots
+                WHERE snapshot_date = %s
+                ORDER BY store_name, external_id;
+                """,
+                (target_date,),
+            )
+            fetched = cur.fetchall()
+    finally:
+        conn.close()
+
+    snapshots: list[RawProductSnapshot] = []
+    for r in fetched:
+        attrs = r[9] if isinstance(r[9], dict) else (json.loads(r[9]) if r[9] else {})
+        snapshots.append(
+            RawProductSnapshot.model_validate(
+                {
+                    "store_name": r[0],
+                    "external_id": r[1],
+                    "canonical_product_key": r[2],
+                    "category": r[3],
+                    "sub_category": r[4],
+                    "brand": r[5],
+                    "product_title": r[6],
+                    "product_url": r[7],
+                    "image_url": r[8],
+                    "attributes_json": attrs,
+                    "current_price": r[10],
+                    "claimed_original_price": r[11],
+                    "in_stock": r[12],
+                    "snapshot_date": r[13],
+                    "scraped_at": r[14],
+                }
+            )
+        )
+    return target_date, snapshots
+
+
+def update_canonical_keys_in_neon(snapshots: list[RawProductSnapshot]) -> int:
+    """Batch-update `canonical_product_key` for the given snapshots in Neon."""
+    if not snapshots:
+        return 0
+
+    db_url = os.getenv("DATABASE_URL_ADMIN")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
+
+    values = [
+        (s.store_name, s.external_id, s.snapshot_date, s.canonical_product_key)
+        for s in snapshots
+    ]
+    sql = """
+    UPDATE raw.raw_product_snapshots AS t
+    SET canonical_product_key = v.canonical_product_key
+    FROM (VALUES %s) AS v(store_name, external_id, snapshot_date, canonical_product_key)
+    WHERE t.store_name = v.store_name
+      AND t.external_id = v.external_id
+      AND t.snapshot_date = v.snapshot_date;
+    """
+    conn = psycopg2.connect(db_url)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                execute_values(cur, sql, values, page_size=500)
+    finally:
+        conn.close()
+
+    return len(values)

@@ -20,6 +20,7 @@ from typing import Any, Optional
 
 from .base import (
     BaseScraper,
+    Category,
     RawProductSnapshot,
     normalize_snake_slug,
     parse_egp_price,
@@ -28,15 +29,32 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-# Diverse live B.TECH electronics category pages (20 SSR items per page)
-BTECH_CATEGORIES: list[tuple[str, str]] = [
-    ("smartphones", "https://btech.com/en/c/mobiles-tablets"),
-    ("laptops", "https://btech.com/en/c/laptop-pc"),
-    ("wearables", "https://btech.com/en/c/wearables"),
-    ("headphones", "https://btech.com/en/c/audio-recording"),
-    ("gaming", "https://btech.com/en/c/gaming-area"),
-    ("tvs", "https://btech.com/en/c/tvs-projectors"),
-    ("electronics", "https://btech.com/en/c/electronics"),
+# Interleaved electronics + home_appliances SSR pages (20 items/page each -> ~400+ live items)
+BTECH_CATEGORIES: list[tuple[str, Category, str]] = [
+    ("smartphones", "electronics", "https://btech.com/en/c/mobiles-tablets/mobile-phones"),
+    ("tvs", "home_appliances", "https://btech.com/en/c/tvs-projectors/televisions"),
+    ("laptops", "electronics", "https://btech.com/en/c/laptop-pc/laptops"),
+    ("air_conditioners", "home_appliances", "https://btech.com/en/c/large-home-appliances/air-conditioners"),
+    ("refrigerators", "home_appliances", "https://btech.com/en/c/large-home-appliances"),
+    ("monitors", "electronics", "https://btech.com/en/c/laptop-pc/monitors"),
+    ("washing_machines", "home_appliances", "https://btech.com/en/c/large-home-appliances/washing-machines-dryers"),
+    ("headphones", "electronics", "https://btech.com/en/c/audio-recording"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/c/small-home-appliances/kettles-coffee-makers"),
+    ("tablets", "electronics", "https://btech.com/en/c/mobiles-tablets/tablets"),
+    ("microwaves", "home_appliances", "https://btech.com/en/c/small-home-appliances/microwaves-ovens"),
+    ("wearables", "electronics", "https://btech.com/en/c/wearables"),
+    ("freezers", "home_appliances", "https://btech.com/en/c/large-home-appliances/deep-freezers"),
+    ("gaming", "electronics", "https://btech.com/en/c/gaming-area"),
+    ("dishwashers", "home_appliances", "https://btech.com/en/c/large-home-appliances/dishwashers"),
+    ("storage", "electronics", "https://btech.com/en/c/laptop-pc/external-storage-flash-drives"),
+    ("cookers", "home_appliances", "https://btech.com/en/c/large-home-appliances/cookers"),
+    ("vacuums", "home_appliances", "https://btech.com/en/c/small-home-appliances/vacuum-cleaners"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/c/small-home-appliances/blenders-mixers"),
+    ("ovens", "home_appliances", "https://btech.com/en/c/large-home-appliances/built-in-ovens"),
+    ("water_heaters", "home_appliances", "https://btech.com/en/c/small-home-appliances/water-heaters"),
+    ("fans", "home_appliances", "https://btech.com/en/c/small-home-appliances/fans"),
+    ("accessories", "electronics", "https://btech.com/en/c/mobiles-tablets/mobile-accessories"),
+    ("accessories", "electronics", "https://btech.com/en/c/laptop-pc/laptop-pc-accessories"),
 ]
 
 _MEDIA_BASE_URL = "https://media.btech.com/catalogs/"
@@ -61,6 +79,18 @@ _BRAND_ACRONYMS: dict[str, str] = {
 }
 
 _SUBCATEGORY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
+    (("refrigerator", "fridge"), "refrigerators"),
+    (("deep freezer", "freezer"), "freezers"),
+    (("washing machine", "washer", "dryer"), "washing_machines"),
+    (("dishwasher",), "dishwashers"),
+    (("air conditioner", "split ac", "1.5 hp", "2.25 hp", "3 hp"), "air_conditioners"),
+    (("microwave",), "microwaves"),
+    (("cooker", "gas stove", "hob"), "cookers"),
+    (("built-in oven", "electric oven", "oven"), "ovens"),
+    (("vacuum",), "vacuums"),
+    (("water heater",), "water_heaters"),
+    (("stand fan", "ceiling fan", "wall fan", "box fan", "air cooler"), "fans"),
+    (("air fryer", "blender", "mixer", "kettle", "coffee", "espresso", "toaster", "juicer", "food processor"), "kitchen_appliances"),
     (("flash drive", "usb flash", "ssd", "hdd", "hard drive", "memory card", "storage"), "storage"),
     (("monitor", "curved gaming monitor"), "monitors"),
     (("headphone", "headset", "earbud", "airpods", "buds", "earphone"), "headphones"),
@@ -222,16 +252,18 @@ def _extract_flight_items(html: str) -> list[dict[str, Any]]:
 
 
 class BTechScraper(BaseScraper):
-    """Live catalog scraper for B.TECH Egypt (page-1 SSR across electronics categories)."""
+    """Live catalog scraper for B.TECH Egypt (page-1 SSR across electronics & home appliances)."""
 
     store_name = "btech"
-    category = "electronics"
+    category: Category = "electronics"
     base_url = "https://btech.com"
+    default_limit = 400
     min_delay_seconds = 2.5
 
     def _build_record(
         self,
         raw_item: dict[str, Any],
+        category: Category,
         default_subcat: str,
         snapshot_date: Any,
         scraped_at: datetime,
@@ -290,7 +322,7 @@ class BTechScraper(BaseScraper):
                 "store_name": self.store_name,
                 "external_id": external_id,
                 "canonical_product_key": None,
-                "category": self.category,
+                "category": category,
                 "sub_category": sub_category,
                 "brand": brand,
                 "product_title": title,
@@ -305,8 +337,9 @@ class BTechScraper(BaseScraper):
             }
         )
 
-    def scrape(self, limit: int = 30) -> list[RawProductSnapshot]:
-        if limit <= 0:
+    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
+        target_limit = self.default_limit if limit is None else limit
+        if target_limit <= 0:
             return []
 
         snapshot_date = datetime.now(timezone.utc).date()
@@ -314,15 +347,20 @@ class BTechScraper(BaseScraper):
         collected: list[RawProductSnapshot] = []
         seen_ids: set[str] = set()
 
-        for default_subcat, category_url in BTECH_CATEGORIES:
-            if len(collected) >= limit:
+        for default_subcat, cat_name, category_url in BTECH_CATEGORIES:
+            if len(collected) >= target_limit:
                 break
 
-            logger.info("[btech] Fetching category page (%s)", category_url)
-            resp = self.http.get(
-                category_url,
-                min_delay_seconds=self.min_delay_seconds,
-            )
+            logger.info("[btech] Fetching %s/%s (%s)", cat_name, default_subcat, category_url)
+            try:
+                resp = self.http.get(
+                    category_url,
+                    min_delay_seconds=self.min_delay_seconds,
+                    timeout=self.request_timeout,
+                )
+            except Exception as exc:
+                logger.warning("[btech] Error fetching %s: %s; skipping category.", category_url, exc)
+                continue
             self.pages_fetched += 1
 
             raw_items = _extract_flight_items(resp.text)
@@ -333,6 +371,7 @@ class BTechScraper(BaseScraper):
             for raw_item in raw_items:
                 record = self._build_record(
                     raw_item=raw_item,
+                    category=cat_name,
                     default_subcat=default_subcat,
                     snapshot_date=snapshot_date,
                     scraped_at=scraped_at,
@@ -342,7 +381,7 @@ class BTechScraper(BaseScraper):
 
                 seen_ids.add(record.external_id)
                 collected.append(record)
-                if len(collected) >= limit:
+                if len(collected) >= target_limit:
                     break
 
         return collected

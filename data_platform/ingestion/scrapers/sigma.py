@@ -212,6 +212,7 @@ class SigmaScraper(BaseScraper):
     category = "electronics"
     base_url = "https://www.sigma-computer.com"
     catalog_path = "/en/search"
+    default_limit = 400
     per_page = 16
 
     def _parse_rsc_item(
@@ -358,8 +359,9 @@ class SigmaScraper(BaseScraper):
 
         return results
 
-    def scrape(self, limit: int = 30) -> list[RawProductSnapshot]:
-        if limit <= 0:
+    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
+        target_limit = self.default_limit if limit is None else limit
+        if target_limit <= 0:
             return []
 
         snapshot_date = datetime.now(timezone.utc).date()
@@ -368,15 +370,20 @@ class SigmaScraper(BaseScraper):
         seen_ids: set[str] = set()
 
         # Estimate pages needed with a small buffer in case any item is skipped
-        max_pages = max(1, math.ceil(limit / self.per_page) + 2)
+        max_pages = max(1, math.ceil(target_limit / self.per_page) + 4)
         catalog_url = f"{self.base_url}{self.catalog_path}"
 
         for page in range(1, max_pages + 1):
-            if len(collected) >= limit:
+            if len(collected) >= target_limit:
                 break
 
             logger.info("[sigma] Fetching catalog page %d (%s?page=%d)", page, catalog_url, page)
-            resp = self.http.get(catalog_url, params={"page": page})
+            resp = self.http.get(
+                catalog_url,
+                params={"page": page},
+                min_delay_seconds=self.min_delay_seconds,
+                timeout=self.request_timeout,
+            )
             self.pages_fetched += 1
 
             raw_items, has_next = _extract_rsc_products(resp.text)
@@ -402,7 +409,7 @@ class SigmaScraper(BaseScraper):
                 seen_ids.add(record.external_id)
                 collected.append(record)
                 added_this_page += 1
-                if len(collected) >= limit:
+                if len(collected) >= target_limit:
                     break
 
             if not has_next or added_this_page == 0:
