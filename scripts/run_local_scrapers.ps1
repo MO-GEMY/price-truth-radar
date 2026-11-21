@@ -14,17 +14,17 @@
 
 .EXAMPLE
     # Dry-run specific stores with a 30-product limit (no Neon writes)
-    .\scripts\run_local_scrapers.ps1 -Stores sigma,noon -Limit 30 -DryRun
+    .\scripts\run_local_scrapers.ps1 -Stores 2b,noon -Limit 30 -DryRun
 
 .EXAMPLE
     # Register a daily 02:30 AM Cairo time Windows Task Scheduler job (run in PowerShell):
     schtasks /Create /TN "PriceTruthRadar-LocalScrapers" /SC DAILY /ST 02:30 /RL LIMITED /F ^
-      /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"D:\price-truth-radar\scripts\run_local_scrapers.ps1\" -Stores sigma -Mode daily"
+      /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"D:\price-truth-radar\scripts\run_local_scrapers.ps1\" -Stores 2b -Mode daily"
 #>
 
 [CmdletBinding()]
 param(
-    [string[]]$Stores = @("sigma"),
+    [string[]]$Stores = @("2b"),
     [ValidateSet("daily", "discover")]
     [string]$Mode = "daily",
     [int]$Limit = 0,

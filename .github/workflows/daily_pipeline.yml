@@ -13,9 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Note: `2b` blocks cloud/datacenter IPs and runs locally via scripts/run_local_scrapers.ps1
         store:
           - sigma
-          - 2b
           - btech
           - town_team
           - dejavu
