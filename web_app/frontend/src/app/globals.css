@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: #05080f;
+  color: #e2e8f0;
+}
+
+/* Arabic (RTL) body copy uses IBM Plex Sans Arabic; Latin digits/branding fall back to Inter. */
+html.lang-ar body {
+  font-family: var(--font-plex-arabic), var(--font-inter), ui-sans-serif, system-ui,
+    sans-serif;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.28);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+/* Frosted surface used across cards/panels */
+.glass {
+  background: linear-gradient(
+    180deg,
+    rgba(148, 163, 184, 0.08),
+    rgba(148, 163, 184, 0.03)
+  );
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+/* Tabular figures for prices/percentages */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Radar rings + glow used in hero sections */
+.radar-scene {
+  position: relative;
+}
+.radar-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(640px 300px at 50% -80px, rgba(34, 211, 238, 0.13), transparent 70%),
+    repeating-radial-gradient(
+      circle at 50% -180px,
+      rgba(34, 211, 238, 0.055) 0 1px,
+      transparent 1px 72px
+    );
+}
+
+/* Shimmer skeleton */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.09);
+  border-radius: 0.5rem;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(148, 163, 184, 0.14),
+    transparent
+  );
+  animation: shimmer 1.6s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Dark <select> popup options on Windows */
+select option {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
