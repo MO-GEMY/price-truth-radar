@@ -338,7 +338,7 @@ class BTechScraper(BaseScraper):
         )
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
-        target_limit = self.default_limit if limit is None else limit
+        target_limit = self.get_target_limit() if limit is None else limit
         if target_limit <= 0:
             return []
 

@@ -41,6 +41,7 @@ class OverviewStatsResponse(BaseModel):
     presale_hikes_today: int
     avg_fake_inflation_pct: float
     last_pipeline_run_at: Optional[datetime]
+    available_stores: list[str] = []
 
     @field_serializer("last_pipeline_run_at")
     def serialize_last_run(self, v: Optional[datetime]) -> Optional[str]:

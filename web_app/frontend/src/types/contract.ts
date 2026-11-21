@@ -83,6 +83,7 @@ export interface StatsOverview {
   presale_hikes_today: number;
   avg_fake_inflation_pct: number;
   last_pipeline_run_at: string;
+  available_stores: string[];
 }
 
 /* ------------------------------------------------------------------ */

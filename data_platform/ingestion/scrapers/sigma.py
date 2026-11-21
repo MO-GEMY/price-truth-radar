@@ -215,6 +215,7 @@ class SigmaScraper(BaseScraper):
     base_url = "https://www.sigma-computer.com"
     catalog_path = "/en/search"
     default_limit = 400
+    discover_limit = 700
     min_delay_seconds = 1.5
     request_timeout = 30.0
     per_page = 16
@@ -364,7 +365,7 @@ class SigmaScraper(BaseScraper):
         return results
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
-        target_limit = self.default_limit if limit is None else limit
+        target_limit = self.get_target_limit() if limit is None else limit
         if target_limit <= 0:
             return []
 
@@ -430,6 +431,7 @@ class SigmaScraper(BaseScraper):
                     logger.info("[sigma] No products found on page %d; stopping pagination.", page)
                     break
 
+                page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
                 added_this_page = 0
                 for record in page_records:
                     if record.external_id in seen_ids:

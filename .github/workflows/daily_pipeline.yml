@@ -2,8 +2,8 @@ name: Daily Price Truth Pipeline
 
 on:
   schedule:
-    # Runs daily at 03:00 UTC (05:00 AM Cairo time)
-    - cron: '0 3 * * *'
+    # Runs daily at 00:30 UTC (02:30 AM Cairo EET / 03:30 AM EEST)
+    - cron: '30 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -35,10 +35,10 @@ jobs:
       - name: Install data platform dependencies
         run: pip install -r data_platform/requirements.txt
 
-      - name: Run live store scraper (${{ matrix.store }})
+      - name: Run live store scraper (${{ matrix.store }} - daily)
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }}
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }} --mode daily
 
   match-and-dbt:
     name: Match Cross-Store & Run dbt

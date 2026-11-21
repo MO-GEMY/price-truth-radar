@@ -40,7 +40,6 @@ export default function HomePage() {
 
   const [filters, setFilters] = useState<FeedFilterState>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
-  const [stores, setStores] = useState<string[]>([]);
 
   const loadStats = useCallback(() => {
     const controller = new AbortController();
@@ -61,43 +60,7 @@ export default function HomePage() {
 
   useEffect(() => loadStats(), [loadStats]);
 
-  // Store filter options: sweep all unfiltered feed pages (up to 10 pages × 50)
-  // so stores outside the top-50 gap-sorted slice (e.g. sigma) are never omitted.
-  useEffect(() => {
-    const controller = new AbortController();
-    const loadAllStores = async () => {
-      try {
-        const first = await fetchRadarFeed(
-          { category: "all", sort: "price_asc", page: 1, limit: 50 },
-          controller.signal,
-        );
-        const found = new Set(first.data.items.map((p) => p.store_name));
-        const maxPages = Math.min(first.data.total_pages, 10);
-        if (maxPages > 1) {
-          const rest = await Promise.all(
-            Array.from({ length: maxPages - 1 }, (_, i) =>
-              fetchRadarFeed(
-                { category: "all", sort: "price_asc", page: i + 2, limit: 50 },
-                controller.signal,
-              ),
-            ),
-          );
-          for (const pageRes of rest) {
-            for (const item of pageRes.data.items) {
-              found.add(item.store_name);
-            }
-          }
-        }
-        if (!controller.signal.aborted) {
-          setStores([...found].sort());
-        }
-      } catch {
-        /* store filter stays with current options */
-      }
-    };
-    void loadAllStores();
-    return () => controller.abort();
-  }, []);
+  const stores = stats?.available_stores ?? [];
 
   const loadFeed = useCallback(
     (abort: AbortController) => {

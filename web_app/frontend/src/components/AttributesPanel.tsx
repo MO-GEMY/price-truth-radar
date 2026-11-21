@@ -10,11 +10,20 @@ const ATTR_LABEL_KEYS: Record<string, TranslationKey> = {
   ram_gb: "attr.ram_gb",
   storage_gb: "attr.storage_gb",
   screen_size_inch: "attr.screen_size_inch",
+  screen_inches: "attr.screen_size_inch",
   refresh_hz: "attr.refresh_hz",
+  refresh_rate_hz: "attr.refresh_hz",
   panel: "attr.panel",
   anc: "attr.anc",
   battery_hours: "attr.battery_hours",
   warranty: "attr.warranty",
+  two_b_category: "attr.store_category",
+  btech_category: "attr.store_category",
+  sigma_category: "attr.store_category",
+  noon_category: "attr.store_category",
+  jumia_category: "attr.store_category",
+  shopify_product_type: "attr.store_category",
+  store_category: "attr.store_category",
 };
 
 function prettify(value: string): string {
@@ -24,7 +33,9 @@ function prettify(value: string): string {
 
 function attributeLabel(key: string, t: (k: TranslationKey) => string): string {
   const known = ATTR_LABEL_KEYS[key];
-  return known ? t(known) : prettify(key);
+  if (known) return t(known);
+  if (key.endsWith("_category")) return t("attr.store_category");
+  return prettify(key);
 }
 
 export function AttributesPanel({ product }: { product: Product }) {
@@ -71,6 +82,7 @@ const HIDDEN_INTERNAL_KEYS = new Set([
   "variant_id",
   "offer_id",
   "magento_product_id",
+  "amazon_query",
 ]);
 
   /* -------- Electronics: specification rows -------- */

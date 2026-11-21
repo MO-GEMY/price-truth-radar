@@ -133,6 +133,7 @@ def utc_now_naive() -> datetime:
 
 
 Category = Literal["electronics", "fashion", "home_appliances"]
+ScrapeMode = Literal["daily", "discover"]
 
 
 class RawProductSnapshot(BaseModel):
@@ -513,13 +514,50 @@ class BaseScraper(ABC):
     category: Category
     base_url: str
     default_limit: int = 300
+    discover_limit: int = 0
     min_delay_seconds: float = 1.0
     request_timeout: Optional[float] = None
 
-    def __init__(self, http_client: PoliteHttpClient) -> None:
+    def __init__(
+        self,
+        http_client: PoliteHttpClient,
+        *,
+        mode: ScrapeMode = "daily",
+        tracked_external_ids: Optional[set[str]] = None,
+    ) -> None:
         self.http = http_client
+        self.mode: ScrapeMode = mode
+        self.tracked_external_ids: set[str] = set(tracked_external_ids or ())
         self.skipped_count: int = 0
         self.pages_fetched: int = 0
+        self.category_counts: dict[str, int] = {}
+
+    def get_target_limit(self, mode: Optional[ScrapeMode] = None) -> int:
+        """Return default product target for the requested scrape mode (`daily` vs `discover`)."""
+        effective_mode = mode or self.mode
+        if effective_mode == "discover":
+            if self.discover_limit > 0:
+                return self.discover_limit
+            return max(self.default_limit + 100, int(round(self.default_limit * 1.75)))
+        return self.default_limit
+
+    def prioritize_tracked(
+        self,
+        items: list[Any],
+        id_getter: Any,
+    ) -> list[Any]:
+        """In `daily` mode, order previously tracked items first so price histories stay continuous."""
+        if self.mode != "daily" or not self.tracked_external_ids:
+            return items
+        tracked: list[Any] = []
+        untracked: list[Any] = []
+        for item in items:
+            ext_id = id_getter(item)
+            if ext_id and str(ext_id) in self.tracked_external_ids:
+                tracked.append(item)
+            else:
+                untracked.append(item)
+        return tracked + untracked
 
     def validate_record(self, payload: dict[str, Any]) -> Optional[RawProductSnapshot]:
         """Validate a scraped dict against `RawProductSnapshot`; skip bad rows safely."""
@@ -727,3 +765,28 @@ def update_canonical_keys_in_neon(snapshots: list[RawProductSnapshot]) -> int:
         conn.close()
 
     return len(values)
+
+
+def fetch_tracked_store_ids_from_neon(store_name: str) -> set[str]:
+    """Fetch previously tracked `external_id`s for `store_name` so daily runs prioritize continuity."""
+    db_url = os.getenv("DATABASE_URL_ADMIN") or os.getenv("DATABASE_URL_READONLY")
+    if not db_url:
+        return set()
+    try:
+        conn = psycopg2.connect(db_url)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT external_id
+                    FROM raw.raw_product_snapshots
+                    WHERE store_name = %s;
+                    """,
+                    (store_name,),
+                )
+                return {str(row[0]) for row in cur.fetchall() if row and row[0]}
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning("[%s] Could not load tracked IDs from Neon (%s); continuing without watchlist.", store_name, exc)
+        return set()

@@ -27,7 +27,11 @@ OVERVIEW_SQL = text(
             ),
             0.0
         )::FLOAT AS avg_fake_inflation_pct,
-        MAX(last_updated_at) AS last_pipeline_run_at
+        MAX(last_updated_at) AS last_pipeline_run_at,
+        COALESCE(
+            ARRAY_AGG(DISTINCT store_name ORDER BY store_name) FILTER (WHERE store_name IS NOT NULL),
+            ARRAY[]::TEXT[]
+        ) AS available_stores
     FROM gold.mart_product_verdicts
     """
 )
@@ -44,4 +48,5 @@ def get_overview_stats(db: Connection = Depends(get_db)) -> OverviewStatsRespons
         presale_hikes_today=int(row["presale_hikes_today"]),
         avg_fake_inflation_pct=float(row["avg_fake_inflation_pct"]),
         last_pipeline_run_at=row["last_pipeline_run_at"],
+        available_stores=list(row["available_stores"] or []),
     )

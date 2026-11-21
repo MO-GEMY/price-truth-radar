@@ -771,6 +771,7 @@ export function getMockStatsOverview(): StatsOverview {
     presale_hikes_today: count("PRESALE_HIKE"),
     avg_fake_inflation_pct: avgInflation,
     last_pipeline_run_at: MOCK_NOW,
+    available_stores: getMockStoreNames(),
   };
 }
 

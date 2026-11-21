@@ -27,7 +27,9 @@ from bs4 import BeautifulSoup
 from .base import (
     BaseScraper,
     Category,
+    ImpersonatedHttpClient,
     RawProductSnapshot,
+    ThrottledResponseError,
     parse_egp_price,
     utc_now_naive,
 )
@@ -227,6 +229,7 @@ class TwoBScraper(BaseScraper):
     category: Category = "electronics"
     base_url = "https://2b.com.eg"
     default_limit = 400
+    discover_limit = 700
     min_delay_seconds = 2.5
     request_timeout = 45.0
     page_limit = 48
@@ -317,7 +320,7 @@ class TwoBScraper(BaseScraper):
         )
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
-        target_limit = self.default_limit if limit is None else limit
+        target_limit = self.get_target_limit() if limit is None else limit
         if target_limit <= 0:
             return []
 
@@ -325,76 +328,115 @@ class TwoBScraper(BaseScraper):
         scraped_at = utc_now_naive()
         collected: list[RawProductSnapshot] = []
         seen_ids: set[str] = set()
-        per_cat_cap = max(10, math.ceil(target_limit / min(len(TWO_B_CATEGORIES), 8)))
+        effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
+        per_cat_cap = max(5, math.ceil(target_limit / len(TWO_B_CATEGORIES)))
+        max_pages = 4 if self.mode == "discover" else 2
+        self.category_counts = {}
+        failed_categories: list[str] = []
 
-        for sub_category, cat_name, category_url in TWO_B_CATEGORIES:
-            if len(collected) >= target_limit:
-                break
+        with ImpersonatedHttpClient(
+            impersonate="chrome",
+            timeout=self.request_timeout or 45.0,
+            max_retries=3,
+            backoff_base=2.0,
+            min_delay_seconds=effective_delay,
+            jitter_range=(0.4, 1.2),
+        ) as client:
+            for sub_category, cat_name, category_url in TWO_B_CATEGORIES:
+                if len(collected) >= target_limit:
+                    break
 
-            cat_collected = 0
-            page = 1
-            while len(collected) < target_limit and cat_collected < per_cat_cap:
-                logger.info(
-                    "[2b] Fetching %s/%s page %d (%s?p=%d&product_list_limit=%d)",
-                    cat_name,
-                    sub_category,
-                    page,
-                    category_url,
-                    page,
-                    self.page_limit,
-                )
-                try:
-                    resp = self.http.get(
+                cat_key = f"{cat_name}/{sub_category}"
+                cat_collected = 0
+                page = 1
+                while len(collected) < target_limit and cat_collected < per_cat_cap and page <= max_pages:
+                    logger.info(
+                        "[2b] Fetching %s page %d (%s?p=%d&product_list_limit=%d)",
+                        cat_key,
+                        page,
                         category_url,
-                        params={"p": page, "product_list_limit": self.page_limit},
-                        min_delay_seconds=self.min_delay_seconds,
-                        timeout=self.request_timeout,
+                        page,
+                        self.page_limit,
                     )
-                except Exception as exc:
-                    logger.warning("[2b] Error fetching %s page %d: %s; moving on.", category_url, page, exc)
-                    break
-                self.pages_fetched += 1
+                    try:
+                        resp = client.get(
+                            category_url,
+                            params={"p": page, "product_list_limit": self.page_limit},
+                            min_delay_seconds=effective_delay,
+                            timeout=self.request_timeout,
+                            check_throttle=True,
+                            min_html_bytes=5120,
+                        )
+                    except ThrottledResponseError as exc:
+                        logger.warning(
+                            "[2b] Throttled/blocked on %s page %d (%s); moving to next category.",
+                            cat_key,
+                            page,
+                            exc,
+                        )
+                        failed_categories.append(f"{cat_key}(throttled)")
+                        break
+                    except Exception as exc:
+                        logger.warning("[2b] Error fetching %s page %d: %s; moving to next category.", cat_key, page, exc)
+                        failed_categories.append(f"{cat_key}(error)")
+                        break
+                    self.pages_fetched += 1
 
-                soup = BeautifulSoup(resp.text, "html.parser")
-                ld_products = _extract_jsonld_products(soup)
-                tiles_by_url, tiles_ordered = _extract_dom_tiles(soup, self.base_url)
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    ld_products = _extract_jsonld_products(soup)
+                    tiles_by_url, tiles_ordered = _extract_dom_tiles(soup, self.base_url)
 
-                if not ld_products:
-                    logger.warning("[2b] No JSON-LD products on %s page %d; moving to next category.", sub_category, page)
-                    break
-
-                added_this_page = 0
-                for idx, ld_item in enumerate(ld_products):
-                    raw_url = str(ld_item.get("url") or "").strip()
-                    tile = (
-                        tiles_by_url.get(_normalize_url_key(urljoin(self.base_url, raw_url)))
-                        if raw_url
-                        else None
-                    )
-                    if tile is None and idx < len(tiles_ordered) and len(tiles_ordered) == len(ld_products):
-                        tile = tiles_ordered[idx]
-
-                    record = self._build_record(
-                        ld_item=ld_item,
-                        tile=tile,
-                        category=cat_name,
-                        sub_category=sub_category,
-                        snapshot_date=snapshot_date,
-                        scraped_at=scraped_at,
-                    )
-                    if record is None or record.external_id in seen_ids:
-                        continue
-
-                    seen_ids.add(record.external_id)
-                    collected.append(record)
-                    cat_collected += 1
-                    added_this_page += 1
-                    if len(collected) >= target_limit or cat_collected >= per_cat_cap:
+                    if not ld_products:
+                        logger.warning("[2b] No JSON-LD products on %s page %d; moving to next category.", cat_key, page)
+                        if page == 1:
+                            failed_categories.append(f"{cat_key}(empty)")
                         break
 
-                has_next = soup.find("link", rel="next") is not None
-                if not has_next or added_this_page == 0:
-                    break
-                page += 1
+                    page_records: list[RawProductSnapshot] = []
+                    for idx, ld_item in enumerate(ld_products):
+                        raw_url = str(ld_item.get("url") or "").strip()
+                        tile = (
+                            tiles_by_url.get(_normalize_url_key(urljoin(self.base_url, raw_url)))
+                            if raw_url
+                            else None
+                        )
+                        if tile is None and idx < len(tiles_ordered) and len(tiles_ordered) == len(ld_products):
+                            tile = tiles_ordered[idx]
+
+                        record = self._build_record(
+                            ld_item=ld_item,
+                            tile=tile,
+                            category=cat_name,
+                            sub_category=sub_category,
+                            snapshot_date=snapshot_date,
+                            scraped_at=scraped_at,
+                        )
+                        if record is not None and record.external_id not in seen_ids:
+                            page_records.append(record)
+
+                    # Prioritize previously tracked SKUs first in `daily` mode
+                    page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
+
+                    added_this_page = 0
+                    for record in page_records:
+                        if record.external_id in seen_ids:
+                            continue
+                        seen_ids.add(record.external_id)
+                        collected.append(record)
+                        cat_collected += 1
+                        added_this_page += 1
+                        if len(collected) >= target_limit or cat_collected >= per_cat_cap:
+                            break
+
+                    has_next = soup.find("link", rel="next") is not None
+                    if not has_next or added_this_page == 0:
+                        break
+                    page += 1
+
+                self.category_counts[cat_key] = cat_collected
+
+        logger.info("[2b] Per-category scraped counts: %s", self.category_counts)
+        if failed_categories:
+            logger.warning("[2b] Categories with fetch/parse issues: %s", ", ".join(failed_categories))
 
         return collected

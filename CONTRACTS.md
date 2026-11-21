@@ -121,7 +121,8 @@ Base path: `/api/v1` (except `/health`). CORS must allow frontend origins (`*` i
   "all_time_lows_today": 9,
   "presale_hikes_today": 11,
   "avg_fake_inflation_pct": 16.4,
-  "last_pipeline_run_at": "2026-11-21T03:00:00Z"
+  "last_pipeline_run_at": "2026-11-21T03:00:00Z",
+  "available_stores": ["2b", "amazon_eg", "btech", "dalydress", "dejavu", "noon", "sigma", "town_team"]
 }
 ```
 

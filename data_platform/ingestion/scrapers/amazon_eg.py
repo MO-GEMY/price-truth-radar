@@ -57,6 +57,13 @@ AMAZON_EG_QUERIES: list[tuple[str, Category, str]] = [
     ("kitchen_appliances", "home_appliances", "air fryer"),
 ]
 
+AMAZON_EG_DISCOVER_EXTRA_QUERIES: list[tuple[str, Category, str]] = [
+    ("smartphones", "electronics", "apple iphone"),
+    ("refrigerators", "home_appliances", "refrigerator no frost"),
+    ("monitors", "electronics", "gaming monitor 144hz"),
+    ("footwear", "fashion", "adidas running shoes"),
+]
+
 _ASIN_RE = re.compile(r"^[A-Z0-9]{10}$")
 
 _BRAND_NORMALIZATION: dict[str, str] = {
@@ -185,18 +192,27 @@ class AmazonEgScraper(BaseScraper):
     category: Category = "electronics"
     base_url = "https://www.amazon.eg"
     default_limit = 250
+    discover_limit = 450
     min_delay_seconds = 4.0
     request_timeout = 30.0
 
-    def scrape(self, limit: int = 250) -> list[RawProductSnapshot]:
+    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
+        target_limit = self.get_target_limit() if limit is None else limit
+        if target_limit <= 0:
+            return []
         snapshots: list[RawProductSnapshot] = []
         seen_asins: set[str] = set()
         now = utc_now_naive()
         today = now.date()
 
+        queries = (
+            AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES
+            if self.mode == "discover"
+            else AMAZON_EG_QUERIES
+        )
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_query_cap = max(3, math.ceil(limit / len(AMAZON_EG_QUERIES)))
-        max_pages = 2 if limit <= 120 else 3
+        per_query_cap = max(3, math.ceil(target_limit / len(queries)))
+        max_pages = 4 if self.mode == "discover" else (2 if target_limit <= 120 else 3)
         throttled = False
 
         with ImpersonatedHttpClient(
@@ -219,13 +235,13 @@ class AmazonEgScraper(BaseScraper):
                 logger.warning("[amazon_eg] Failed to prime session: %s; exiting gracefully.", exc)
                 return snapshots
 
-            for default_sub, top_category, query in AMAZON_EG_QUERIES:
-                if len(snapshots) >= limit or throttled:
+            for default_sub, top_category, query in queries:
+                if len(snapshots) >= target_limit or throttled:
                     break
                 query_collected = 0
 
                 for page in range(1, max_pages + 1):
-                    if len(snapshots) >= limit or query_collected >= per_query_cap:
+                    if len(snapshots) >= target_limit or query_collected >= per_query_cap:
                         break
 
                     qs = urlencode({"k": query, "page": page})
@@ -254,11 +270,8 @@ class AmazonEgScraper(BaseScraper):
                         logger.info("[amazon_eg] No search result cards for query=%r page %d", query, page)
                         break
 
-                    page_added = 0
+                    page_records: list[RawProductSnapshot] = []
                     for card in cards:
-                        if len(snapshots) >= limit or query_collected >= per_query_cap:
-                            break
-
                         asin = str(card.get("data-asin") or "").strip().upper()
                         if not asin or not _ASIN_RE.match(asin) or asin in seen_asins:
                             continue
@@ -288,8 +301,6 @@ class AmazonEgScraper(BaseScraper):
                         attrs["amazon_query"] = query
 
                         product_url = f"{self.base_url}/-/en/dp/{asin}"
-                        seen_asins.add(asin)
-
                         snap = self.validate_record(
                             {
                                 "store_name": self.store_name,
@@ -310,9 +321,19 @@ class AmazonEgScraper(BaseScraper):
                             }
                         )
                         if snap is not None:
-                            snapshots.append(snap)
-                            query_collected += 1
-                            page_added += 1
+                            page_records.append(snap)
+
+                    page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
+                    page_added = 0
+                    for snap in page_records:
+                        if snap.external_id in seen_asins:
+                            continue
+                        seen_asins.add(snap.external_id)
+                        snapshots.append(snap)
+                        query_collected += 1
+                        page_added += 1
+                        if len(snapshots) >= target_limit or query_collected >= per_query_cap:
+                            break
 
                     if page_added == 0:
                         break

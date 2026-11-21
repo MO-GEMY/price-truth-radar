@@ -1,0 +1,72 @@
+name: Weekly Catalog Discovery Pipeline
+
+on:
+  schedule:
+    # Runs every Friday at 01:30 UTC (03:30 AM Cairo EET / 04:30 AM EEST)
+    - cron: '30 1 * * 5'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    name: Discover (${{ matrix.store }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        store:
+          - sigma
+          - 2b
+          - btech
+          - town_team
+          - dejavu
+          - dalydress
+          - noon
+          - amazon_eg
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run weekly catalog discovery (${{ matrix.store }})
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }} --mode discover
+
+  match-and-dbt:
+    name: Match Cross-Store & Run dbt
+    runs-on: ubuntu-latest
+    needs: discover
+    if: always()
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run DB-level cross-store canonical matching
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --match-db
+
+      - name: Run dbt snapshot, models, and data tests
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: |
+          python data_platform/run_dbt.py snapshot
+          python data_platform/run_dbt.py run
+          python data_platform/run_dbt.py test

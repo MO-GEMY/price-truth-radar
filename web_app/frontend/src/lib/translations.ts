@@ -20,7 +20,7 @@ export const translations = {
       "Track real price histories across stores, expose fake markdowns and pre-sale hikes, and buy at genuine lows — all prices in EGP.",
 
     "mock.banner":
-      "Demo mode — the live API is not connected yet. You are viewing local contract-matching sample data.",
+      "API temporarily unreachable — showing sample data.",
     "mock.bannerLive": "Live data — served by the FastAPI backend.",
 
     "kpi.title": "Today's price-integrity pulse",
@@ -137,6 +137,7 @@ export const translations = {
     "attr.anc": "Noise cancelling",
     "attr.battery_hours": "Battery life",
     "attr.warranty": "Warranty",
+    "attr.store_category": "Store category",
     "common.yes": "Yes",
     "common.no": "No",
 
@@ -180,7 +181,7 @@ export const translations = {
       "تتبّع تاريخ الأسعار الحقيقي عبر المتاجر، واكشف الخصومات الوهمية وارتفاعات ما قبل العروض، واشترِ عند القيعان الحقيقية — جميع الأسعار بالجنيه المصري.",
 
     "mock.banner":
-      "وضع تجريبي — لم يتم ربط واجهة الـ API الحقيقية بعد. تعرض الآن بيانات محلية مطابقة للعقد.",
+      "تعذر الاتصال بالخادم مؤقتاً — عرض بيانات عينة.",
     "mock.bannerLive": "بيانات مباشرة — تُقدَّم من خدمة FastAPI.",
 
     "kpi.title": "نبض سلامة الأسعار اليوم",
@@ -296,6 +297,7 @@ export const translations = {
     "attr.anc": "إلغاء الضوضاء",
     "attr.battery_hours": "البطارية",
     "attr.warranty": "الضمان",
+    "attr.store_category": "فئة المتجر",
     "common.yes": "نعم",
     "common.no": "لا",
 

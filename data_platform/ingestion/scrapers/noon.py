@@ -386,18 +386,22 @@ class NoonScraper(BaseScraper):
     category: Category = "electronics"
     base_url = "https://www.noon.com"
     default_limit = 300
+    discover_limit = 550
     min_delay_seconds = 3.0
     request_timeout = 30.0
 
-    def scrape(self, limit: int = 300) -> list[RawProductSnapshot]:
+    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
+        target_limit = self.get_target_limit() if limit is None else limit
+        if target_limit <= 0:
+            return []
         snapshots: list[RawProductSnapshot] = []
         seen_ids: set[str] = set()
         now = utc_now_naive()
         today = now.date()
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_cat_cap = max(5, math.ceil(limit / len(NOON_CATEGORIES)))
-        max_pages = 5
+        per_cat_cap = max(5, math.ceil(target_limit / len(NOON_CATEGORIES)))
+        max_pages = 8 if self.mode == "discover" else 5
         throttled = False
 
         with ImpersonatedHttpClient(
@@ -409,12 +413,12 @@ class NoonScraper(BaseScraper):
             jitter_range=(0.4, 1.3),
         ) as client:
             for default_sub, top_category, cat_url in NOON_CATEGORIES:
-                if len(snapshots) >= limit or throttled:
+                if len(snapshots) >= target_limit or throttled:
                     break
                 cat_collected = 0
 
                 for page in range(1, max_pages + 1):
-                    if len(snapshots) >= limit or cat_collected >= per_cat_cap:
+                    if len(snapshots) >= target_limit or cat_collected >= per_cat_cap:
                         break
 
                     page_url = cat_url if page == 1 else f"{cat_url}?page={page}"
@@ -442,11 +446,8 @@ class NoonScraper(BaseScraper):
                         logger.info("[noon] No product anchors on %s page %d; stopping category.", default_sub, page)
                         break
 
-                    page_added = 0
+                    page_records: list[RawProductSnapshot] = []
                     for anchor in anchors:
-                        if len(snapshots) >= limit or cat_collected >= per_cat_cap:
-                            break
-
                         href = anchor.get("href")
                         if not href:
                             continue
@@ -483,7 +484,6 @@ class NoonScraper(BaseScraper):
                         brand = _extract_brand(title)
                         attrs = _extract_specs(title, top_category, sub_category)
 
-                        seen_ids.add(sku)
                         snap = self.validate_record(
                             {
                                 "store_name": self.store_name,
@@ -504,9 +504,19 @@ class NoonScraper(BaseScraper):
                             }
                         )
                         if snap is not None:
-                            snapshots.append(snap)
-                            cat_collected += 1
-                            page_added += 1
+                            page_records.append(snap)
+
+                    page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
+                    page_added = 0
+                    for snap in page_records:
+                        if snap.external_id in seen_ids:
+                            continue
+                        seen_ids.add(snap.external_id)
+                        snapshots.append(snap)
+                        cat_collected += 1
+                        page_added += 1
+                        if len(snapshots) >= target_limit or cat_collected >= per_cat_cap:
+                            break
 
                     if page_added == 0:
                         break

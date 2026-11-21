@@ -17,14 +17,16 @@
     .\scripts\run_local_scrapers.ps1 -Stores sigma,noon -Limit 30 -DryRun
 
 .EXAMPLE
-    # Register a daily 05:30 AM Windows Task Scheduler job (run in PowerShell):
-    schtasks /Create /TN "PriceTruthRadar-LocalScrapers" /SC DAILY /ST 05:30 /RL LIMITED /F ^
-      /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"D:\price-truth-radar\scripts\run_local_scrapers.ps1\" -Stores sigma"
+    # Register a daily 02:30 AM Cairo time Windows Task Scheduler job (run in PowerShell):
+    schtasks /Create /TN "PriceTruthRadar-LocalScrapers" /SC DAILY /ST 02:30 /RL LIMITED /F ^
+      /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"D:\price-truth-radar\scripts\run_local_scrapers.ps1\" -Stores sigma -Mode daily"
 #>
 
 [CmdletBinding()]
 param(
     [string[]]$Stores = @("sigma"),
+    [ValidateSet("daily", "discover")]
+    [string]$Mode = "daily",
     [int]$Limit = 0,
     [switch]$DryRun,
     [switch]$SkipMatchDb
@@ -82,6 +84,7 @@ Write-Log "=====================================================================
 Write-Log "Price Truth Radar Local Scraper Runner"
 Write-Log "RepoRoot : $RepoRoot"
 Write-Log "Stores   : $($NormalizedStores -join ', ')"
+Write-Log "Mode     : $Mode"
 Write-Log "Limit    : $(if ($Limit -gt 0) { $Limit } else { 'store default' })"
 Write-Log "DryRun   : $DryRun"
 Write-Log "LogFile  : $LogFile"
@@ -93,7 +96,7 @@ $SucceededStores = @()
 
 try {
     foreach ($store in $NormalizedStores) {
-        $ArgsList = @($RunnerScript, "--store", $store)
+        $ArgsList = @($RunnerScript, "--store", $store, "--mode", $Mode)
         if ($Limit -gt 0) {
             $ArgsList += @("--limit", "$Limit")
         }

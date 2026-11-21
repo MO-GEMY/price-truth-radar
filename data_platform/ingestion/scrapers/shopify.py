@@ -214,7 +214,7 @@ class ShopifyScraper(BaseScraper):
         )
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
-        target_limit = self.default_limit if limit is None else limit
+        target_limit = self.get_target_limit() if limit is None else limit
         if target_limit <= 0:
             return []
 
@@ -242,12 +242,19 @@ class ShopifyScraper(BaseScraper):
             if not isinstance(products, list) or not products:
                 break
 
-            added_this_page = 0
+            page_records: list[RawProductSnapshot] = []
             for raw in products:
                 if not isinstance(raw, dict):
                     continue
                 rec = self._parse_product(raw, snapshot_date, scraped_at)
-                if rec is None or rec.external_id in seen_ids:
+                if rec is not None and rec.external_id not in seen_ids:
+                    page_records.append(rec)
+
+            page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
+
+            added_this_page = 0
+            for rec in page_records:
+                if rec.external_id in seen_ids:
                     continue
                 seen_ids.add(rec.external_id)
                 collected.append(rec)
