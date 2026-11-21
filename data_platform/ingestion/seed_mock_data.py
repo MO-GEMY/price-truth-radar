@@ -17,6 +17,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import quote_plus
 
 import psycopg2
 from dotenv import load_dotenv
@@ -64,14 +65,69 @@ class ProductSpec:
     out_of_stock_end: bool = False
 
 
-STORE_DOMAINS: dict[str, str] = {
-    "btech": "https://btech.com/en/p",
-    "sigma": "https://www.sigma-computer.com/item",
-    "2b": "https://2b.com.eg/en/product",
-    "dubai_phone": "https://dubaiphone.net/products",
-    "cairo_street": "https://cairostreet.eg/products",
-    "nile_threads": "https://nilethreads.com/products",
-    "urban_eg": "https://urbaneg.store/products",
+# Resolvable Egyptian storefront search/catalog URL templates keyed by store_name.
+# Keeps store_name slugs unchanged for CONTRACTS.md compatibility while ensuring
+# every product_url points to a live, resolvable domain (no NXDOMAIN placeholders).
+STORE_URL_TEMPLATES: dict[str, str] = {
+    "btech": "https://btech.com/en/s?q={query}&ref={slug}",
+    "sigma": "https://www.sigma-computer.com/en/search?controller=search&s={query}&ref={slug}",
+    "2b": "https://2b.com.eg/en/catalogsearch/result/?q={query}&ref={slug}",
+    "dubai_phone": "https://dubaiphone.net/?s={query}&post_type=product&ref={slug}",
+    "cairo_street": "https://www.jumia.com.eg/catalog/?q={query}&ref={slug}",
+    "nile_threads": "https://www.amazon.eg/s?k={query}&ref={slug}",
+    "urban_eg": "https://www.noon.com/egypt-en/search/?q={query}&ref={slug}",
+}
+
+# Verified HTTP 200 category-appropriate product images (Unsplash CDN).
+SUBCATEGORY_IMAGE_URLS: dict[str, list[str]] = {
+    "smartphones": [
+        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=800&q=80",
+    ],
+    "laptops": [
+        "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?auto=format&fit=crop&w=800&q=80",
+    ],
+    "monitors": [
+        "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1586210579191-33b45e38fa2c?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1547119957-637f8679db1e?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1616763355603-9755a640a287?auto=format&fit=crop&w=800&q=80",
+    ],
+    "headphones": [
+        "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=800&q=80",
+    ],
+    "hoodies": [
+        "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1578768079052-aa76e52ff62e?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1509942774463-acf339cf87d5?auto=format&fit=crop&w=800&q=80",
+    ],
+    "sneakers": [
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80",
+    ],
+    "tees": [
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=800&q=80",
+    ],
+    "jeans": [
+        "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1604176354204-9268737828e4?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1582552938357-32b906df40cb?auto=format&fit=crop&w=800&q=80",
+    ],
 }
 
 STORE_PRICE_FACTOR: dict[str, float] = {
@@ -505,10 +561,16 @@ def generate_snapshots(specs: list[ProductSpec], end_date: date) -> list[RawProd
         raw_brand = f"  {spec.brand}  " if prod_idx % 7 == 0 else spec.brand
         raw_title = f"  {spec.product_title}  " if prod_idx % 9 == 0 else spec.product_title
 
-        domain = STORE_DOMAINS[spec.store_name]
         slug = spec.external_id.lower()
-        product_url = f"{domain}/{slug}"
-        image_url = f"https://cdn.pricetruthradar.eg/images/{spec.category}/{slug}.jpg"
+        clean_search_query = quote_plus(
+            spec.product_title.replace(" - Official Warranty", "").replace(" (Egypt)", "").strip()
+        )
+        product_url = STORE_URL_TEMPLATES[spec.store_name].format(
+            query=clean_search_query,
+            slug=slug,
+        )
+        subcat_images = SUBCATEGORY_IMAGE_URLS.get(spec.sub_category, [])
+        image_url = subcat_images[prod_idx % len(subcat_images)] if subcat_images else None
 
         # Pre-generate deterministic parameters per product
         fake_bump = rng.uniform(0.00, 0.04)

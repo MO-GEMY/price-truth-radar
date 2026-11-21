@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
@@ -22,14 +23,27 @@ from app.schemas import (
 router = APIRouter(prefix="/api/v1/products", tags=["products"])
 
 
-def _normalize_url(raw_url: str, strip_query: bool = False) -> str:
+def _parse_url_parts(raw_url: str) -> tuple[str, str, Optional[str]]:
+    """Return (normalized_full_key, normalized_host, ref_param).
+
+    Normalizes scheme, strips optional `www.` prefix, strips trailing `/`
+    before `?` or end-of-path, drops `#fragment`, and preserves query params.
+    """
     cleaned = raw_url.strip()
+    if not cleaned:
+        return "", "", None
+    if not cleaned.lower().startswith(("http://", "https://")):
+        cleaned = f"https://{cleaned}"
     parsed = urlparse(cleaned)
-    scheme = (parsed.scheme or "https").lower()
     netloc = parsed.netloc.lower()
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
     path = parsed.path.rstrip("/")
-    query = "" if strip_query else parsed.query
-    return urlunparse((scheme, netloc, path, "", query, ""))
+    query = parsed.query
+    full_key = f"{netloc}{path}?{query}".lower() if query else f"{netloc}{path}".lower()
+    ref_values = parse_qs(query, keep_blank_values=False).get("ref")
+    ref_param = ref_values[0].strip().lower() if ref_values and ref_values[0].strip() else None
+    return full_key, netloc, ref_param
 
 
 @router.get("/search", response_model=SearchResponse)
@@ -39,18 +53,24 @@ def search_products(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
-    # 1. If url is provided, attempt exact / normalized URL match first
+    # 1. If url is provided, match deterministically (exact normalized URL first,
+    #    then optional deterministic (host + ref) match; never loose path-only fallback).
     if url is not None and url.strip():
-        exact_url = _normalize_url(url, strip_query=False)
-        stripped_url = _normalize_url(url, strip_query=True)
+        exact_key, netloc, ref_param = _parse_url_parts(url)
 
         exact_sql = text(
             f"""
             SELECT {PRODUCT_SELECT_COLS}
             FROM gold.mart_product_verdicts
-            WHERE LOWER(RTRIM(product_url, '/')) = :exact_url
-               OR LOWER(RTRIM(SPLIT_PART(product_url, '?', 1), '/')) = :stripped_url
-            ORDER BY (LOWER(RTRIM(product_url, '/')) = :exact_url) DESC, product_sk ASC
+            WHERE LOWER(
+                REGEXP_REPLACE(
+                    RTRIM(REPLACE(product_url, '/?', '?'), '/'),
+                    '^https?://(www\\.)?',
+                    '',
+                    'i'
+                )
+            ) = :exact_key
+            ORDER BY product_sk ASC
             LIMIT :limit
             """
         )
@@ -58,14 +78,45 @@ def search_products(
             db.execute(
                 exact_sql,
                 {
-                    "exact_url": exact_url.lower(),
-                    "stripped_url": stripped_url.lower(),
+                    "exact_key": exact_key,
                     "limit": limit,
                 },
             )
             .mappings()
             .all()
         )
+        if not rows and netloc and ref_param:
+            ref_pattern = rf"(^|[?&])ref={re.escape(ref_param)}(&|$)"
+            ref_sql = text(
+                f"""
+                SELECT {PRODUCT_SELECT_COLS}
+                FROM gold.mart_product_verdicts
+                WHERE SPLIT_PART(
+                    SPLIT_PART(
+                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
+                        '?',
+                        1
+                    ),
+                    '/',
+                    1
+                ) = :netloc
+                  AND LOWER(product_url) ~ :ref_pattern
+                ORDER BY product_sk ASC
+                LIMIT :limit
+                """
+            )
+            rows = (
+                db.execute(
+                    ref_sql,
+                    {
+                        "netloc": netloc,
+                        "ref_pattern": ref_pattern,
+                        "limit": limit,
+                    },
+                )
+                .mappings()
+                .all()
+            )
         if rows:
             items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
             return SearchResponse(match_type="url_exact", items=items, total=len(items))

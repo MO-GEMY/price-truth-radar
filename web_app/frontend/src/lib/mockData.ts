@@ -574,6 +574,70 @@ function snapshotDates(days: number): string[] {
   return out;
 }
 
+const MOCK_STORE_URL_TEMPLATES: Record<string, string> = {
+  btech: "https://btech.com/en/s?q={query}&ref={slug}",
+  sigma: "https://www.sigma-computer.com/en/search?controller=search&s={query}&ref={slug}",
+  egycart: "https://www.amazon.eg/s?k={query}&ref={slug}",
+  style_hub: "https://www.jumia.com.eg/catalog/?q={query}&ref={slug}",
+  thread_eg: "https://www.noon.com/egypt-en/search/?q={query}&ref={slug}",
+  local_brand_x: "https://www.amazon.eg/s?k={query}&ref={slug}",
+};
+
+const MOCK_SUBCATEGORY_IMAGES: Record<string, string[]> = {
+  smartphones: [
+    "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=800&q=80",
+  ],
+  laptops: [
+    "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80",
+  ],
+  monitors: [
+    "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1586210579191-33b45e38fa2c?auto=format&fit=crop&w=800&q=80",
+  ],
+  headphones: [
+    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=800&q=80",
+  ],
+  gaming_consoles: [
+    "https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?auto=format&fit=crop&w=800&q=80",
+  ],
+  hoodies: [
+    "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80",
+  ],
+  sneakers: [
+    "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80",
+  ],
+  jeans: [
+    "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=800&q=80",
+  ],
+  t_shirts: [
+    "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80",
+  ],
+  knitwear: [
+    "https://images.unsplash.com/photo-1578768079052-aa76e52ff62e?auto=format&fit=crop&w=800&q=80",
+  ],
+};
+
+function buildMockProductUrl(spec: ProductSpec): string {
+  const template =
+    MOCK_STORE_URL_TEMPLATES[spec.store] ??
+    "https://www.amazon.eg/s?k={query}&ref={slug}";
+  return template
+    .replace("{query}", encodeURIComponent(spec.title))
+    .replace("{slug}", encodeURIComponent(spec.slug));
+}
+
+function buildMockImageUrl(spec: ProductSpec): string | null {
+  const pool = MOCK_SUBCATEGORY_IMAGES[spec.sub_category];
+  if (!pool || pool.length === 0) return null;
+  return pool[hashSeed(spec.slug) % pool.length];
+}
+
 function buildProduct(spec: ProductSpec, dates: string[]): {
   product: Product;
   history: PriceHistoryPoint[];
@@ -642,8 +706,8 @@ function buildProduct(spec: ProductSpec, dates: string[]): {
     sub_category: spec.sub_category,
     brand: spec.brand,
     product_title: spec.title,
-    product_url: `https://www.${spec.store}.example.com/p/${spec.slug}`,
-    image_url: `https://picsum.photos/seed/${spec.slug}/640/420`,
+    product_url: buildMockProductUrl(spec),
+    image_url: buildMockImageUrl(spec),
     attributes_json: spec.attributes,
     current_price: currentPrice,
     claimed_original_price: claimedFinal,
@@ -754,14 +818,32 @@ export function mockRadarFeed(params: RadarFeedParams): RadarFeedResponse {
   };
 }
 
-function normalizeUrl(url: string): string {
-  return url
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .replace(/[?#].*$/, "")
-    .replace(/\/+$/, "");
+function parseUrlParts(rawUrl: string): {
+  fullKey: string;
+  host: string;
+  ref: string | null;
+} {
+  const cleaned = rawUrl.trim();
+  if (!cleaned) return { fullKey: "", host: "", ref: null };
+  try {
+    const withScheme = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
+    const parsed = new URL(withScheme);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/+$/, "");
+    const query = parsed.search.replace(/^\?/, "");
+    const fullKey = (query ? `${host}${path}?${query}` : `${host}${path}`).toLowerCase();
+    const refVal = parsed.searchParams.get("ref")?.trim().toLowerCase() || null;
+    return { fullKey, host, ref: refVal };
+  } catch {
+    const fallback = cleaned
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/#.*$/, "")
+      .replace(/\/\?/, "?")
+      .replace(/\/+$/, "");
+    return { fullKey: fallback, host: "", ref: null };
+  }
 }
 
 export function mockSearch(params: SearchParams): SearchResponse {
@@ -769,37 +851,38 @@ export function mockSearch(params: SearchParams): SearchResponse {
   const products = getDataset();
 
   if (params.url) {
-    const normalized = normalizeUrl(params.url);
-    if (normalized.length > 0) {
-      const exact = products.find((p) => normalizeUrl(p.product_url) === normalized);
+    const target = parseUrlParts(params.url);
+    if (target.fullKey.length > 0) {
+      const exact = products.find(
+        (p) => parseUrlParts(p.product_url).fullKey === target.fullKey,
+      );
       if (exact) {
         return { match_type: "url_exact", items: [exact], total: 1 };
       }
-      // Partial normalized-URL containment (long-enough queries only).
-      if (normalized.length >= 10) {
-        const partial = products.find(
-          (p) =>
-            normalizeUrl(p.product_url).includes(normalized) ||
-            normalized.includes(normalizeUrl(p.product_url)),
-        );
-        if (partial) {
-          return { match_type: "url_exact", items: [partial], total: 1 };
+      if (target.host && target.ref) {
+        const refMatch = products.find((p) => {
+          const cand = parseUrlParts(p.product_url);
+          return cand.host === target.host && cand.ref === target.ref;
+        });
+        if (refMatch) {
+          return { match_type: "url_exact", items: [refMatch], total: 1 };
         }
       }
-      // URL provided but not recognized → fall back to a text scan on it.
-      return { match_type: "text", items: [], total: 0 };
+      if (!params.q?.trim()) {
+        return { match_type: "url_not_found", items: [], total: 0 };
+      }
     }
   }
 
   const q = (params.q ?? "").trim().toLowerCase();
   if (q.length === 0) {
-    return { match_type: "text", items: [], total: 0 };
+    return { match_type: "none", items: [], total: 0 };
   }
   const matched = products.filter(
     (p) =>
       p.product_title.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q),
   );
-  return { match_type: "text", items: matched.slice(0, limit), total: matched.length };
+  return { match_type: "text_search", items: matched.slice(0, limit), total: matched.length };
 }
 
 export function mockProductDetail(productSk: string): {

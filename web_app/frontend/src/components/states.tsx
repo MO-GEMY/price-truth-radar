@@ -26,7 +26,7 @@ export function ProductCardSkeletons({ count = 8 }: { count?: number }) {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="glass overflow-hidden rounded-2xl">
-          <Skeleton className="h-40 rounded-none" />
+          <Skeleton className="aspect-[4/3] w-full rounded-none" />
           <div className="space-y-3 p-4">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-2/3" />
@@ -61,12 +61,13 @@ export function DetailSkeleton() {
     <div className="space-y-6">
       <Skeleton className="h-8 w-48" />
       <div className="glass rounded-2xl p-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <Skeleton className="size-24 rounded-xl" />
-          <div className="space-y-3">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <Skeleton className="aspect-square w-full max-w-[220px] shrink-0 rounded-2xl sm:w-44 md:w-48" />
+          <div className="min-w-0 flex-1 space-y-3">
             <Skeleton className="h-6 w-80 max-w-full" />
+            <Skeleton className="h-8 w-44" />
             <Skeleton className="h-4 w-52" />
-            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-10 w-40 rounded-xl" />
           </div>
         </div>
       </div>

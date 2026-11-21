@@ -22,27 +22,27 @@ const VERDICT_STYLES: Record<
 > = {
   FAKE_DISCOUNT: {
     icon: ShieldAlert,
-    className: "border-rose-500/35 bg-rose-500/12 text-rose-300",
-    glow: "shadow-[0_0_16px_rgba(244,63,94,0.18)]",
+    className: "border-rose-500/45 bg-rose-950/85 text-rose-200 backdrop-blur-md",
+    glow: "shadow-[0_0_16px_rgba(244,63,94,0.22)]",
   },
   PRESALE_HIKE: {
     icon: TrendingUp,
-    className: "border-amber-500/35 bg-amber-500/12 text-amber-300",
-    glow: "shadow-[0_0_16px_rgba(245,158,11,0.16)]",
+    className: "border-amber-500/45 bg-amber-950/85 text-amber-200 backdrop-blur-md",
+    glow: "shadow-[0_0_16px_rgba(245,158,11,0.2)]",
   },
   ALL_TIME_LOW: {
     icon: TrendingDown,
-    className: "border-emerald-500/35 bg-emerald-500/12 text-emerald-300",
-    glow: "shadow-[0_0_16px_rgba(16,185,129,0.18)]",
+    className: "border-emerald-500/45 bg-emerald-950/85 text-emerald-200 backdrop-blur-md",
+    glow: "shadow-[0_0_16px_rgba(16,185,129,0.22)]",
   },
   GENUINE_DEAL: {
     icon: BadgeCheck,
-    className: "border-teal-500/35 bg-teal-500/12 text-teal-300",
-    glow: "shadow-[0_0_16px_rgba(20,184,166,0.16)]",
+    className: "border-teal-500/45 bg-teal-950/85 text-teal-200 backdrop-blur-md",
+    glow: "shadow-[0_0_16px_rgba(20,184,166,0.2)]",
   },
   NORMAL_PRICE: {
     icon: MinusCircle,
-    className: "border-slate-500/35 bg-slate-500/12 text-slate-300",
+    className: "border-slate-500/45 bg-slate-900/85 text-slate-200 backdrop-blur-md",
     glow: "",
   },
 };

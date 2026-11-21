@@ -26,6 +26,7 @@ import { MockBanner } from "@/components/MockBanner";
 import { PriceChart } from "@/components/PriceChart";
 import { AttributesPanel } from "@/components/AttributesPanel";
 import { AlternativesTable } from "@/components/AlternativesTable";
+import { ProductImage } from "@/components/ProductImage";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { StoreBadge } from "@/components/StoreBadge";
 import { DetailSkeleton, ErrorState } from "@/components/states";
@@ -44,17 +45,25 @@ function PriceTile({
   label,
   value,
   accent = "text-white",
+  ltrValue = false,
 }: {
   label: string;
   value: string;
   accent?: string;
+  ltrValue?: boolean;
 }) {
   return (
-    <div className="glass rounded-2xl p-4">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+    <div className="glass min-w-0 rounded-2xl p-4">
+      <p className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-500" title={label}>
         {label}
       </p>
-      <p className={`num mt-2 text-lg font-bold tracking-tight sm:text-xl ${accent}`}>
+      <p
+        dir={ltrValue ? "ltr" : undefined}
+        className={`num mt-2 truncate text-base font-bold tracking-tight sm:text-lg ${
+          ltrValue ? "text-start" : ""
+        } ${accent}`}
+        title={value}
+      >
         {value}
       </p>
     </div>
@@ -156,40 +165,89 @@ export default function ProductDetailPage() {
         {/* Product header */}
         <section className="glass rounded-2xl p-5 sm:p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            {product.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.image_url}
-                alt={product.product_title}
-                className="h-32 w-32 shrink-0 rounded-xl border border-white/10 object-cover"
-              />
-            ) : null}
-            <div className="min-w-0 flex-1 space-y-3">
-              <h1 className="text-xl font-bold leading-snug tracking-tight text-white sm:text-2xl">
-                {product.product_title}
-              </h1>
+            <ProductImage
+              src={product.image_url}
+              alt={product.product_title}
+              category={product.category}
+              subCategory={product.sub_category}
+              brand={product.brand}
+              fit="cover"
+              dimmed={!product.in_stock}
+              priority
+              className="aspect-square w-full max-w-[220px] shrink-0 rounded-2xl border border-white/10 sm:w-44 md:w-48"
+            />
+            <div className="min-w-0 flex-1 space-y-3.5">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-slate-400">
+                  {product.brand} · {product.sub_category.replace(/_/g, " ")}
+                </p>
+                <h1 className="text-xl font-bold leading-snug tracking-tight text-white sm:text-2xl">
+                  {product.product_title}
+                </h1>
+              </div>
+
+              {/* Hero EGP pricing & discount badges */}
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+                <span className="num text-2xl font-extrabold tracking-tight text-cyan-300 sm:text-3xl">
+                  {formatPrice(product.current_price, lang)}
+                </span>
+                {product.claimed_original_price !== null ? (
+                  <span className="num text-sm font-medium text-slate-500 line-through">
+                    {formatPrice(product.claimed_original_price, lang)}
+                  </span>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {product.claimed_discount_pct > 0 ? (
+                    <span className="num inline-flex items-center gap-1 rounded-md border border-slate-500/40 bg-slate-500/10 px-2 py-0.5 text-xs font-semibold text-slate-300">
+                      <span>{t("card.claimed")}</span>
+                      <span dir="ltr" className="inline-block">
+                        −{formatPctPlain(product.claimed_discount_pct, lang)}
+                      </span>
+                    </span>
+                  ) : null}
+                  <span
+                    className={`num inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-bold ${
+                      product.real_discount_pct >= 10
+                        ? "border-emerald-500/40 bg-emerald-500/12 text-emerald-300"
+                        : product.real_discount_pct >= 5
+                          ? "border-teal-500/40 bg-teal-500/12 text-teal-300"
+                          : product.real_discount_pct >= 0
+                            ? "border-slate-500/40 bg-slate-500/10 text-slate-300"
+                            : "border-rose-500/40 bg-rose-500/12 text-rose-300"
+                    }`}
+                  >
+                    <span>{t("card.real")}</span>
+                    <span dir="ltr" className="inline-block">
+                      {formatPct(product.real_discount_pct, lang)}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
                 <StoreBadge name={product.store_name} />
                 <VerdictBadge verdict={product.discount_verdict} />
                 {product.scarcity_flag ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/12 px-2.5 py-1 font-semibold text-amber-300">
-                    <Flame className="size-3.5" />
+                    <Flame className="size-3.5 shrink-0" />
                     {t("card.lowStock")}
                   </span>
                 ) : null}
                 {!product.in_stock ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/35 bg-rose-500/12 px-2.5 py-1 font-semibold text-rose-300">
-                    <PackageX className="size-3.5" />
+                    <PackageX className="size-3.5 shrink-0" />
                     {t("card.outOfStock")}
                   </span>
                 ) : null}
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                  {product.category === "electronics" ? "Electronics" : "Fashion"}
+                  {product.category === "electronics"
+                    ? t("filters.catElectronics")
+                    : t("filters.catFashion")}
                   · {product.sub_category.replace(/_/g, " ")}
                 </span>
                 {product.canonical_product_key ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 font-medium text-violet-300">
-                    <Link2 className="size-3" />
+                    <Link2 className="size-3 shrink-0" />
                     {t("detail.canonical")}
                   </span>
                 ) : null}
@@ -201,11 +259,11 @@ export default function ProductDetailPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 px-4 py-2.5 text-sm font-bold text-[#04121a] transition hover:brightness-110"
                 >
-                  <ExternalLink className="size-4" />
+                  <ExternalLink className="size-4 shrink-0" />
                   {t("detail.openAtStore")}
                 </a>
                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                  <CalendarClock className="size-3.5" />
+                  <CalendarClock className="size-3.5 shrink-0" />
                   {t("detail.lastUpdated")}: {formatDateTime(product.last_updated_at, lang)}
                 </span>
               </div>
@@ -218,7 +276,7 @@ export default function ProductDetailPage() {
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">
             {t("detail.priceBreakdown")}
           </h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
             <PriceTile label={t("detail.current")} value={formatPrice(product.current_price, lang)} accent="text-cyan-300" />
             <PriceTile label={t("detail.median60")} value={formatPrice(product.rolling_60d_median, lang)} />
             <PriceTile label={t("detail.allTimeLow")} value={formatPrice(product.min_historical_price, lang)} accent="text-emerald-300" />
@@ -232,11 +290,13 @@ export default function ProductDetailPage() {
               label={t("detail.claimedDisc")}
               value={formatPct(product.claimed_discount_pct, lang)}
               accent={product.claimed_discount_pct >= 10 ? "text-amber-300" : "text-white"}
+              ltrValue
             />
             <PriceTile
               label={t("detail.realDisc")}
               value={formatPct(product.real_discount_pct, lang)}
               accent={realAccent}
+              ltrValue
             />
           </div>
         </section>

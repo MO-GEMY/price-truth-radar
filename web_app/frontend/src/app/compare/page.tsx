@@ -47,7 +47,9 @@ function MatchCard({ match }: { match: CrossStoreMatch }) {
               {match.brand}
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-              {match.category === "electronics" ? "Electronics" : "Fashion"}
+              {match.category === "electronics"
+                ? t("filters.catElectronics")
+                : t("filters.catFashion")}
             </span>
             <span className="num rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1 font-semibold text-cyan-200">
               {t("compare.storesCount", { count: formatNumber(match.stores_count, lang) })}

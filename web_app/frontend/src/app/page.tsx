@@ -61,19 +61,41 @@ export default function HomePage() {
 
   useEffect(() => loadStats(), [loadStats]);
 
-  // Store filter options: one wide, unfiltered feed page.
+  // Store filter options: sweep all unfiltered feed pages (up to 10 pages × 50)
+  // so stores outside the top-50 gap-sorted slice (e.g. sigma) are never omitted.
   useEffect(() => {
     const controller = new AbortController();
-    fetchRadarFeed(
-      { category: "all", sort: "claimed_vs_real_gap_desc", page: 1, limit: 50 },
-      controller.signal,
-    )
-      .then(({ data }) => {
-        setStores([...new Set(data.items.map((p) => p.store_name))].sort());
-      })
-      .catch(() => {
+    const loadAllStores = async () => {
+      try {
+        const first = await fetchRadarFeed(
+          { category: "all", sort: "price_asc", page: 1, limit: 50 },
+          controller.signal,
+        );
+        const found = new Set(first.data.items.map((p) => p.store_name));
+        const maxPages = Math.min(first.data.total_pages, 10);
+        if (maxPages > 1) {
+          const rest = await Promise.all(
+            Array.from({ length: maxPages - 1 }, (_, i) =>
+              fetchRadarFeed(
+                { category: "all", sort: "price_asc", page: i + 2, limit: 50 },
+                controller.signal,
+              ),
+            ),
+          );
+          for (const pageRes of rest) {
+            for (const item of pageRes.data.items) {
+              found.add(item.store_name);
+            }
+          }
+        }
+        if (!controller.signal.aborted) {
+          setStores([...found].sort());
+        }
+      } catch {
         /* store filter stays with current options */
-      });
+      }
+    };
+    void loadAllStores();
     return () => controller.abort();
   }, []);
 
