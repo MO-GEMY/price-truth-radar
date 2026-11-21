@@ -1,0 +1,320 @@
+"""
+Live scraper for Amazon Egypt (`https://www.amazon.eg/-/en/`).
+
+Uses TLS-impersonated HTTP (`ImpersonatedHttpClient` via `curl_cffi`) with
+conservative jittered pacing (`>= 4.0s`) and session priming on
+`https://www.amazon.eg/-/en/` prior to executing English search queries across
+`electronics`, `home_appliances`, and `fashion`.
+
+Extracts `[data-component-type="s-search-result"]` cards:
+- Skips sponsored cards (`a[href*="/sspa/click"]`) and missing ASINs
+- `external_id`: 10-character Amazon `data-asin`
+- `product_url`: canonical `https://www.amazon.eg/-/en/dp/{ASIN}`
+- `current_price`: `.a-price:not(.a-text-price) .a-offscreen`
+- `claimed_original_price`: `.a-text-price .a-offscreen` (kept only when strictly `> current_price`)
+- `image_url`: `img.s-image` (`m.media-amazon.com/images/I/...`)
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+import re
+from decimal import Decimal
+from typing import Any, Optional
+from urllib.parse import urlencode
+
+from bs4 import BeautifulSoup, Tag
+
+from .base import (
+    BaseScraper,
+    Category,
+    ImpersonatedHttpClient,
+    RawProductSnapshot,
+    ThrottledResponseError,
+    parse_egp_price,
+    utc_now_naive,
+)
+from .noon import (
+    _extract_brand,
+    _extract_specs,
+    _refine_sub_category,
+)
+
+logger = logging.getLogger(__name__)
+
+# Curated high-overlap search queries interleaved across all 3 categories
+AMAZON_EG_QUERIES: list[tuple[str, Category, str]] = [
+    ("smartphones", "electronics", "samsung galaxy smartphone"),
+    ("tvs", "home_appliances", "smart tv 4k"),
+    ("hoodies", "fashion", "men hoodie cotton"),
+    ("laptops", "electronics", "gaming laptop rtx"),
+    ("air_conditioners", "home_appliances", "inverter air conditioner"),
+    ("footwear", "fashion", "nike sneakers"),
+    ("headphones", "electronics", "wireless headphones anc"),
+    ("washing_machines", "home_appliances", "automatic washing machine"),
+    ("smartphones", "electronics", "xiaomi redmi smartphone"),
+    ("kitchen_appliances", "home_appliances", "air fryer"),
+]
+
+_ASIN_RE = re.compile(r"^[A-Z0-9]{10}$")
+
+_BRAND_NORMALIZATION: dict[str, str] = {
+    "hp": "HP",
+    "lg": "LG",
+    "asus": "ASUS",
+    "msi": "MSI",
+    "aoc": "AOC",
+    "jbl": "JBL",
+    "oppo": "OPPO",
+    "tcl": "TCL",
+    "tp-link": "TP-Link",
+    "redmi": "Xiaomi",
+    "poco": "Xiaomi",
+    "playstation": "Sony",
+}
+
+
+def _normalize_amazon_brand(raw_brand: Optional[str], title: str) -> str:
+    candidate = (raw_brand or "").strip()
+    if candidate and candidate.lower() not in {"generic", "other", "none", "null", "brand", "unbranded"}:
+        low = candidate.lower()
+        if low in _BRAND_NORMALIZATION:
+            return _BRAND_NORMALIZATION[low]
+        if candidate.isupper() and len(candidate) > 3:
+            return candidate.title()
+        return candidate[:100]
+    return _extract_brand(title)
+
+
+def _is_sponsored_card(card: Tag) -> bool:
+    if card.select_one('a[href*="/sspa/click"]'):
+        return True
+    if card.select_one(".puis-sponsored-label-text, .s-sponsored-label-info-icon"):
+        return True
+    return False
+
+
+def _extract_title_and_brand(card: Tag) -> tuple[str, Optional[str]]:
+    """
+    Amazon Egypt search cards typically render two `<h2>` tags:
+      1st `<h2>`: Brand (e.g., `"Samsung"`)
+      2nd `<h2>`: Product title (e.g., `"Galaxy A17 5G, Android Smartphone, ..."`)
+    """
+    h2_texts = [h.get_text(" ", strip=True) for h in card.select("h2") if h.get_text(" ", strip=True)]
+    raw_brand: Optional[str] = None
+    raw_title = ""
+
+    if len(h2_texts) >= 2 and len(h2_texts[0]) <= 35:
+        raw_brand = h2_texts[0]
+        raw_title = h2_texts[1]
+    elif len(h2_texts) == 1:
+        raw_title = h2_texts[0]
+
+    if not raw_title or len(raw_title) < 5:
+        recipe = card.select_one('[data-cy="title-recipe"] a')
+        if recipe:
+            cand = recipe.get_text(" ", strip=True)
+            if len(cand) > len(raw_title):
+                raw_title = cand
+
+    if not raw_title or len(raw_title) < 5:
+        img = card.select_one("img.s-image")
+        if img and img.get("alt"):
+            raw_title = str(img.get("alt")).strip()
+
+    raw_title = re.sub(r"\s+", " ", raw_title).strip()
+
+    # Prepend brand to title if Amazon separated it into the 1st <h2> and title doesn't already start with it
+    if raw_brand and raw_title:
+        if not raw_title.lower().startswith(raw_brand.lower()):
+            raw_title = f"{raw_brand} {raw_title}"
+
+    return raw_title, raw_brand
+
+
+def _extract_amazon_prices(card: Tag) -> tuple[Optional[Decimal], Optional[Decimal]]:
+    """Extract `(current_price, claimed_original_price)` from Amazon search result card."""
+    current_price: Optional[Decimal] = None
+    claimed_price: Optional[Decimal] = None
+
+    # Primary selling price: `.a-price` that is NOT `.a-text-price` (strikethrough)
+    for price_span in card.select(".a-price"):
+        classes = set(price_span.get("class") or [])
+        offscreen = price_span.select_one(".a-offscreen")
+        if not offscreen:
+            continue
+        parsed = parse_egp_price(offscreen.get_text(" ", strip=True))
+        if parsed is None:
+            continue
+        if "a-text-price" in classes:
+            if claimed_price is None:
+                claimed_price = parsed
+        else:
+            if current_price is None:
+                current_price = parsed
+
+    # Fallback: check explicit strikethrough selector if not yet found
+    if claimed_price is None:
+        strike_el = card.select_one(".a-text-price .a-offscreen")
+        if strike_el:
+            claimed_price = parse_egp_price(strike_el.get_text(" ", strip=True))
+
+    if claimed_price is not None and (current_price is None or claimed_price <= current_price):
+        claimed_price = None
+
+    return current_price, claimed_price
+
+
+def _extract_amazon_image(card: Tag) -> Optional[str]:
+    img = card.select_one("img.s-image")
+    if not img:
+        return None
+    for attr in ("src", "data-src"):
+        val = str(img.get(attr) or "").strip()
+        if val.startswith("http") and "m.media-amazon.com/images/" in val:
+            return val
+    src = str(img.get("src") or "").strip()
+    return src if src.startswith("http") else None
+
+
+class AmazonEgScraper(BaseScraper):
+    """Live scraper for Amazon Egypt across electronics, home_appliances, and fashion."""
+
+    store_name = "amazon_eg"
+    category: Category = "electronics"
+    base_url = "https://www.amazon.eg"
+    default_limit = 250
+    min_delay_seconds = 4.0
+    request_timeout = 30.0
+
+    def scrape(self, limit: int = 250) -> list[RawProductSnapshot]:
+        snapshots: list[RawProductSnapshot] = []
+        seen_asins: set[str] = set()
+        now = utc_now_naive()
+        today = now.date()
+
+        effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
+        per_query_cap = max(3, math.ceil(limit / len(AMAZON_EG_QUERIES)))
+        max_pages = 2 if limit <= 120 else 3
+        throttled = False
+
+        with ImpersonatedHttpClient(
+            impersonate="chrome",
+            timeout=self.request_timeout or 30.0,
+            max_retries=3,
+            backoff_base=2.5,
+            min_delay_seconds=effective_delay,
+            jitter_range=(0.5, 1.5),
+            headers={"Accept-Language": "en-US,en;q=0.9"},
+        ) as client:
+            # Prime session cookies on the English storefront before hitting /s?k=
+            logger.info("[amazon_eg] Priming session on %s/-/en/", self.base_url)
+            try:
+                client.get(f"{self.base_url}/-/en/", check_throttle=True, min_html_bytes=5120)
+            except ThrottledResponseError as exc:
+                logger.warning("[amazon_eg] Throttled during session priming: %s; exiting gracefully.", exc)
+                return snapshots
+            except Exception as exc:
+                logger.warning("[amazon_eg] Failed to prime session: %s; exiting gracefully.", exc)
+                return snapshots
+
+            for default_sub, top_category, query in AMAZON_EG_QUERIES:
+                if len(snapshots) >= limit or throttled:
+                    break
+                query_collected = 0
+
+                for page in range(1, max_pages + 1):
+                    if len(snapshots) >= limit or query_collected >= per_query_cap:
+                        break
+
+                    qs = urlencode({"k": query, "page": page})
+                    search_url = f"{self.base_url}/-/en/s?{qs}"
+                    logger.info("[amazon_eg] Fetching query=%r (%s) page %d", query, top_category, page)
+                    try:
+                        resp = client.get(search_url, check_throttle=True, min_html_bytes=5120)
+                    except ThrottledResponseError as exc:
+                        logger.warning(
+                            "[amazon_eg] Throttled on query=%r page %d (%s); exiting gracefully with %d snapshots.",
+                            query,
+                            page,
+                            exc,
+                            len(snapshots),
+                        )
+                        throttled = True
+                        break
+                    except Exception as exc:
+                        logger.warning("[amazon_eg] Failed query=%r page %d: %s", query, page, exc)
+                        break
+
+                    self.pages_fetched += 1
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    cards = soup.select('[data-component-type="s-search-result"]')
+                    if not cards:
+                        logger.info("[amazon_eg] No search result cards for query=%r page %d", query, page)
+                        break
+
+                    page_added = 0
+                    for card in cards:
+                        if len(snapshots) >= limit or query_collected >= per_query_cap:
+                            break
+
+                        asin = str(card.get("data-asin") or "").strip().upper()
+                        if not asin or not _ASIN_RE.match(asin) or asin in seen_asins:
+                            continue
+                        if _is_sponsored_card(card):
+                            continue
+
+                        title, raw_brand = _extract_title_and_brand(card)
+                        if not title or len(title) < 4:
+                            continue
+
+                        current_price, claimed_price = _extract_amazon_prices(card)
+                        if current_price is None:
+                            self.skipped_count += 1
+                            continue
+
+                        image_url = _extract_amazon_image(card)
+                        card_text_low = card.get_text(" ", strip=True).lower()
+                        in_stock = not (
+                            "currently unavailable" in card_text_low
+                            or "temporarily out of stock" in card_text_low
+                        )
+
+                        brand = _normalize_amazon_brand(raw_brand, title)
+                        sub_category = _refine_sub_category(title, top_category, default_sub)
+                        attrs: dict[str, Any] = _extract_specs(title, top_category, sub_category)
+                        attrs.pop("noon_category", None)
+                        attrs["amazon_query"] = query
+
+                        product_url = f"{self.base_url}/-/en/dp/{asin}"
+                        seen_asins.add(asin)
+
+                        snap = self.validate_record(
+                            {
+                                "store_name": self.store_name,
+                                "external_id": asin,
+                                "canonical_product_key": None,
+                                "category": top_category,
+                                "sub_category": sub_category,
+                                "brand": brand,
+                                "product_title": title,
+                                "product_url": product_url,
+                                "image_url": image_url,
+                                "attributes_json": attrs,
+                                "current_price": current_price,
+                                "claimed_original_price": claimed_price,
+                                "in_stock": in_stock,
+                                "snapshot_date": today,
+                                "scraped_at": now,
+                            }
+                        )
+                        if snap is not None:
+                            snapshots.append(snap)
+                            query_collected += 1
+                            page_added += 1
+
+                    if page_added == 0:
+                        break
+
+        return snapshots

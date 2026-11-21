@@ -54,11 +54,17 @@ def _is_tracking_param(name: str) -> bool:
     return low.startswith("utm_") or low in TRACKING_QUERY_PARAMS
 
 
+_NOON_SKU_RE = re.compile(r"/([a-z0-9_-]+)/p(?:/|$)", re.I)
+_AMAZON_ASIN_RE = re.compile(r"/(?:dp|gp/product)/([a-z0-9]{10})(?:/|$)", re.I)
+
+
 def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
     """Parse and normalize a pasted URL while stripping ad/analytics tracking params.
 
     Preserves meaningful query params (e.g. Sigma `id`, B.TECH `offering_id`,
     `q`, `s`, `k`, `ref`) while stripping `utm_*`, `fbclid`, `gclid`, etc.
+    Also extracts deterministic store identifiers for Noon (`/SKU/p/`) and
+    Amazon Egypt (`/dp/ASIN`).
     """
     cleaned = raw_url.strip()
     if not cleaned:
@@ -70,6 +76,8 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
             "sigma_id": None,
             "btech_slug": None,
             "offering_id": None,
+            "noon_sku": None,
+            "amazon_asin": None,
         }
     if not cleaned.lower().startswith(("http://", "https://")):
         cleaned = f"https://{cleaned}"
@@ -95,6 +103,16 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
     if netloc == "btech.com" and path.lower().startswith("/en/p/") and len(path) > len("/en/p/"):
         btech_slug = path.lower()
 
+    noon_sku = None
+    if netloc == "noon.com":
+        if m := _NOON_SKU_RE.search(path):
+            noon_sku = m.group(1).lower()
+
+    amazon_asin = None
+    if netloc == "amazon.eg":
+        if m := _AMAZON_ASIN_RE.search(path):
+            amazon_asin = m.group(1).lower()
+
     return {
         "full_key": full_key,
         "host": netloc,
@@ -103,6 +121,8 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
         "sigma_id": sigma_id,
         "btech_slug": btech_slug,
         "offering_id": offering_id,
+        "noon_sku": noon_sku,
+        "amazon_asin": amazon_asin,
     }
 
 
@@ -123,6 +143,8 @@ def search_products(
         ref_param = parts["ref"]
         sigma_id = parts["sigma_id"]
         btech_slug = parts["btech_slug"]
+        noon_sku = parts["noon_sku"]
+        amazon_asin = parts["amazon_asin"]
 
         exact_sql = text(
             f"""
@@ -204,7 +226,61 @@ def search_products(
                 .all()
             )
 
-        # Deterministic fallback 3: `(host, ref)` when `ref` query param is present
+        # Deterministic fallback 3: Noon Egypt `/{SKU}/p/` (ignores locale/slug/query differences)
+        if not rows and noon_sku:
+            noon_pattern = rf"/{re.escape(noon_sku)}/p(/|\?|$)"
+            noon_sql = text(
+                f"""
+                SELECT {PRODUCT_SELECT_COLS}
+                FROM gold.mart_product_verdicts
+                WHERE SPLIT_PART(
+                    SPLIT_PART(
+                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
+                        '?',
+                        1
+                    ),
+                    '/',
+                    1
+                ) = 'noon.com'
+                  AND LOWER(product_url) ~ :noon_pattern
+                ORDER BY product_sk ASC
+                LIMIT :limit
+                """
+            )
+            rows = (
+                db.execute(noon_sql, {"noon_pattern": noon_pattern, "limit": limit})
+                .mappings()
+                .all()
+            )
+
+        # Deterministic fallback 4: Amazon Egypt `/dp/{ASIN}` (ignores locale slug & tracking params)
+        if not rows and amazon_asin:
+            asin_pattern = rf"/(dp|gp/product)/{re.escape(amazon_asin)}(/|\?|$)"
+            amz_sql = text(
+                f"""
+                SELECT {PRODUCT_SELECT_COLS}
+                FROM gold.mart_product_verdicts
+                WHERE SPLIT_PART(
+                    SPLIT_PART(
+                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
+                        '?',
+                        1
+                    ),
+                    '/',
+                    1
+                ) = 'amazon.eg'
+                  AND LOWER(product_url) ~ :asin_pattern
+                ORDER BY product_sk ASC
+                LIMIT :limit
+                """
+            )
+            rows = (
+                db.execute(amz_sql, {"asin_pattern": asin_pattern, "limit": limit})
+                .mappings()
+                .all()
+            )
+
+        # Deterministic fallback 5: `(host, ref)` when `ref` query param is present
         if not rows and netloc and ref_param:
             ref_pattern = rf"(^|[?&])ref={re.escape(ref_param)}(&|$)"
             ref_sql = text(

@@ -853,10 +853,21 @@ function parseUrlParts(rawUrl: string): {
   ref: string | null;
   sigmaId: string | null;
   btechSlug: string | null;
+  noonSku: string | null;
+  amazonAsin: string | null;
 } {
   const cleaned = rawUrl.trim();
   if (!cleaned) {
-    return { fullKey: "", host: "", path: "", ref: null, sigmaId: null, btechSlug: null };
+    return {
+      fullKey: "",
+      host: "",
+      path: "",
+      ref: null,
+      sigmaId: null,
+      btechSlug: null,
+      noonSku: null,
+      amazonAsin: null,
+    };
   }
   try {
     const withScheme = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
@@ -880,7 +891,21 @@ function parseUrlParts(rawUrl: string): {
       host === "btech.com" && path.toLowerCase().startsWith("/en/p/") && path.length > "/en/p/".length
         ? path.toLowerCase()
         : null;
-    return { fullKey, host, path: path.toLowerCase(), ref: refVal, sigmaId, btechSlug };
+    const noonMatch = host === "noon.com" ? path.match(/\/([a-z0-9_-]+)\/p(?:\/|$)/i) : null;
+    const noonSku = noonMatch ? noonMatch[1].toLowerCase() : null;
+    const amzMatch =
+      host === "amazon.eg" ? path.match(/\/(?:dp|gp\/product)\/([a-z0-9]{10})(?:\/|$)/i) : null;
+    const amazonAsin = amzMatch ? amzMatch[1].toLowerCase() : null;
+    return {
+      fullKey,
+      host,
+      path: path.toLowerCase(),
+      ref: refVal,
+      sigmaId,
+      btechSlug,
+      noonSku,
+      amazonAsin,
+    };
   } catch {
     const fallback = cleaned
       .toLowerCase()
@@ -889,7 +914,16 @@ function parseUrlParts(rawUrl: string): {
       .replace(/#.*$/, "")
       .replace(/\/\?/, "?")
       .replace(/\/+$/, "");
-    return { fullKey: fallback, host: "", path: "", ref: null, sigmaId: null, btechSlug: null };
+    return {
+      fullKey: fallback,
+      host: "",
+      path: "",
+      ref: null,
+      sigmaId: null,
+      btechSlug: null,
+      noonSku: null,
+      amazonAsin: null,
+    };
   }
 }
 
@@ -920,6 +954,22 @@ export function mockSearch(params: SearchParams): SearchResponse {
         );
         if (btechMatch) {
           return { match_type: "url_exact", items: [btechMatch], total: 1 };
+        }
+      }
+      if (target.noonSku) {
+        const noonMatch = products.find(
+          (p) => parseUrlParts(p.product_url).noonSku === target.noonSku,
+        );
+        if (noonMatch) {
+          return { match_type: "url_exact", items: [noonMatch], total: 1 };
+        }
+      }
+      if (target.amazonAsin) {
+        const amzMatch = products.find(
+          (p) => parseUrlParts(p.product_url).amazonAsin === target.amazonAsin,
+        );
+        if (amzMatch) {
+          return { match_type: "url_exact", items: [amzMatch], total: 1 };
         }
       }
       if (target.host && target.ref) {

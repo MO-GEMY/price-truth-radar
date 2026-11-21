@@ -48,6 +48,38 @@ DEFAULT_HEADERS: dict[str, str] = {
 }
 
 RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
+IMPERSONATED_RETRYABLE_CODES: frozenset[int] = frozenset({403, 429, 500, 502, 503, 504})
+
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+_THROTTLE_TITLE_MARKERS: tuple[str, ...] = (
+    "robot check",
+    "captcha",
+    "sorry! something went wrong",
+    "access denied",
+    "attention required",
+    "just a moment",
+    "service unavailable",
+)
+
+
+class ThrottledResponseError(RuntimeError):
+    """Raised when an upstream storefront returns a throttle/challenge/empty page."""
+
+
+def is_throttled_html(html: str, *, min_bytes: int = 5120) -> Optional[str]:
+    """Return a reason string if `html` looks like a throttle/empty/challenge page."""
+    if not html or len(html) < min_bytes:
+        return f"tiny HTML body ({len(html)} bytes < {min_bytes})"
+    m = _TITLE_RE.search(html[:16384])
+    if m is not None:
+        title_text = re.sub(r"\s+", " ", m.group(1)).strip()
+        if not title_text:
+            return "blank <title> tag"
+        low_title = title_text.lower()
+        for marker in _THROTTLE_TITLE_MARKERS:
+            if marker in low_title:
+                return f"bot-wall/throttle title ({title_text!r})"
+    return None
 
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩٫٬", "0123456789.,")
 _PRICE_NUMBER_RE = re.compile(r"(\d[\d,]*(?:\.\d{1,2})?)")
@@ -326,6 +358,150 @@ class PoliteHttpClient:
                 raise
             finally:
                 self._last_request_ts = time.monotonic()
+        assert last_exc is not None
+        raise last_exc
+
+
+class ImpersonatedHttpClient:
+    """TLS-impersonated HTTP client powered by `curl_cffi` with polite jitter & throttle detection."""
+
+    def __init__(
+        self,
+        *,
+        impersonate: str = "chrome",
+        timeout: float = 25.0,
+        max_retries: int = 3,
+        backoff_base: float = 2.0,
+        min_delay_seconds: float = 3.0,
+        jitter_range: tuple[float, float] = (0.3, 1.2),
+        headers: Optional[dict[str, str]] = None,
+    ) -> None:
+        from curl_cffi import requests as cffi_requests
+
+        self.impersonate = impersonate
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
+        self.min_delay_seconds = max(0.0, min_delay_seconds)
+        self.jitter_range = jitter_range
+        self._default_headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        if headers:
+            self._default_headers.update(headers)
+        self._session = cffi_requests.Session(impersonate=impersonate)
+        self._last_request_ts: float = 0.0
+
+    def __enter__(self) -> "ImpersonatedHttpClient":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        self._session.close()
+
+    def _wait_rate_limit(self, min_delay_override: Optional[float] = None) -> None:
+        effective_delay = max(self.min_delay_seconds, min_delay_override or 0.0)
+        if self._last_request_ts <= 0 or effective_delay <= 0:
+            return
+        elapsed = time.monotonic() - self._last_request_ts
+        jitter = random.uniform(self.jitter_range[0], self.jitter_range[1])
+        remaining = (effective_delay + jitter) - elapsed
+        if remaining > 0:
+            time.sleep(remaining)
+
+    def get(
+        self,
+        url: str,
+        *,
+        params: Optional[dict[str, Any]] = None,
+        min_delay_seconds: Optional[float] = None,
+        timeout: Optional[float] = None,
+        headers: Optional[dict[str, str]] = None,
+        check_throttle: bool = True,
+        min_html_bytes: int = 5120,
+    ) -> Any:
+        merged_headers = dict(self._default_headers)
+        if headers:
+            merged_headers.update(headers)
+        effective_timeout = timeout if timeout is not None else self.timeout
+        last_exc: Optional[Exception] = None
+
+        for attempt in range(1, self.max_retries + 1):
+            self._wait_rate_limit(min_delay_override=min_delay_seconds)
+            try:
+                resp = self._session.get(
+                    url,
+                    params=params,
+                    headers=merged_headers,
+                    timeout=effective_timeout,
+                    allow_redirects=True,
+                )
+                status = int(resp.status_code)
+                if status in IMPERSONATED_RETRYABLE_CODES:
+                    msg = f"HTTP {status} for {url}"
+                    last_exc = ThrottledResponseError(msg)
+                    if attempt < self.max_retries:
+                        retry_after = resp.headers.get("Retry-After")
+                        sleep_for = (
+                            float(retry_after)
+                            if retry_after and retry_after.isdigit()
+                            else (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+                        )
+                        logger.warning(
+                            "%s (attempt %d/%d); backing off %.1fs",
+                            msg,
+                            attempt,
+                            self.max_retries,
+                            sleep_for,
+                        )
+                        time.sleep(sleep_for)
+                        continue
+                    raise last_exc
+
+                if status >= 400:
+                    resp.raise_for_status()
+
+                if check_throttle:
+                    reason = is_throttled_html(resp.text or "", min_bytes=min_html_bytes)
+                    if reason is not None:
+                        last_exc = ThrottledResponseError(f"Throttled response for {url}: {reason}")
+                        if attempt < self.max_retries:
+                            sleep_for = (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+                            logger.warning(
+                                "%s (attempt %d/%d); backing off %.1fs",
+                                last_exc,
+                                attempt,
+                                self.max_retries,
+                                sleep_for,
+                            )
+                            time.sleep(sleep_for)
+                            continue
+                        raise last_exc
+
+                return resp
+            except ThrottledResponseError:
+                raise
+            except Exception as exc:
+                last_exc = exc
+                if attempt < self.max_retries:
+                    sleep_for = (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+                    logger.warning(
+                        "Impersonated GET error for %s (attempt %d/%d): %s; retrying in %.1fs",
+                        url,
+                        attempt,
+                        self.max_retries,
+                        exc,
+                        sleep_for,
+                    )
+                    time.sleep(sleep_for)
+                    continue
+                raise
+            finally:
+                self._last_request_ts = time.monotonic()
+
         assert last_exc is not None
         raise last_exc
 

@@ -93,12 +93,40 @@ _BRAND_ALIASES: dict[str, str] = {
     "kieslect": "kieslect",
 }
 
+_STORE_SUFFIX_NOISE_RE = re.compile(
+    r"(?:"
+    r"\|\s*(?:tax\s*paid|no\s*tax|official\s*warranty|local\s*warranty|international\s*warranty|"
+    r"\d+\s*years?\s*(?:official\s*|local\s*|manufacturer\s*)?warranty|dual[\s-]?sim|single[\s-]?sim|"
+    r"5g|4g|lte|unlocked|middle\s*east\s*version|international\s*version|global\s*version|egypt\s*version|"
+    r"uae\s*version|gcc\s*version|ksa\s*version|free\s*shipping|express)[^|]*|"
+    r"[\(\[\-–—]\s*(?:international\s*version|middle\s*east\s*version|global\s*version|"
+    r"uae\s*version|egypt\s*version|gcc\s*version|local\s*version|tax\s*paid|official\s*warranty|"
+    r"local\s*warranty|\d+\s*years?\s*(?:official\s*|local\s*)?warranty(?:\s*/\s*local\s*version)?)[\)\]]?"
+    r")",
+    re.I,
+)
+
+_SLASH_RAM_STORAGE_RE = re.compile(r"\b(\d{1,2})\s*(?:gb)?\s*[+/]\s*(64|128|256|512|1024)\s*gb\b", re.I)
+
+
+def _strip_marketplace_noise(title: str) -> str:
+    """Strip Amazon pipe suffixes, Noon/Jumia version tags, and invisible chars."""
+    cleaned = re.sub(r"[\u200b\u200c\u200d®™]", "", title)
+    cleaned = _STORE_SUFFIX_NOISE_RE.sub(" ", cleaned)
+    # Remove any remaining trailing "| ..." marketplace marketing clauses after the core title
+    if "|" in cleaned:
+        first_seg = cleaned.split("|", 1)[0].strip()
+        if len(first_seg) >= 12:
+            cleaned = first_seg
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 _PHONE_NOISE_RE = re.compile(
     r"\b("
     r"pre[\s-]?order|dual[\s-]?sim|single[\s-]?sim|sim|esim|"
     r"5g|4g|lte|nfc|wifi|wi[\s-]?fi|bluetooth|gps|"
-    r"global\s+version|official\s+warranty|local\s+warranty|international\s+warranty|warranty|egypt|"
-    r"smartphone|mobile\s+phone|mobile|phone|tablet|ram|rom|storage|internal|memory|"
+    r"global\s+version|local\s+version|middle\s+east\s+version|international\s+version|official\s+warranty|local\s+warranty|international\s+warranty|warranty|egypt|"
+    r"android|ios|smartphone|mobile\s+phone|cell\s*phone|mobile|phone|tablet|ram|rom|storage|internal|memory|"
     r"new|sealed|original|edition|unlocked|with|free|gift"
     r")\b",
     re.I,
@@ -251,6 +279,14 @@ def _extract_ram_storage(record: RawProductSnapshot) -> tuple[Optional[int], Opt
     if ram_gb is not None and storage_gb is not None:
         return ram_gb, storage_gb
 
+    # Handle compact "8+256GB" or "8/256GB" notation common on Amazon/Noon
+    if m := _SLASH_RAM_STORAGE_RE.search(record.product_title):
+        if ram_gb is None:
+            ram_gb = int(m.group(1))
+        if storage_gb is None:
+            storage_gb = int(m.group(2))
+        return ram_gb, storage_gb
+
     # Parse all GB/TB tokens from title; smaller value (<= 24 for phones, <= 64 for laptops) is RAM, larger is storage
     gb_vals: list[int] = []
     for num_str, unit in _CAPACITY_TOKEN_RE.findall(record.product_title):
@@ -283,7 +319,7 @@ def _smartphone_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[
     if storage_gb is None:
         return None
 
-    text = record.product_title
+    text = _strip_marketplace_noise(record.product_title)
     # Strip trailing "- Color" segment when clearly a finish/color suffix
     text = re.sub(r"\s*[-–—]\s*[A-Za-z][A-Za-z\s]{1,28}$", lambda m: (
         "" if all(w.lower() in _COLOR_WORDS for w in m.group(0).lstrip("-–— ").split()) else m.group(0)
@@ -326,7 +362,7 @@ def _smartphone_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[
 
 def _laptop_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]:
     ram_gb, storage_gb = _extract_ram_storage(record)
-    title = re.sub(r"[\u200b\u200c\u200d®™]", "", record.product_title)
+    title = _strip_marketplace_noise(record.product_title)
 
     # Extract CPU
     cpu_tag: Optional[str] = None
@@ -375,7 +411,7 @@ def _laptop_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]
 
 def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]:
     """Model-code based fingerprint for monitors, headphones, storage, peripherals, TVs."""
-    title = re.sub(r"[\u200b\u200c\u200d®™]", "", record.product_title)
+    title = _strip_marketplace_noise(record.product_title)
     # Remove specs/units that look like alphanumeric codes (e.g. 240hz, 512gb, 1tb, 1ms, 60w, usb3)
     cleaned = re.sub(
         r"\b\d+(?:\.\d+)?\s*(?:gb|tb|mb|mhz|ghz|hz|ms|mm|cm|inch|w|v|mah|dpi|fps|bit|gen\d?|usb\d?)\b",
@@ -411,7 +447,7 @@ def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> 
 
 def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]:
     """Model-code fingerprint for home appliances (TVs, ACs, fridges, washers, kitchen)."""
-    title = re.sub(r"[\u200b\u200c\u200d®™]", "", record.product_title)
+    title = _strip_marketplace_noise(record.product_title)
     cleaned = re.sub(
         r"\b\d+(?:\.\d+)?\s*(?:hp|btu|kg|kgs|liter|liters|litre|litres|l|w|watt|watts|cm|mm|inch|hz|bar|ml|rpm|v|kw)\b",
         " ",
