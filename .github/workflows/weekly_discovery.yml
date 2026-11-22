@@ -2,26 +2,41 @@ name: Weekly Catalog Discovery Pipeline
 
 on:
   schedule:
-    # Runs every Friday at 01:30 UTC (03:30 AM Cairo EET / 04:30 AM EEST)
-    - cron: '30 1 * * 5'
+    # Runs every Friday at 01:13 UTC (03:13 AM Cairo EET / 04:13 AM EEST)
+    - cron: '13 1 * * 5'
   workflow_dispatch:
 
 jobs:
   discover:
-    name: Discover (${{ matrix.store }})
+    name: Discover (${{ matrix.target.store }} - ${{ matrix.target.vertical }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         # Note: `2b` blocks cloud/datacenter IPs and runs locally via scripts/run_local_scrapers.ps1
-        store:
-          - sigma
-          - btech
-          - town_team
-          - dejavu
-          - dalydress
-          - noon
-          - amazon_eg
+        target:
+          - { store: sigma, vertical: core }
+          - { store: btech, vertical: core }
+          - { store: noon, vertical: core }
+          - { store: amazon_eg, vertical: core }
+          - { store: raneen, vertical: core }
+          - { store: rayashop, vertical: core }
+          - { store: compumarts, vertical: core }
+          - { store: tradeline, vertical: core }
+          - { store: elaraby, vertical: core }
+          - { store: elbadr, vertical: core }
+          - { store: compuscience, vertical: core }
+          - { store: cairosales, vertical: core }
+          - { store: egyptlaptop, vertical: core }
+          - { store: dubaiphone, vertical: core }
+          - { store: town_team, vertical: fashion }
+          - { store: dejavu, vertical: fashion }
+          - { store: dalydress, vertical: fashion }
+          - { store: activ, vertical: fashion }
+          - { store: carina, vertical: fashion }
+          - { store: khotwh, vertical: fashion }
+          - { store: concrete, vertical: fashion }
+          - { store: mobaco, vertical: fashion }
 
     steps:
       - name: Checkout repository
@@ -35,10 +50,11 @@ jobs:
       - name: Install data platform dependencies
         run: pip install -r data_platform/requirements.txt
 
-      - name: Run weekly catalog discovery (${{ matrix.store }})
+      - name: Run weekly catalog discovery (${{ matrix.target.store }})
+        continue-on-error: true
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }} --mode discover
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.target.store }} --vertical ${{ matrix.target.vertical }} --mode discover
 
   match-and-dbt:
     name: Match Cross-Store & Run dbt

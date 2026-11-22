@@ -39,6 +39,8 @@ import {
 } from "@/components/states";
 
 const PAGE_LIMIT = 12;
+/** Stores shown in the hero strip before collapsing into a "+N more" pill. */
+const MAX_VISIBLE_STORES = 10;
 const DEFAULT_FILTERS: FeedFilterState = {
   category: "all",
   verdict: "",
@@ -64,6 +66,7 @@ export default function HomePage() {
   const [page, setPage] = useState(1);
   const [searchTrigger, setSearchTrigger] = useState<ExternalSearchTrigger | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showAllStores, setShowAllStores] = useState(false);
 
   const { summary: compareSummary } = useCompareSummary();
 
@@ -192,9 +195,16 @@ export default function HomePage() {
             <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-4xl">
               {t("hero.title")}
             </h1>
-            <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-slate-400 sm:text-[15px]">
-              {t("hero.subtitle")}
-            </p>
+            {stores.length > 0 ? (
+              <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-slate-400 sm:text-[15px]">
+                {t("hero.subtitle", { count: formatNumber(stores.length, lang) })}
+              </p>
+            ) : (
+              <span
+                className="mt-3.5 block h-4 w-72 max-w-full rounded skeleton"
+                aria-hidden
+              />
+            )}
 
             {/* Command Search Bar */}
             <div className="mt-5">
@@ -265,29 +275,70 @@ export default function HomePage() {
               <span className="me-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 {t("stores.stripLabel")}
               </span>
-              {stores.map((slug) => {
-                const isSelected = filters.store === slug;
+              {(() => {
+                // Keep the strip scannable at 30+ stores: show the first 10 and
+                // collapse the rest behind an expandable pill — while always
+                // keeping the currently selected store visible.
+                const selectedOutside =
+                  filters.store &&
+                  stores.length > MAX_VISIBLE_STORES &&
+                  !stores.slice(0, MAX_VISIBLE_STORES).includes(filters.store);
+                const visibleStores =
+                  showAllStores || stores.length <= MAX_VISIBLE_STORES
+                    ? stores
+                    : selectedOutside
+                      ? [...stores.slice(0, MAX_VISIBLE_STORES), filters.store]
+                      : stores.slice(0, MAX_VISIBLE_STORES);
+                const hiddenCount = stores.length - visibleStores.length;
+
                 return (
-                  <button
-                    key={slug}
-                    type="button"
-                    onClick={() => handleSelectStoreChip(slug)}
-                    aria-pressed={isSelected}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
-                      isSelected
-                        ? "border-teal-400/50 bg-teal-400/15 text-teal-200"
-                        : "border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
-                    }`}
-                  >
-                    <span
-                      className="size-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: storeAccent(slug) }}
-                      aria-hidden
-                    />
-                    {storeDisplayName(slug, lang)}
-                  </button>
+                  <>
+                    {visibleStores.map((slug) => {
+                      const isSelected = filters.store === slug;
+                      return (
+                        <button
+                          key={slug}
+                          type="button"
+                          onClick={() => handleSelectStoreChip(slug)}
+                          aria-pressed={isSelected}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                            isSelected
+                              ? "border-teal-400/50 bg-teal-400/15 text-teal-200"
+                              : "border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+                          }`}
+                        >
+                          <span
+                            className="size-1.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: storeAccent(slug) }}
+                            aria-hidden
+                          />
+                          {storeDisplayName(slug, lang)}
+                        </button>
+                      );
+                    })}
+                    {hiddenCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllStores((v) => !v)}
+                        aria-expanded={showAllStores}
+                        className="inline-flex items-center gap-1 rounded-full border border-teal-400/30 bg-teal-400/8 px-2.5 py-1 text-xs font-semibold text-teal-300 transition hover:border-teal-400/55 hover:bg-teal-400/15"
+                      >
+                        <span className="num">
+                          {showAllStores
+                            ? t("stores.showLess")
+                            : t("stores.moreCount", { count: formatNumber(hiddenCount, lang) })}
+                        </span>
+                        <ChevronDown
+                          className={`size-3 shrink-0 transition-transform duration-200 ${
+                            showAllStores ? "rotate-180" : ""
+                          }`}
+                          aria-hidden
+                        />
+                      </button>
+                    ) : null}
+                  </>
                 );
-              })}
+              })()}
             </div>
 
             <button

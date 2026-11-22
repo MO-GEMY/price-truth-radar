@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from .adapters import (
+    MagentoGraphQLBaseScraper,
+    ShopifyBaseScraper,
+    WooCommerceBaseScraper,
+)
 from .amazon_eg import AmazonEgScraper
 from .base import (
     BaseScraper,
@@ -31,6 +36,29 @@ from .groceries import (
 from .hyperone import HyperOneScraper
 from .matcher import MatchSummary, assign_canonical_keys, compute_candidate_key
 from .noon import NoonScraper
+from .platform_stores import (
+    PLATFORM_SCRAPER_CLASSES,
+    AbuAufScraper,
+    ActivScraper,
+    CairoSalesScraper,
+    CarinaScraper,
+    CompuMartsScraper,
+    CompuScienceScraper,
+    ConcreteScraper,
+    DubaiPhoneScraper,
+    EgyptLaptopScraper,
+    ElArabyScraper,
+    ElBadrScraper,
+    GourmetScraper,
+    ImtenanScraper,
+    KhotwhScraper,
+    MetroMarketScraper,
+    MobacoScraper,
+    TradeLineScraper,
+)
+from .raneen import RaneenScraper
+from .rayashop import RayaShopScraper
+from .seoudi import SeoudiScraper
 from .shopify import DalydressScraper, DejavuScraper, ShopifyScraper, TownTeamScraper
 from .sigma import SigmaScraper
 from .spinneys import SpinneysScraper
@@ -43,35 +71,63 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     DejavuScraper.store_name: DejavuScraper,
     HyperOneScraper.store_name: HyperOneScraper,
     NoonScraper.store_name: NoonScraper,
+    RaneenScraper.store_name: RaneenScraper,
+    RayaShopScraper.store_name: RayaShopScraper,
+    SeoudiScraper.store_name: SeoudiScraper,
     SigmaScraper.store_name: SigmaScraper,
     SpinneysScraper.store_name: SpinneysScraper,
     TownTeamScraper.store_name: TownTeamScraper,
     TwoBScraper.store_name: TwoBScraper,
+    **{cls.store_name: cls for cls in PLATFORM_SCRAPER_CLASSES},
 }
 
 __all__ = [
+    "AbuAufScraper",
+    "ActivScraper",
     "AmazonEgScraper",
     "BaseScraper",
     "BTechScraper",
+    "CairoSalesScraper",
+    "CarinaScraper",
     "Category",
+    "CompuMartsScraper",
+    "CompuScienceScraper",
+    "ConcreteScraper",
     "DalydressScraper",
     "DejavuScraper",
+    "DubaiPhoneScraper",
+    "EgyptLaptopScraper",
+    "ElArabyScraper",
+    "ElBadrScraper",
     "GROCERY_SUB_CATEGORIES",
+    "GourmetScraper",
     "HyperOneScraper",
     "ImpersonatedHttpClient",
+    "ImtenanScraper",
+    "KhotwhScraper",
+    "MagentoGraphQLBaseScraper",
     "MatchSummary",
+    "MetroMarketScraper",
+    "MobacoScraper",
     "NoonScraper",
+    "PLATFORM_SCRAPER_CLASSES",
     "PoliteHttpClient",
+    "RaneenScraper",
     "RawProductSnapshot",
+    "RayaShopScraper",
     "SCRAPER_REGISTRY",
     "ScrapeMode",
     "ScrapeVertical",
+    "SeoudiScraper",
+    "ShopifyBaseScraper",
     "ShopifyScraper",
     "SigmaScraper",
     "SpinneysScraper",
     "ThrottledResponseError",
     "TownTeamScraper",
+    "TradeLineScraper",
     "TwoBScraper",
+    "WooCommerceBaseScraper",
     "assign_canonical_keys",
     "compute_candidate_key",
     "compute_grocery_barcode_key",

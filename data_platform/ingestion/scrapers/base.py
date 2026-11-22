@@ -134,7 +134,7 @@ def utc_now_naive() -> datetime:
 
 Category = Literal["electronics", "fashion", "home_appliances", "groceries"]
 ScrapeMode = Literal["daily", "discover"]
-ScrapeVertical = Literal["core", "groceries"]
+ScrapeVertical = Literal["core", "groceries", "fashion"]
 
 
 class RawProductSnapshot(BaseModel):
@@ -315,6 +315,7 @@ class PoliteHttpClient:
         url: str,
         *,
         params: Optional[dict[str, Any]] = None,
+        headers: Optional[dict[str, str]] = None,
         min_delay_seconds: Optional[float] = None,
         timeout: Optional[float] = None,
     ) -> httpx.Response:
@@ -323,7 +324,7 @@ class PoliteHttpClient:
         for attempt in range(1, self.max_retries + 1):
             self._wait_rate_limit(min_delay_override=min_delay_seconds)
             try:
-                resp = self._client.get(url, params=params, timeout=effective_timeout)
+                resp = self._client.get(url, params=params, headers=headers, timeout=effective_timeout)
                 if resp.status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
                     retry_after = resp.headers.get("Retry-After")
                     sleep_for = (

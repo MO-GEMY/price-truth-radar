@@ -1,27 +1,35 @@
-name: Daily Price Truth Pipeline
+name: Daily Core Electronics & Appliances Pipeline
 
 on:
   schedule:
-    # Runs daily at 00:30 UTC (02:30 AM Cairo EET / 03:30 AM EEST)
-    - cron: '30 0 * * *'
+    # Off-peak daily run at 00:37 UTC (02:37 AM Cairo EET / 03:37 AM EEST)
+    - cron: '37 0 * * *'
   workflow_dispatch:
 
 jobs:
-  scrape:
-    name: Scrape (${{ matrix.store }})
+  scrape-core:
+    name: Scrape Core (${{ matrix.store }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         # Note: `2b` blocks cloud/datacenter IPs and runs locally via scripts/run_local_scrapers.ps1
+        # Fashion stores run in fashion-daily.yml; Grocery stores run in groceries-daily.yml
         store:
           - sigma
           - btech
-          - town_team
-          - dejavu
-          - dalydress
           - noon
           - amazon_eg
+          - raneen
+          - rayashop
+          - compumarts
+          - tradeline
+          - elaraby
+          - elbadr
+          - compuscience
+          - cairosales
+          - egyptlaptop
+          - dubaiphone
 
     steps:
       - name: Checkout repository
@@ -35,15 +43,16 @@ jobs:
       - name: Install data platform dependencies
         run: pip install -r data_platform/requirements.txt
 
-      - name: Run live store scraper (${{ matrix.store }} - daily)
+      - name: Run live core scraper (${{ matrix.store }} - daily)
+        continue-on-error: true
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }} --mode daily
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }} --vertical core --mode daily
 
   match-and-dbt:
     name: Match Cross-Store & Run dbt
     runs-on: ubuntu-latest
-    needs: scrape
+    needs: scrape-core
     if: always()
 
     steps:

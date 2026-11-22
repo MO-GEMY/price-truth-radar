@@ -50,9 +50,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--vertical",
-        choices=["core", "groceries"],
+        choices=["core", "groceries", "fashion"],
         default="core",
-        help="Product vertical: 'core' (electronics/home_appliances/fashion, default) or 'groceries' (Egyptian Supermarket Wave 1).",
+        help="Product vertical: 'core' (electronics/home_appliances, default), 'groceries', or 'fashion'.",
     )
     parser.add_argument(
         "--mode",
@@ -230,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
             tracked_ids = (
                 fetch_tracked_store_ids_from_neon(
                     store_slug,
-                    category="groceries" if vertical == "groceries" else None,
+                    category=vertical if vertical in ("groceries", "fashion") else None,
                 )
                 if scrape_mode == "daily"
                 else set()

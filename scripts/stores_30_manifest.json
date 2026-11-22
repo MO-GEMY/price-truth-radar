@@ -1,0 +1,329 @@
+{
+  "generated_at": "2026-11-22",
+  "total_stores": 30,
+  "existing_stores": 10,
+  "new_stores_verified": 20,
+  "ci_workflows": {
+    "core": {
+      "file": ".github/workflows/daily_pipeline.yml",
+      "cron_utc": "37 0 * * *",
+      "vertical": "core",
+      "cloud_store_count": 14,
+      "local_only": ["2b"]
+    },
+    "fashion": {
+      "file": ".github/workflows/fashion-daily.yml",
+      "cron_utc": "47 1 * * *",
+      "vertical": "fashion",
+      "cloud_store_count": 8
+    },
+    "groceries": {
+      "file": ".github/workflows/groceries-daily.yml",
+      "cron_utc": "17 2 * * *",
+      "vertical": "groceries",
+      "cloud_store_count": 9
+    }
+  },
+  "stores": [
+    {
+      "store_name": "sigma",
+      "wave": "existing",
+      "vertical": "core",
+      "category": "electronics",
+      "adapter": "custom_curl_cffi_ssr",
+      "base_url": "https://www.sigma-computer.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "2b",
+      "wave": "existing",
+      "vertical": "core",
+      "category": "electronics",
+      "adapter": "custom_ssr",
+      "base_url": "https://2b.com.eg",
+      "ci_workflow": "local_only (scripts/run_local_scrapers.ps1)",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "btech",
+      "wave": "existing",
+      "vertical": "core",
+      "category": "home_appliances",
+      "adapter": "custom_magento_graphql",
+      "base_url": "https://btech.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "noon",
+      "wave": "existing",
+      "vertical": "core+groceries",
+      "category": "electronics/home_appliances/groceries",
+      "adapter": "custom_curl_cffi_json",
+      "base_url": "https://www.noon.com/egypt-en",
+      "ci_workflow": "daily_pipeline.yml + groceries-daily.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "amazon_eg",
+      "wave": "existing",
+      "vertical": "core+groceries",
+      "category": "electronics/home_appliances/groceries",
+      "adapter": "custom_curl_cffi_ssr",
+      "base_url": "https://www.amazon.eg",
+      "ci_workflow": "daily_pipeline.yml + groceries-daily.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "town_team",
+      "wave": "existing",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "shopify_json",
+      "base_url": "https://townteam.com",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "dejavu",
+      "wave": "existing",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "shopify_json",
+      "base_url": "https://dejavu.shoes",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "dalydress",
+      "wave": "existing",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "shopify_json",
+      "base_url": "https://dalydress.com",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "spinneys",
+      "wave": "existing",
+      "vertical": "groceries",
+      "category": "groceries",
+      "adapter": "custom_magento_graphql",
+      "base_url": "https://spinneys-egypt.com",
+      "ci_workflow": "groceries-daily.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "hyperone",
+      "wave": "existing",
+      "vertical": "groceries",
+      "category": "groceries",
+      "adapter": "custom_magento_graphql_curl_cffi",
+      "base_url": "https://www.hyperone.com.eg",
+      "ci_workflow": "groceries-daily.yml",
+      "verified_count": "live_in_neon"
+    },
+    {
+      "store_name": "seoudi",
+      "wave": "wave3_verified",
+      "vertical": "groceries",
+      "category": "groceries",
+      "adapter": "MagentoGraphQLBaseScraper",
+      "base_url": "https://seoudisupermarket.com",
+      "ci_workflow": "groceries-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "raneen",
+      "wave": "wave3_verified",
+      "vertical": "core",
+      "category": "home_appliances/electronics",
+      "adapter": "RaneenScraper (Magento Hyva SSR)",
+      "base_url": "https://www.raneen.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "rayashop",
+      "wave": "wave3_verified",
+      "vertical": "core",
+      "category": "electronics/home_appliances",
+      "adapter": "RayaShopScraper (curl_cffi SSR)",
+      "base_url": "https://www.rayashop.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "compumarts",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "electronics",
+      "adapter": "ShopifyBaseScraper",
+      "base_url": "https://www.compumarts.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "tradeline",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "electronics",
+      "adapter": "ShopifyBaseScraper",
+      "base_url": "https://tradelinestores.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "elaraby",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "home_appliances",
+      "adapter": "MagentoGraphQLBaseScraper",
+      "base_url": "https://www.elarabygroup.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "elbadr",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "electronics",
+      "adapter": "SSRCardScraper (OpenCart)",
+      "base_url": "https://elbadrgroupeg.store",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "compuscience",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "electronics",
+      "adapter": "SSRCardScraper (PrestaShop curl_cffi)",
+      "base_url": "https://compuscience.com.eg",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "cairosales",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "home_appliances/electronics",
+      "adapter": "SSRCardScraper (PrestaShop)",
+      "base_url": "https://cairosales.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "egyptlaptop",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "electronics",
+      "adapter": "SSRCardScraper (CS-Cart)",
+      "base_url": "https://egyptlaptop.com",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "dubaiphone",
+      "wave": "scale_to_30",
+      "vertical": "core",
+      "category": "electronics/home_appliances",
+      "adapter": "DubaiPhoneScraper (Next.js RSC)",
+      "base_url": "https://dubaiphone.net",
+      "ci_workflow": "daily_pipeline.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "abu_auf",
+      "wave": "scale_to_30",
+      "vertical": "groceries",
+      "category": "groceries",
+      "adapter": "WooCommerceBaseScraper",
+      "base_url": "https://www.abuauf.com",
+      "ci_workflow": "groceries-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "gourmet",
+      "wave": "scale_to_30",
+      "vertical": "groceries",
+      "category": "groceries",
+      "adapter": "MagentoGraphQLBaseScraper",
+      "base_url": "https://gourmetegypt.com",
+      "ci_workflow": "groceries-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "imtenan",
+      "wave": "scale_to_30",
+      "vertical": "groceries",
+      "category": "groceries",
+      "adapter": "SSRCardScraper (curl_cffi)",
+      "base_url": "https://imtenan.com",
+      "ci_workflow": "groceries-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "metro_market",
+      "wave": "scale_to_30",
+      "vertical": "groceries",
+      "category": "groceries",
+      "adapter": "SSRCardScraper",
+      "base_url": "https://www.metro-markets.com",
+      "ci_workflow": "groceries-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "activ",
+      "wave": "scale_to_30",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "ShopifyBaseScraper",
+      "base_url": "https://activaboualaa.com",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "carina",
+      "wave": "scale_to_30",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "ShopifyBaseScraper",
+      "base_url": "https://carinawear.com",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "khotwh",
+      "wave": "scale_to_30",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "ShopifyBaseScraper",
+      "base_url": "https://khotwh.com",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "concrete",
+      "wave": "scale_to_30",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "WooCommerceBaseScraper (curl_cffi)",
+      "base_url": "https://concrete.store",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": 5
+    },
+    {
+      "store_name": "mobaco",
+      "wave": "scale_to_30",
+      "vertical": "fashion",
+      "category": "fashion",
+      "adapter": "MagentoGraphQLBaseScraper",
+      "base_url": "https://mobaco.com",
+      "ci_workflow": "fashion-daily.yml",
+      "verified_count": 5
+    }
+  ]
+}

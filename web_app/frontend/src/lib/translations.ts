@@ -21,7 +21,7 @@ export const translations = {
     "hero.overline": "Egypt E-Commerce Price Intelligence",
     "hero.title": "Expose fake discounts. Buy at the real lowest price.",
     "hero.subtitle":
-      "Daily price tracking across 8 Egyptian retailers — verify claimed strikethroughs against real baselines and compare identical models in EGP.",
+      "Daily price tracking across {count} Egyptian retailers — verify claimed strikethroughs against real baselines and compare identical models in EGP.",
 
     "mock.banner": "API temporarily unreachable — showing sample data.",
     "mock.bannerLive": "Live data — served by the FastAPI backend.",
@@ -65,6 +65,8 @@ export const translations = {
 
     "stores.stripLabel": "Tracked stores",
     "stores.allLabel": "All stores",
+    "stores.moreCount": "+{count} more",
+    "stores.showLess": "Show less",
 
     "how.toggle": "How it works",
     "how.step1Title": "Paste a link or search",
@@ -251,7 +253,7 @@ export const translations = {
     "hero.overline": "مؤشر شفافية الأسعار في مصر",
     "hero.title": "اكشف الخصومات الوهمية. واشترِ بأقل سعر حقيقي.",
     "hero.subtitle":
-      "تتبّع يومي للأسعار عبر 8 متاجر مصرية — تحقق من الأسعار المشطوبة مقابل السعر الحقيقي، وقارن نفس الموديل بالجنيه المصري.",
+      "تتبّع يومي للأسعار عبر {count} متجر مصري — تحقق من الأسعار المشطوبة مقابل السعر الحقيقي، وقارن نفس الموديل بالجنيه المصري.",
 
     "mock.banner": "تعذر الاتصال بالخادم مؤقتاً — عرض بيانات عينة.",
     "mock.bannerLive": "بيانات مباشرة — تُقدَّم من خدمة FastAPI.",
@@ -295,6 +297,8 @@ export const translations = {
 
     "stores.stripLabel": "المتاجر المتتبعة",
     "stores.allLabel": "كل المتاجر",
+    "stores.moreCount": "+{count} متجر آخر",
+    "stores.showLess": "عرض أقل",
 
     "how.toggle": "كيف يعمل الرادار؟",
     "how.step1Title": "الصق رابطاً أو ابحث",

@@ -62,6 +62,11 @@ export function FeedFilters({
 }) {
   const { lang, t } = useLanguage();
 
+  // Alphabetical by localized display name so a 30-store dropdown stays scannable.
+  const sortedStores = [...stores].sort((a, b) =>
+    storeDisplayName(a, lang).localeCompare(storeDisplayName(b, lang), lang === "ar" ? "ar" : "en"),
+  );
+
   return (
     <section
       aria-label={t("filters.title")}
@@ -122,7 +127,7 @@ export function FeedFilters({
             onChange={(e) => onChange({ ...value, store: e.target.value })}
           >
             <option value="">{t("filters.storeAll")}</option>
-            {stores.map((s) => (
+            {sortedStores.map((s) => (
               <option key={s} value={s}>
                 {storeDisplayName(s, lang)}
               </option>

@@ -79,6 +79,7 @@ class ShopifyScraper(BaseScraper):
     """Reusable scraper for public Shopify `/products.json` storefronts."""
 
     category: Category = "fashion"
+    supported_verticals = ("fashion",)
     default_brand: str = "Unknown"
     override_brand: bool = False
     default_limit: int = 250

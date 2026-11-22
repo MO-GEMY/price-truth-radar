@@ -1,9 +1,9 @@
-name: Daily Groceries Pipeline (Waves 1 & 2)
+name: Daily Groceries Pipeline
 
 on:
   schedule:
-    # Runs daily at 02:00 UTC (04:00 AM Cairo EET / 05:00 AM EEST), isolated from core pipeline
-    - cron: '0 2 * * *'
+    # Off-peak daily run at 02:17 UTC (04:17 AM Cairo EET / 05:17 AM EEST), isolated from core & fashion pipelines
+    - cron: '17 2 * * *'
   workflow_dispatch:
 
 jobs:
@@ -18,6 +18,11 @@ jobs:
           - noon
           - spinneys
           - hyperone
+          - seoudi
+          - abu_auf
+          - gourmet
+          - imtenan
+          - metro_market
 
     steps:
       - name: Checkout repository
