@@ -5,10 +5,11 @@ from __future__ import annotations
 import math
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from app.cache import api_cache, set_cache_headers
 from app.database import get_db
 from app.schemas import DiscountVerdict, ProductVerdictItem, RadarFeedResponse
 
@@ -48,6 +49,7 @@ PRODUCT_SELECT_COLS = """
 
 @router.get("/feed", response_model=RadarFeedResponse)
 def get_radar_feed(
+    response: Response,
     category: Literal["all", "electronics", "fashion", "home_appliances", "groceries"] = Query(default="all"),
     verdict: Optional[DiscountVerdict] = Query(default=None),
     store: Optional[str] = Query(default=None),
@@ -61,6 +63,13 @@ def get_radar_feed(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> RadarFeedResponse:
+    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    norm_store = store.strip().lower() if (store and store.strip()) else ""
+    cache_key = f"radar:feed:{category}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     conditions: list[str] = []
     params: dict[str, object] = {}
 
@@ -72,9 +81,9 @@ def get_radar_feed(
         conditions.append("discount_verdict = :verdict")
         params["verdict"] = verdict
 
-    if store is not None and store.strip():
+    if norm_store:
         conditions.append("store_name = :store")
-        params["store"] = store.strip().lower()
+        params["store"] = norm_store
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     order_clause = SORT_EXPRESSIONS[sort]
@@ -98,10 +107,12 @@ def get_radar_feed(
     items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
     total_pages = math.ceil(total / limit) if total > 0 else 0
 
-    return RadarFeedResponse(
+    result = RadarFeedResponse(
         items=items,
         total=total,
         page=page,
         limit=limit,
         total_pages=total_pages,
     )
+    api_cache.set(cache_key, result, ttl=300.0)
+    return result

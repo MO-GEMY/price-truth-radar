@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeftRight, ArrowRight, PackageX, ShieldAlert } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeftRight, ArrowRight, BellRing, PackageX, ShieldAlert } from "lucide-react";
 import type { Product } from "@/types/contract";
 import { useLanguage } from "@/lib/i18n";
 import {
@@ -14,6 +15,7 @@ import {
   formatUnitPrice,
 } from "@/lib/format";
 import { ProductImage } from "./ProductImage";
+import { PriceAlertModal } from "./PriceAlertModal";
 import { VerdictBadge } from "./VerdictBadge";
 import { StoreBadge } from "./StoreBadge";
 
@@ -40,6 +42,8 @@ export function ProductCard({
   const isFashion = product.category === "fashion";
   const packSize = formatPackSize(product.attributes_json);
   const unitPrice = formatUnitPrice(product, lang);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const alertKey = product.canonical_product_key ?? product.product_sk;
 
   const detailHref = `/products/${product.product_sk}`;
 
@@ -184,15 +188,39 @@ export function ProductCard({
               </span>
             )}
 
-            <Link
-              href={detailHref}
-              className="inline-flex shrink-0 items-center gap-1 font-semibold text-teal-300/90 transition hover:text-teal-200"
-            >
-              <span>{t("card.viewTruth")}</span>
-              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
-            </Link>
+            <span className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setAlertOpen(true);
+                }}
+                aria-label={t("alert.bellAria")}
+                title={t("alert.bellAria")}
+                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-1.5 text-slate-400 transition hover:border-teal-400/45 hover:text-teal-200"
+              >
+                <BellRing className="size-3.5" />
+              </button>
+              <Link
+                href={detailHref}
+                className="inline-flex shrink-0 items-center gap-1 font-semibold text-teal-300/90 transition hover:text-teal-200"
+              >
+                <span>{t("card.viewTruth")}</span>
+                <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
+              </Link>
+            </span>
           </div>
         </div>
+
+        <PriceAlertModal
+          open={alertOpen}
+          onClose={() => setAlertOpen(false)}
+          productKey={alertKey}
+          productTitle={product.product_title}
+          storeName={product.store_name}
+          currentPrice={product.current_price}
+        />
       </div>
     </article>
   );

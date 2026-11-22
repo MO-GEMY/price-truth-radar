@@ -4,24 +4,33 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from app.cache import api_cache, set_cache_headers
 from app.database import get_db
 from app.schemas import CompareResponse, CrossStoreMatchItem
 
-router = APIRouter(prefix="/api/v1", tags=["compare"])
+router = APIRouter(tags=["compare"])
 
 
-@router.get("/compare", response_model=CompareResponse)
+@router.get("/api/v1/compare", response_model=CompareResponse)
+@router.get("/api/compare", response_model=CompareResponse, include_in_schema=True)
 def get_cross_store_comparison(
+    response: Response,
     category: Literal["all", "electronics", "fashion", "home_appliances", "groceries"] = Query(default="all"),
     min_spread_pct: float = Query(default=0.0, ge=0.0),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> CompareResponse:
+    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    cache_key = f"compare:{category}:{min_spread_pct:.2f}:{page}:{limit}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     conditions: list[str] = ["price_spread_pct >= :min_spread_pct"]
     params: dict[str, object] = {"min_spread_pct": min_spread_pct}
 
@@ -61,9 +70,11 @@ def get_cross_store_comparison(
     rows = db.execute(items_sql, query_params).mappings().all()
     items = [CrossStoreMatchItem.model_validate(dict(r)) for r in rows]
 
-    return CompareResponse(
+    result = CompareResponse(
         items=items,
         total=total,
         page=page,
         limit=limit,
     )
+    api_cache.set(cache_key, result, ttl=300.0)
+    return result

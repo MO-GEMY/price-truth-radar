@@ -6,10 +6,11 @@ import re
 from typing import Optional
 from urllib.parse import parse_qsl, urlencode, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from app.cache import api_cache, set_cache_headers
 from app.database import get_db
 from app.routers.radar import PRODUCT_SELECT_COLS
 from app.schemas import (
@@ -136,11 +137,17 @@ def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
 
 @router.get("/search", response_model=SearchResponse)
 def search_products(
+    response: Response,
     q: Optional[str] = Query(default=None),
     url: Optional[str] = Query(default=None),
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
+    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    cache_key = f"products:search:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
     # 1. If url is provided, match deterministically (exact normalized URL after
     #    stripping tracking params first, then deterministic store-specific key
     #    matching; never loose path-only fallback on search pages).
@@ -351,10 +358,14 @@ def search_products(
             )
         if rows:
             items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
-            return SearchResponse(match_type="url_exact", items=items, total=len(items))
+            res = SearchResponse(match_type="url_exact", items=items, total=len(items))
+            api_cache.set(cache_key, res, ttl=300.0)
+            return res
 
         if not (q and q.strip()):
-            return SearchResponse(match_type="url_not_found", items=[], total=0)
+            res = SearchResponse(match_type="url_not_found", items=[], total=0)
+            api_cache.set(cache_key, res, ttl=120.0)
+            return res
 
     # 2. Case-insensitive search on product_title and brand (plus store / canonical key)
     query_str = (q or "").strip()
@@ -400,14 +411,22 @@ def search_products(
         .all()
     )
     items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
-    return SearchResponse(match_type="text_search", items=items, total=total)
+    res = SearchResponse(match_type="text_search", items=items, total=total)
+    api_cache.set(cache_key, res, ttl=300.0)
+    return res
 
 
 @router.get("/{product_sk}", response_model=ProductDetailResponse)
 def get_product_detail(
     product_sk: str,
+    response: Response,
     db: Connection = Depends(get_db),
 ) -> ProductDetailResponse:
+    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    cache_key = f"products:detail:{product_sk}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
     product_sql = text(
         f"""
         SELECT {PRODUCT_SELECT_COLS}
@@ -459,8 +478,10 @@ def get_product_detail(
                 if entry.get("product_sk") != product_sk:
                     alternatives.append(AlternativeListing.model_validate(entry))
 
-    return ProductDetailResponse(
+    res = ProductDetailResponse(
         product=product,
         history=history,
         alternatives=alternatives,
     )
+    api_cache.set(cache_key, res, ttl=300.0)
+    return res

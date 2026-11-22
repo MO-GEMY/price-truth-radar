@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
+  BellRing,
   CalendarClock,
   ExternalLink,
   Flame,
@@ -34,6 +35,7 @@ import { PriceChart } from "@/components/PriceChart";
 import { AttributesPanel } from "@/components/AttributesPanel";
 import { AlternativesTable } from "@/components/AlternativesTable";
 import { ProductImage } from "@/components/ProductImage";
+import { PriceAlertModal } from "@/components/PriceAlertModal";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { StoreBadge } from "@/components/StoreBadge";
 import { DetailSkeleton, ErrorState } from "@/components/states";
@@ -78,6 +80,7 @@ export default function ProductDetailPage() {
   const [detail, setDetail] = useState<ProductDetailResponse | null>(null);
   const [source, setSource] = useState<DataSource | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [alertOpen, setAlertOpen] = useState(false);
 
   const loadDetail = useCallback(() => {
     const controller = new AbortController();
@@ -319,6 +322,15 @@ export default function ProductDetailPage() {
                   </Link>
                 ) : null}
 
+                <button
+                  type="button"
+                  onClick={() => setAlertOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-teal-400/40 bg-teal-400/10 px-4 py-2.5 text-sm font-bold text-teal-200 transition hover:bg-teal-400/18"
+                >
+                  <BellRing className="size-4 shrink-0" />
+                  {t("alert.bellAria")}
+                </button>
+
                 <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-slate-500">
                   <CalendarClock className="size-3.5 shrink-0" />
                   {t("detail.lastUpdated")}:{" "}
@@ -329,6 +341,15 @@ export default function ProductDetailPage() {
               </div>
             </div>
           </div>
+
+          <PriceAlertModal
+            open={alertOpen}
+            onClose={() => setAlertOpen(false)}
+            productKey={product.canonical_product_key ?? product.product_sk}
+            productTitle={product.product_title}
+            storeName={product.store_name}
+            currentPrice={product.current_price}
+          />
 
           {/* Compact price metrics strip */}
           <div className="grid grid-cols-2 gap-2.5 border-t border-white/[0.06] pt-5 sm:grid-cols-3 lg:grid-cols-6">

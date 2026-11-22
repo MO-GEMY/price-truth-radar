@@ -202,3 +202,57 @@ export interface CompareResponse {
   page: number;
   limit: number;
 }
+
+/* ------------------------------------------------------------------ */
+/* Scandals vs Real Deals radar (launch page)                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Item shape for the `/api/radar/highlights` launch endpoint. The backend is
+ * being built in parallel, so every field is optional and the UI tolerates
+ * extra fields — items structurally overlap with `Product`.
+ */
+export interface HighlightItem {
+  product_sk?: string;
+  canonical_product_key?: string | null;
+  product_title?: string;
+  store_name?: string;
+  category?: string;
+  sub_category?: string;
+  brand?: string;
+  image_url?: string | null;
+  current_price?: number;
+  claimed_original_price?: number | null;
+  claimed_discount_pct?: number;
+  real_discount_pct?: number;
+  discount_verdict?: string;
+  in_stock?: boolean;
+  [key: string]: unknown;
+}
+
+export interface RadarHighlights {
+  updated_at?: string;
+  biggest_scandals: HighlightItem[];
+  best_real_deals: HighlightItem[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Price-drop alerts ("نبّهني لما السعر ينزل")                          */
+/* ------------------------------------------------------------------ */
+
+export type AlertChannel = "telegram" | "email";
+
+export interface PriceAlertRequest {
+  product_key: string;
+  product_title: string;
+  store_name: string;
+  target_price: number;
+  channel: AlertChannel;
+  destination: string;
+}
+
+export interface PriceAlertResponse {
+  id: string;
+  status: string;
+  message: string;
+}

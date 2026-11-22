@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import re
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, field_serializer, model_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
 Category = Literal["electronics", "fashion", "home_appliances", "groceries"]
 UnitPriceUnit = Literal["kg", "L"]
@@ -166,3 +167,105 @@ class CompareResponse(BaseModel):
     total: int
     page: int
     limit: int
+
+
+# ---------------------------------------------------------------------------
+# Launch Feature Schemas: Radar Highlights, Price Drop Alerts, SEO Sitemap
+# ---------------------------------------------------------------------------
+
+HighlightVerdict = Literal["fake_discount", "inflated_before_sale", "real_deal"]
+AlertChannel = Literal["telegram", "email"]
+
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
+_TELEGRAM_USERNAME_RE = re.compile(r"^@[A-Za-z0-9_]{5,32}$")
+_TELEGRAM_CHAT_ID_RE = re.compile(r"^-?\d{5,20}$")
+
+
+class RadarHighlightItem(BaseModel):
+    id: str
+    product_key: str
+    title: str
+    store_name: str
+    category: str
+    image_url: Optional[str] = None
+    product_url: str
+    current_price: float
+    claimed_old_price: Optional[float] = None
+    baseline_price: float
+    inflation_pct: float
+    real_drop_pct: float
+    verdict: HighlightVerdict
+
+
+class RadarHighlightsResponse(BaseModel):
+    updated_at: Optional[datetime]
+    biggest_scandals: list[RadarHighlightItem]
+    best_real_deals: list[RadarHighlightItem]
+
+    @field_serializer("updated_at")
+    def serialize_updated_at(self, v: Optional[datetime]) -> str:
+        return _format_utc_z(v or datetime.now(timezone.utc)) or ""
+
+
+class AlertCreateRequest(BaseModel):
+    product_key: str = Field(..., min_length=1, max_length=200)
+    product_title: str = Field(default="", max_length=300)
+    store_name: str = Field(default="", max_length=100)
+    target_price: float = Field(..., gt=0, le=50_000_000)
+    channel: AlertChannel
+    destination: str = Field(..., min_length=3, max_length=254)
+
+    @field_validator("product_key", "product_title", "store_name", "destination", mode="before")
+    @classmethod
+    def _strip_strings(cls, v: Any) -> Any:
+        return v.strip() if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _validate_channel_destination(self) -> "AlertCreateRequest":
+        dest = self.destination.strip()
+        if self.channel == "email":
+            if not _EMAIL_RE.match(dest):
+                raise ValueError("Invalid email address format for email alert destination.")
+            self.destination = dest.lower()
+        elif self.channel == "telegram":
+            if not (_TELEGRAM_USERNAME_RE.match(dest) or _TELEGRAM_CHAT_ID_RE.match(dest)):
+                raise ValueError(
+                    "Invalid Telegram destination: provide '@username' (5-32 chars) or numeric chat ID."
+                )
+            self.destination = dest
+        self.target_price = round(float(self.target_price), 2)
+        return self
+
+
+class AlertCreateResponse(BaseModel):
+    id: int
+    status: Literal["active"] = "active"
+    message: str
+
+
+class SitemapProductEntry(BaseModel):
+    product_sk: str
+    product_key: str
+    category: str
+    store_name: str
+    last_updated: Optional[datetime] = None
+
+    @field_serializer("last_updated")
+    def serialize_last_updated(self, v: Optional[datetime]) -> Optional[str]:
+        return _format_utc_z(v)
+
+
+class SitemapComparisonEntry(BaseModel):
+    canonical_product_key: str
+    category: str
+    stores_count: int
+
+
+class SitemapEntriesResponse(BaseModel):
+    last_updated: Optional[datetime]
+    products: list[SitemapProductEntry]
+    comparisons: list[SitemapComparisonEntry]
+
+    @field_serializer("last_updated")
+    def serialize_last_updated(self, v: Optional[datetime]) -> str:
+        return _format_utc_z(v or datetime.now(timezone.utc)) or ""

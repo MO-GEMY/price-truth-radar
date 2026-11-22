@@ -1,0 +1,47 @@
+name: Price Drop Alert Checker
+
+on:
+  schedule:
+    # Runs twice daily at 03:30 and 15:30 UTC (after daily pipelines complete)
+    - cron: '30 3,15 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Evaluate alerts in dry-run mode without sending notifications"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  check-alerts:
+    name: Check Active Price Alerts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: pip install -r web_app/backend/requirements.txt
+
+      - name: Run price drop alert checker
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA_ARGS="--dry-run"
+          fi
+          python web_app/backend/jobs/check_price_alerts.py $EXTRA_ARGS

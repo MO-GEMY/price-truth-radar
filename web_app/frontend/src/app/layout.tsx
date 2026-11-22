@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
+import { SITE_URL } from "@/lib/site";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -19,6 +20,7 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Price Truth Radar — Real discounts vs fake ones",
     template: "%s · Price Truth Radar",

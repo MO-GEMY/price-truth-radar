@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeftRight, Languages, Radar } from "lucide-react";
+import { ArrowLeftRight, Flame, Languages, Radar } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { formatNumber } from "@/lib/format";
 import { useCompareSummary } from "@/lib/useCompareSummary";
@@ -14,6 +14,7 @@ export function Header() {
 
   const isFeed = pathname === "/";
   const isCompare = pathname.startsWith("/compare");
+  const isDeals = pathname.startsWith("/deals");
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-[#03060b]/85 backdrop-blur-xl">
@@ -44,6 +45,18 @@ export function Header() {
             >
               <Radar className="size-4 shrink-0" />
               <span className="hidden sm:inline">{t("nav.feed")}</span>
+            </Link>
+
+            <Link
+              href="/deals"
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition sm:px-3.5 sm:py-2 sm:text-sm ${
+                isDeals
+                  ? "bg-rose-400/14 text-rose-200 ring-1 ring-rose-400/30"
+                  : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+              }`}
+            >
+              <Flame className="size-4 shrink-0 text-rose-400" />
+              <span className="hidden sm:inline">{t("nav.deals")}</span>
             </Link>
 
             <Link

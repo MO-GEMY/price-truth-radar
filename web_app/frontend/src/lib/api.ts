@@ -13,9 +13,12 @@
 import type {
   CompareParams,
   CompareResponse,
+  PriceAlertRequest,
+  PriceAlertResponse,
   ProductDetailResponse,
   RadarFeedParams,
   RadarFeedResponse,
+  RadarHighlights,
   SearchParams,
   SearchResponse,
   StatsOverview,
@@ -71,7 +74,7 @@ function buildUrl(path: string, params?: Record<string, string | number | undefi
   return qs ? `${url}?${qs}` : url;
 }
 
-async function fetchJson<T>(
+export async function fetchJson<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
   signal?: AbortSignal,
@@ -214,4 +217,179 @@ export function fetchCompare(
     () => mockCompare(params),
     signal,
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Scandals vs Real Deals radar (launch page)                          */
+/* ------------------------------------------------------------------ */
+
+const HIGHLIGHT_LIMIT = 24;
+
+function highlightsFromFeed(
+  feed: RadarFeedResponse,
+  kind: "scandals" | "deals",
+): RadarHighlights["biggest_scandals"] {
+  const items = [...feed.items];
+  if (kind === "scandals") {
+    return items
+      .filter((p) => p.claimed_discount_pct >= 10)
+      .sort((a, b) => b.claimed_discount_pct - Math.max(b.real_discount_pct, 0) - (a.claimed_discount_pct - Math.max(a.real_discount_pct, 0)))
+      .map((p) => ({ ...p }));
+  }
+  return items
+    .filter((p) => p.real_discount_pct >= 5)
+    .sort((a, b) => b.real_discount_pct - a.real_discount_pct)
+    .map((p) => ({ ...p }));
+}
+
+/**
+ * Scandals vs Real Deals highlights.
+ *
+ * 1. Prefers the dedicated `/api/radar/highlights` endpoint (Backend Prompt 3).
+ * 2. Falls back to the standard radar feed (which IS live) so the page works
+ *    today: fake-discount scandals by claimed-vs-real gap, and verified real
+ *    deals by real discount vs the 60-day baseline.
+ * 3. If even the feed is unreachable, surfaces the caller's error so the page
+ *    can render its empty state.
+ */
+export async function fetchRadarHighlights(
+  category: string,
+  limit = HIGHLIGHT_LIMIT,
+  signal?: AbortSignal,
+): Promise<ApiResult<RadarHighlights>> {
+  if (isApiConfigured()) {
+    try {
+      const data = await fetchJson<RadarHighlights>(
+        "/api/radar/highlights",
+        { limit, category },
+        signal,
+      );
+      return {
+        data: {
+          updated_at: data.updated_at ?? new Date().toISOString(),
+          biggest_scandals: data.biggest_scandals ?? [],
+          best_real_deals: data.best_real_deals ?? [],
+        },
+        source: "api",
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      // 404 = endpoint not deployed yet — expected during rollout. Anything
+      // else (network/5xx) also falls through to the feed derivation below.
+      if (error instanceof ApiError && error.status === 401) throw error;
+    }
+  }
+
+  const cat = category === "all" ? "all" : (category as RadarFeedParams["category"]);
+  const [scandalsFeed, dealsFeed] = await Promise.all([
+    fetchRadarFeed(
+      { category: cat, sort: "claimed_vs_real_gap_desc", page: 1, limit },
+      signal,
+    ),
+    fetchRadarFeed(
+      { category: cat, sort: "real_discount_pct_desc", page: 1, limit },
+      signal,
+    ),
+  ]);
+  return {
+    data: {
+      updated_at: scandalsFeed.data.items[0]?.last_updated_at ?? new Date().toISOString(),
+      biggest_scandals: highlightsFromFeed(scandalsFeed.data, "scandals").map((i) => ({ ...i })),
+      best_real_deals: highlightsFromFeed(dealsFeed.data, "deals").map((i) => ({ ...i })),
+    },
+    source: scandalsFeed.source,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Price-drop alerts ("نبّهني لما السعر ينزل")                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * POST /api/alerts — no silent fallback: alerts are a real user commitment,
+ * so failures surface to the UI with the server message when present.
+ */
+export async function submitPriceAlert(
+  body: PriceAlertRequest,
+  signal?: AbortSignal,
+): Promise<PriceAlertResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const onOuterAbort = () => controller.abort();
+  signal?.addEventListener("abort", onOuterAbort, { once: true });
+  try {
+    const res = await fetch(`${API_BASE}/api/alerts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    const text = await res.text();
+    let payload: Partial<PriceAlertResponse> & { detail?: string; message?: string } = {};
+    try {
+      payload = text ? JSON.parse(text) : {};
+    } catch {
+      /* non-JSON body */
+    }
+    if (!res.ok) {
+      throw new ApiError(res.status, payload.message || payload.detail || `HTTP ${res.status}`);
+    }
+    return {
+      id: String(payload.id ?? ""),
+      status: payload.status ?? "active",
+      message: payload.message ?? "",
+    };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* SEO — dynamic sitemap entries                                       */
+/* ------------------------------------------------------------------ */
+
+export interface SitemapEntry {
+  loc: string;
+  lastmod?: string;
+}
+
+/**
+ * GET /api/seo/sitemap-entries — tolerant parsing of product/compare slugs.
+ * Returns null when the endpoint is missing (sitemap.ts falls back to the
+ * core static routes).
+ */
+export async function fetchSitemapEntries(signal?: AbortSignal): Promise<SitemapEntry[] | null> {
+  if (!isApiConfigured()) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/seo/sitemap-entries`, {
+      headers: { Accept: "application/json" },
+      signal,
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    const list = Array.isArray(body) ? body : body?.entries ?? body?.items;
+    if (!Array.isArray(list)) return null;
+    const entries: SitemapEntry[] = [];
+    for (const item of list.slice(0, 5000)) {
+      if (typeof item === "string") {
+        entries.push({ loc: item });
+        continue;
+      }
+      if (item && typeof item === "object") {
+        const loc = item.loc ?? item.slug ?? item.url ?? item.path;
+        if (typeof loc === "string" && loc) {
+          entries.push({
+            loc,
+            lastmod: typeof (item.last_updated ?? item.lastmod) === "string" ? item.last_updated ?? item.lastmod : undefined,
+          });
+        }
+      }
+    }
+    return entries;
+  } catch {
+    return null;
+  }
 }
