@@ -17,6 +17,9 @@ const ATTR_LABEL_KEYS: Record<string, TranslationKey> = {
   anc: "attr.anc",
   battery_hours: "attr.battery_hours",
   warranty: "attr.warranty",
+  pack_size: "attr.pack_size",
+  net_weight_g: "attr.net_weight_g",
+  net_volume_ml: "attr.net_volume_ml",
   two_b_category: "attr.store_category",
   btech_category: "attr.store_category",
   sigma_category: "attr.store_category",
@@ -106,6 +109,8 @@ export function AttributesPanel({ product }: { product: Product }) {
         return `${formatNumber(value, lang)} Hz`;
       if (key === "screen_size_inch" || key === "screen_inches")
         return `${formatNumber(value, lang)}"`;
+      if (key === "net_weight_g") return `${formatNumber(value, lang)} g`;
+      if (key === "net_volume_ml") return `${formatNumber(value, lang)} ml`;
       if (key === "warranty") return String(value);
       return formatNumber(value, lang);
     }

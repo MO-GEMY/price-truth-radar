@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, field_serializer
 
-Category = Literal["electronics", "fashion", "home_appliances"]
+Category = Literal["electronics", "fashion", "home_appliances", "groceries"]
 
 DiscountVerdict = Literal[
     "ALL_TIME_LOW",

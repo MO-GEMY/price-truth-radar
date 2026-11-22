@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/v1", tags=["compare"])
 
 @router.get("/compare", response_model=CompareResponse)
 def get_cross_store_comparison(
-    category: Literal["all", "electronics", "fashion", "home_appliances"] = Query(default="all"),
+    category: Literal["all", "electronics", "fashion", "home_appliances", "groceries"] = Query(default="all"),
     min_spread_pct: float = Query(default=0.0, ge=0.0),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=50),

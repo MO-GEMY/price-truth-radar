@@ -22,6 +22,7 @@ WITH latest_staged AS (
         in_stock,
         available_sizes_count,
         total_sizes,
+        unit_price_egp,
         snapshot_date,
         scraped_at,
         ROW_NUMBER() OVER (
@@ -128,7 +129,8 @@ metrics AS (
             ELSE FALSE
         END::BOOLEAN AS scarcity_flag,
         cp.in_stock,
-        cp.scraped_at AS last_updated_at
+        cp.scraped_at AS last_updated_at,
+        cp.unit_price_egp
     FROM current_products cp
     LEFT JOIN history_stats hs
         ON cp.product_sk = hs.product_sk
@@ -169,5 +171,6 @@ SELECT
     END::VARCHAR AS discount_verdict,
     scarcity_flag::BOOLEAN AS scarcity_flag,
     in_stock::BOOLEAN AS in_stock,
-    last_updated_at::TIMESTAMP AS last_updated_at
+    last_updated_at::TIMESTAMP AS last_updated_at,
+    unit_price_egp::NUMERIC(12,2) AS unit_price_egp
 FROM metrics

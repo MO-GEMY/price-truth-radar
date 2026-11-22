@@ -31,7 +31,13 @@ import { VerdictLegend } from "@/components/VerdictLegend";
 import { CompareCardSkeletons, ErrorState } from "@/components/states";
 
 const PAGE_LIMIT = 10;
-const CATEGORIES: ("all" | Category)[] = ["all", "electronics", "home_appliances", "fashion"];
+const CATEGORIES: ("all" | Category)[] = [
+  "all",
+  "electronics",
+  "home_appliances",
+  "groceries",
+  "fashion",
+];
 const SPREAD_OPTIONS = [0, 5, 10, 20];
 
 function MatchCard({
@@ -53,7 +59,7 @@ function MatchCard({
       {/* Header: Product title + Savings pill */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/[0.06] p-5 pb-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-bold leading-snug text-white sm:text-lg">
+          <h2 dir="auto" className="text-base font-bold leading-snug text-white sm:text-lg">
             {match.product_title_clean}
           </h2>
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
@@ -65,7 +71,9 @@ function MatchCard({
                 ? t("filters.catElectronics")
                 : match.category === "home_appliances"
                   ? t("filters.catHomeAppliances")
-                  : t("filters.catFashion")}
+                  : match.category === "groceries"
+                    ? t("filters.catGroceries")
+                    : t("filters.catFashion")}
             </span>
             <span className="num rounded-full border border-teal-400/25 bg-teal-400/10 px-2.5 py-0.5 font-semibold text-teal-200">
               {t("compare.storesCount", { count: formatNumber(match.stores_count, lang) })}
@@ -377,7 +385,9 @@ export default function ComparePage() {
                       ? t("filters.catElectronics")
                       : cat === "home_appliances"
                         ? t("filters.catHomeAppliances")
-                        : t("filters.catFashion")}
+                        : cat === "groceries"
+                          ? t("filters.catGroceries")
+                          : t("filters.catFashion")}
                 </button>
               ))}
             </div>

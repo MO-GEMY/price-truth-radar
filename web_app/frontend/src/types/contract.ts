@@ -10,7 +10,7 @@
 /* Enums (CONTRACTS.md §3.1, §5.3, §5.6)                               */
 /* ------------------------------------------------------------------ */
 
-export type Category = "electronics" | "fashion" | "home_appliances";
+export type Category = "electronics" | "fashion" | "home_appliances" | "groceries";
 
 export type DiscountVerdict =
   | "ALL_TIME_LOW"
@@ -31,6 +31,7 @@ export type FeedSort =
  * `attributes_json` is a JSONB payload whose shape differs by category:
  * - Electronics: { "ram_gb": 12, "storage_gb": 256, "warranty": "local" }
  * - Fashion:     { "available_sizes": ["M","L"], "total_sizes": 5 }
+ * - Groceries:   { "pack_size": "1L", "net_weight_g": 500, "net_volume_ml": 1000 }
  */
 export type ProductAttributes = Record<string, unknown>;
 

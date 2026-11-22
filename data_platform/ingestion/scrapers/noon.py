@@ -30,9 +30,15 @@ from .base import (
     Category,
     ImpersonatedHttpClient,
     RawProductSnapshot,
+    ScrapeVertical,
     ThrottledResponseError,
     parse_egp_price,
     utc_now_naive,
+)
+from .groceries import (
+    extract_grocery_brand,
+    parse_grocery_packaging,
+    refine_grocery_sub_category,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,6 +75,25 @@ NOON_CATEGORIES: list[tuple[str, Category, str]] = [
         "electronics",
         "https://www.noon.com/egypt-en/electronics-and-mobiles/",
     ),
+]
+
+# Egyptian Groceries ("سلة البيت المصري") — 7 high-frequency household sub-categories
+NOON_GROCERY_SEEDS: list[tuple[str, Category, str]] = [
+    ("oils_ghee", "groceries", "https://www.noon.com/egypt-en/search/?q=cooking+oil"),
+    ("rice_pasta", "groceries", "https://www.noon.com/egypt-en/search/?q=pasta"),
+    ("dairy_cheese", "groceries", "https://www.noon.com/egypt-en/search/?q=milk"),
+    ("tea_coffee", "groceries", "https://www.noon.com/egypt-en/search/?q=nescafe"),
+    ("canned_sauces", "groceries", "https://www.noon.com/egypt-en/search/?q=tuna"),
+    ("beverages", "groceries", "https://www.noon.com/egypt-en/search/?q=juice"),
+    ("detergents", "groceries", "https://www.noon.com/egypt-en/search/?q=ariel"),
+    ("oils_ghee", "groceries", "https://www.noon.com/egypt-en/search/?q=ghee"),
+    ("rice_pasta", "groceries", "https://www.noon.com/egypt-en/search/?q=rice"),
+    ("dairy_cheese", "groceries", "https://www.noon.com/egypt-en/search/?q=domty"),
+    ("tea_coffee", "groceries", "https://www.noon.com/egypt-en/search/?q=lipton+tea"),
+    ("canned_sauces", "groceries", "https://www.noon.com/egypt-en/search/?q=heinz+ketchup"),
+    ("beverages", "groceries", "https://www.noon.com/egypt-en/search/?q=pepsi"),
+    ("detergents", "groceries", "https://www.noon.com/egypt-en/search/?q=persil"),
+    ("detergents", "groceries", "https://www.noon.com/egypt-en/search/?q=fairy"),
 ]
 
 _NOON_SKU_RE = re.compile(r"/([A-Za-z0-9_-]{4,32})/p(?:/|$|\?)")
@@ -387,6 +412,8 @@ class NoonScraper(BaseScraper):
     base_url = "https://www.noon.com"
     default_limit = 300
     discover_limit = 550
+    groceries_limit = 300
+    supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 3.0
     request_timeout = 30.0
 
@@ -399,9 +426,15 @@ class NoonScraper(BaseScraper):
         now = utc_now_naive()
         today = now.date()
 
+        is_groceries = self.vertical == "groceries"
+        seeds = NOON_GROCERY_SEEDS if is_groceries else NOON_CATEGORIES
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_cat_cap = max(5, math.ceil(target_limit / len(NOON_CATEGORIES)))
-        max_pages = 8 if self.mode == "discover" else 5
+        per_cat_cap = (
+            max(2, math.ceil(target_limit / len(seeds)))
+            if is_groceries
+            else max(5, math.ceil(target_limit / len(seeds)))
+        )
+        max_pages = 3 if is_groceries else (8 if self.mode == "discover" else 5)
         throttled = False
 
         with ImpersonatedHttpClient(
@@ -412,7 +445,7 @@ class NoonScraper(BaseScraper):
             min_delay_seconds=effective_delay,
             jitter_range=(0.4, 1.3),
         ) as client:
-            for default_sub, top_category, cat_url in NOON_CATEGORIES:
+            for default_sub, top_category, cat_url in seeds:
                 if len(snapshots) >= target_limit or throttled:
                     break
                 cat_collected = 0
@@ -421,7 +454,11 @@ class NoonScraper(BaseScraper):
                     if len(snapshots) >= target_limit or cat_collected >= per_cat_cap:
                         break
 
-                    page_url = cat_url if page == 1 else f"{cat_url}?page={page}"
+                    if page == 1:
+                        page_url = cat_url
+                    else:
+                        sep = "&" if "?" in cat_url else "?"
+                        page_url = f"{cat_url}{sep}page={page}"
                     logger.info("[noon] Fetching %s (%s) page %d", default_sub, top_category, page)
                     try:
                         resp = client.get(page_url, check_throttle=True, min_html_bytes=5120)
@@ -480,9 +517,15 @@ class NoonScraper(BaseScraper):
                         card_text_low = card.get_text(" ", strip=True).lower()
                         in_stock = not ("out of stock" in card_text_low or "sold out" in card_text_low)
 
-                        sub_category = _refine_sub_category(title, top_category, default_sub)
-                        brand = _extract_brand(title)
-                        attrs = _extract_specs(title, top_category, sub_category)
+                        if top_category == "groceries":
+                            sub_category = refine_grocery_sub_category(title, default_sub)
+                            brand = extract_grocery_brand(title)
+                            attrs = {"noon_category": sub_category}
+                            attrs.update(parse_grocery_packaging(title))
+                        else:
+                            sub_category = _refine_sub_category(title, top_category, default_sub)
+                            brand = _extract_brand(title)
+                            attrs = _extract_specs(title, top_category, sub_category)
 
                         snap = self.validate_record(
                             {

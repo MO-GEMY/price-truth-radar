@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from .base import RawProductSnapshot, normalize_snake_slug
+from .groceries import compute_grocery_candidate_key
 
 # Brands normalized to canonical lowercase slugs
 _BRAND_ALIASES: dict[str, str] = {
@@ -515,7 +516,10 @@ def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[s
 
 
 def compute_candidate_key(record: RawProductSnapshot) -> Optional[str]:
-    """Compute a deterministic candidate canonical key for electronics & home appliances."""
+    """Compute a deterministic candidate canonical key for electronics, appliances, & groceries."""
+    if record.category == "groceries":
+        return compute_grocery_candidate_key(record)
+
     if record.category not in ("electronics", "home_appliances"):
         return None
 

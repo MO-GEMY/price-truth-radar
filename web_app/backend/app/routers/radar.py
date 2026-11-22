@@ -48,7 +48,7 @@ PRODUCT_SELECT_COLS = """
 
 @router.get("/feed", response_model=RadarFeedResponse)
 def get_radar_feed(
-    category: Literal["all", "electronics", "fashion", "home_appliances"] = Query(default="all"),
+    category: Literal["all", "electronics", "fashion", "home_appliances", "groceries"] = Query(default="all"),
     verdict: Optional[DiscountVerdict] = Query(default=None),
     store: Optional[str] = Query(default=None),
     sort: Literal[

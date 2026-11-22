@@ -6,6 +6,7 @@ import type { Product } from "@/types/contract";
 import { useLanguage } from "@/lib/i18n";
 import {
   formatNumber,
+  formatPackSize,
   formatPct,
   formatPctPlain,
   formatPrice,
@@ -36,6 +37,7 @@ export function ProductCard({
   const showInflation =
     product.claimed_discount_pct >= 10 && product.real_discount_pct < 3 && gap >= 10;
   const isFashion = product.category === "fashion";
+  const packSize = formatPackSize(product.attributes_json);
 
   const detailHref = `/products/${product.product_sk}`;
 
@@ -43,7 +45,7 @@ export function ProductCard({
     <article className="group surface surface-hover relative flex min-w-0 flex-col overflow-hidden rounded-2xl">
       {/* Category-aware thumbnail framing:
           - fashion: full-bleed cover anchored top (no white sidebars or cropped heads)
-          - electronics / home_appliances: crisp white studio frame for cutouts */}
+          - electronics / home_appliances / groceries: crisp white studio frame for cutouts */}
       <Link href={detailHref} className={isFashion ? "relative block" : "relative block p-2.5 pb-0"}>
         <div
           className={`relative aspect-[4/3] w-full overflow-hidden ${
@@ -87,14 +89,21 @@ export function ProductCard({
           </div>
         </div>
 
-        {/* Title & category meta */}
+        {/* Title & category meta (groceries carry a compact pack-size chip) */}
         <Link href={detailHref} className="block min-w-0">
           <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug text-slate-100 transition group-hover:text-white">
             {product.product_title}
           </h3>
-          <p className="mt-1 truncate text-xs font-medium text-slate-400">
-            {product.brand} · {formatSubCategory(product.sub_category, lang)}
-          </p>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <p className="min-w-0 truncate text-xs font-medium text-slate-400">
+              {product.brand} · {formatSubCategory(product.sub_category, lang)}
+            </p>
+            {packSize ? (
+              <span className="num shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">
+                {packSize}
+              </span>
+            ) : null}
+          </div>
         </Link>
 
         {/* Price + Claimed vs Real breakdown */}
@@ -161,7 +170,9 @@ export function ProductCard({
                   ? t("filters.catElectronics")
                   : product.category === "home_appliances"
                     ? t("filters.catHomeAppliances")
-                    : t("filters.catFashion")}
+                    : product.category === "groceries"
+                      ? t("filters.catGroceries")
+                      : t("filters.catFashion")}
               </span>
             )}
 

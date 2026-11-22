@@ -28,6 +28,7 @@ from data_platform.ingestion.scrapers import (  # noqa: E402
     RawProductSnapshot,
     SCRAPER_REGISTRY,
     ScrapeMode,
+    ScrapeVertical,
     assign_canonical_keys,
     fetch_latest_snapshots_from_neon,
     fetch_tracked_store_ids_from_neon,
@@ -45,7 +46,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--store",
         required=False,
         choices=store_choices,
-        help="Store slug to scrape (or 'all' for every registered scraper).",
+        help="Store slug to scrape (or 'all' for every registered scraper supporting the vertical).",
+    )
+    parser.add_argument(
+        "--vertical",
+        choices=["core", "groceries"],
+        default="core",
+        help="Product vertical: 'core' (electronics/home_appliances/fashion, default) or 'groceries' (Egyptian Supermarket Wave 1).",
     )
     parser.add_argument(
         "--mode",
@@ -91,6 +98,7 @@ def _print_summary(
     skipped_count: int,
     dry_run: bool,
     scrape_mode: ScrapeMode = "daily",
+    vertical: ScrapeVertical = "core",
     tracked_hits: int = 0,
     tracked_total: int = 0,
     category_counts: dict[str, int] | None = None,
@@ -106,7 +114,7 @@ def _print_summary(
 
     print("=" * 72)
     print(
-        f"SCRAPER SUMMARY | store={store} | scrape_mode={scrape_mode} "
+        f"SCRAPER SUMMARY | store={store} | vertical={vertical} | scrape_mode={scrape_mode} "
         f"| io={'DRY-RUN (no DB write)' if dry_run else 'LIVE UPSERT'}"
     )
     print("=" * 72)
@@ -192,7 +200,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.match_db and not args.store:
         return _run_match_db(dry_run=args.dry_run)
 
-    stores = sorted(SCRAPER_REGISTRY.keys()) if args.store == "all" else [args.store]
+    vertical: ScrapeVertical = args.vertical
+    if args.store == "all":
+        stores = [
+            slug
+            for slug in sorted(SCRAPER_REGISTRY.keys())
+            if vertical in SCRAPER_REGISTRY[slug].supported_verticals
+        ]
+    else:
+        if vertical not in SCRAPER_REGISTRY[args.store].supported_verticals:
+            supported = [
+                s
+                for s in sorted(SCRAPER_REGISTRY.keys())
+                if vertical in SCRAPER_REGISTRY[s].supported_verticals
+            ]
+            parser.error(
+                f"Store '{args.store}' does not support --vertical {vertical}. "
+                f"Supported stores: {', '.join(supported)}"
+            )
+        stores = [args.store]
+
     all_records: list[RawProductSnapshot] = []
     per_store_meta: list[tuple[str, list[RawProductSnapshot], int, int, int, int, dict[str, int]]] = []
     scrape_mode: ScrapeMode = args.mode
@@ -201,19 +228,28 @@ def main(argv: list[str] | None = None) -> int:
         for store_slug in stores:
             scraper_cls = SCRAPER_REGISTRY[store_slug]
             tracked_ids = (
-                fetch_tracked_store_ids_from_neon(store_slug)
+                fetch_tracked_store_ids_from_neon(
+                    store_slug,
+                    category="groceries" if vertical == "groceries" else None,
+                )
                 if scrape_mode == "daily"
                 else set()
             )
             scraper = scraper_cls(
                 http_client,
                 mode=scrape_mode,
+                vertical=vertical,
                 tracked_external_ids=tracked_ids,
             )
-            effective_limit = scraper.get_target_limit(scrape_mode) if args.limit is None else args.limit
+            effective_limit = (
+                scraper.get_target_limit(scrape_mode, vertical)
+                if args.limit is None
+                else args.limit
+            )
             logging.info(
-                "[%s] Starting scrape (mode=%s, target_limit=%d, tracked_watchlist=%d)",
+                "[%s] Starting scrape (vertical=%s, mode=%s, target_limit=%d, tracked_watchlist=%d)",
                 store_slug,
+                vertical,
                 scrape_mode,
                 effective_limit,
                 len(tracked_ids),
@@ -251,6 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             skipped_count=skipped_count,
             dry_run=args.dry_run,
             scrape_mode=scrape_mode,
+            vertical=vertical,
             tracked_hits=tracked_hits,
             tracked_total=tracked_total,
             category_counts=category_counts or None,

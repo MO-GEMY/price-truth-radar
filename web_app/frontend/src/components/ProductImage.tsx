@@ -4,6 +4,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Coffee,
+  CookingPot,
+  CupSoda,
+  Droplets,
   Fan,
   Footprints,
   Gamepad2,
@@ -12,11 +16,15 @@ import {
   Laptop,
   Microwave,
   Monitor,
+  Milk,
   PackageOpen,
   Refrigerator,
+  ShoppingBasket,
   Shirt,
   Smartphone,
+  SprayCan,
   Tv,
+  Wheat,
   Wind,
   type LucideIcon,
 } from "lucide-react";
@@ -52,6 +60,13 @@ const SUBCATEGORY_ICON: Record<string, LucideIcon> = {
   sneakers: Footprints,
   shoes: Footprints,
   footwear: Footprints,
+  oils_ghee: Droplets,
+  rice_pasta: Wheat,
+  dairy_cheese: Milk,
+  tea_coffee: Coffee,
+  canned_sauces: CookingPot,
+  beverages: CupSoda,
+  detergents: SprayCan,
 };
 
 function isUsableImageUrl(url: string | null | undefined): url is string {
@@ -121,7 +136,9 @@ export function ProductImage({
       ? Laptop
       : category === "home_appliances"
         ? Home
-        : Shirt) ??
+        : category === "groceries"
+          ? ShoppingBasket
+          : Shirt) ??
     PackageOpen;
 
   const isFailed = status === "error" || !validUrl;

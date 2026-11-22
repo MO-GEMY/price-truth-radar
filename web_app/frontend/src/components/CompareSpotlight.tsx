@@ -36,7 +36,10 @@ function SpotlightCard({ match }: { match: CrossStoreMatch }) {
           </span>
         </div>
 
-        <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-snug text-slate-100 transition group-hover:text-white">
+        <h3
+          dir="auto"
+          className="line-clamp-2 min-h-10 text-sm font-bold leading-snug text-slate-100 transition group-hover:text-white"
+        >
           {match.product_title_clean}
         </h3>
       </div>

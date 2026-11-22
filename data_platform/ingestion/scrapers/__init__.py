@@ -10,6 +10,7 @@ from .base import (
     PoliteHttpClient,
     RawProductSnapshot,
     ScrapeMode,
+    ScrapeVertical,
     ThrottledResponseError,
     fetch_latest_snapshots_from_neon,
     fetch_tracked_store_ids_from_neon,
@@ -18,6 +19,13 @@ from .base import (
     upsert_snapshots_to_neon,
 )
 from .btech import BTechScraper
+from .groceries import (
+    GROCERY_SUB_CATEGORIES,
+    compute_grocery_candidate_key,
+    extract_grocery_brand,
+    parse_grocery_packaging,
+    refine_grocery_sub_category,
+)
 from .matcher import MatchSummary, assign_canonical_keys, compute_candidate_key
 from .noon import NoonScraper
 from .shopify import DalydressScraper, DejavuScraper, ShopifyScraper, TownTeamScraper
@@ -42,6 +50,7 @@ __all__ = [
     "Category",
     "DalydressScraper",
     "DejavuScraper",
+    "GROCERY_SUB_CATEGORIES",
     "ImpersonatedHttpClient",
     "MatchSummary",
     "NoonScraper",
@@ -49,6 +58,7 @@ __all__ = [
     "RawProductSnapshot",
     "SCRAPER_REGISTRY",
     "ScrapeMode",
+    "ScrapeVertical",
     "ShopifyScraper",
     "SigmaScraper",
     "ThrottledResponseError",
@@ -56,9 +66,13 @@ __all__ = [
     "TwoBScraper",
     "assign_canonical_keys",
     "compute_candidate_key",
+    "compute_grocery_candidate_key",
+    "extract_grocery_brand",
     "fetch_latest_snapshots_from_neon",
     "fetch_tracked_store_ids_from_neon",
     "parse_egp_price",
+    "parse_grocery_packaging",
+    "refine_grocery_sub_category",
     "update_canonical_keys_in_neon",
     "upsert_snapshots_to_neon",
 ]

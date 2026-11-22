@@ -10,12 +10,19 @@ import { useLanguage } from "@/lib/i18n";
 import type { TranslationKey } from "@/lib/translations";
 import { storeDisplayName } from "@/lib/stores";
 
-const CATEGORIES: FeedCategoryFilter[] = ["all", "electronics", "home_appliances", "fashion"];
+const CATEGORIES: FeedCategoryFilter[] = [
+  "all",
+  "electronics",
+  "home_appliances",
+  "groceries",
+  "fashion",
+];
 
 export const CATEGORY_LABEL_KEY: Record<FeedCategoryFilter, TranslationKey> = {
   all: "filters.catAll",
   electronics: "filters.catElectronics",
   home_appliances: "filters.catHomeAppliances",
+  groceries: "filters.catGroceries",
   fashion: "filters.catFashion",
 };
 

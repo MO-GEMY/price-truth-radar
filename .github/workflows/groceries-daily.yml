@@ -1,0 +1,66 @@
+name: Daily Groceries Pipeline (Wave 1)
+
+on:
+  schedule:
+    # Runs daily at 02:00 UTC (04:00 AM Cairo EET / 05:00 AM EEST), isolated from core pipeline
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-groceries:
+    name: Scrape Groceries (${{ matrix.store }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        store:
+          - amazon_eg
+          - noon
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run live grocery scraper (${{ matrix.store }})
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }} --vertical groceries --mode daily
+
+  match-and-dbt:
+    name: Match Cross-Store & Run dbt
+    runs-on: ubuntu-latest
+    needs: scrape-groceries
+    if: always()
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run DB-level cross-store canonical matching
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --match-db
+
+      - name: Run dbt snapshot, models, and data tests
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: |
+          python data_platform/run_dbt.py snapshot
+          python data_platform/run_dbt.py run
+          python data_platform/run_dbt.py test

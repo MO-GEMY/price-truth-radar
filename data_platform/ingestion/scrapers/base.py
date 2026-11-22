@@ -132,8 +132,9 @@ def utc_now_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
-Category = Literal["electronics", "fashion", "home_appliances"]
+Category = Literal["electronics", "fashion", "home_appliances", "groceries"]
 ScrapeMode = Literal["daily", "discover"]
+ScrapeVertical = Literal["core", "groceries"]
 
 
 class RawProductSnapshot(BaseModel):
@@ -515,6 +516,8 @@ class BaseScraper(ABC):
     base_url: str
     default_limit: int = 300
     discover_limit: int = 0
+    groceries_limit: int = 300
+    supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds: float = 1.0
     request_timeout: Optional[float] = None
 
@@ -523,18 +526,28 @@ class BaseScraper(ABC):
         http_client: PoliteHttpClient,
         *,
         mode: ScrapeMode = "daily",
+        vertical: ScrapeVertical = "core",
         tracked_external_ids: Optional[set[str]] = None,
     ) -> None:
         self.http = http_client
         self.mode: ScrapeMode = mode
+        self.vertical: ScrapeVertical = vertical
         self.tracked_external_ids: set[str] = set(tracked_external_ids or ())
         self.skipped_count: int = 0
         self.pages_fetched: int = 0
         self.category_counts: dict[str, int] = {}
 
-    def get_target_limit(self, mode: Optional[ScrapeMode] = None) -> int:
-        """Return default product target for the requested scrape mode (`daily` vs `discover`)."""
+    def get_target_limit(
+        self,
+        mode: Optional[ScrapeMode] = None,
+        vertical: Optional[ScrapeVertical] = None,
+    ) -> int:
+        """Return default product target for the requested scrape mode & vertical."""
         effective_mode = mode or self.mode
+        effective_vertical = vertical or self.vertical
+        if effective_vertical == "groceries":
+            base_cap = self.groceries_limit
+            return min(350, int(round(base_cap * 1.15))) if effective_mode == "discover" else base_cap
         if effective_mode == "discover":
             if self.discover_limit > 0:
                 return self.discover_limit
@@ -767,7 +780,11 @@ def update_canonical_keys_in_neon(snapshots: list[RawProductSnapshot]) -> int:
     return len(values)
 
 
-def fetch_tracked_store_ids_from_neon(store_name: str) -> set[str]:
+def fetch_tracked_store_ids_from_neon(
+    store_name: str,
+    *,
+    category: Optional[str] = None,
+) -> set[str]:
     """Fetch previously tracked `external_id`s for `store_name` so daily runs prioritize continuity."""
     db_url = os.getenv("DATABASE_URL_ADMIN") or os.getenv("DATABASE_URL_READONLY")
     if not db_url:
@@ -776,14 +793,25 @@ def fetch_tracked_store_ids_from_neon(store_name: str) -> set[str]:
         conn = psycopg2.connect(db_url)
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT DISTINCT external_id
-                    FROM raw.raw_product_snapshots
-                    WHERE store_name = %s;
-                    """,
-                    (store_name,),
-                )
+                if category:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT external_id
+                        FROM raw.raw_product_snapshots
+                        WHERE store_name = %s
+                          AND category = %s;
+                        """,
+                        (store_name, category),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT external_id
+                        FROM raw.raw_product_snapshots
+                        WHERE store_name = %s;
+                        """,
+                        (store_name,),
+                    )
                 return {str(row[0]) for row in cur.fetchall() if row and row[0]}
         finally:
             conn.close()

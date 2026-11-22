@@ -20,6 +20,7 @@ import type { TranslationKey } from "@/lib/translations";
 import {
   formatDateTime,
   formatNumber,
+  formatPackSize,
   formatPct,
   formatPctPlain,
   formatPrice,
@@ -153,6 +154,7 @@ export default function ProductDetailPage() {
         : "text-white";
 
   const totalMatchedStores = alternatives.length + 1;
+  const packSize = formatPackSize(product.attributes_json);
 
   return (
     <>
@@ -194,6 +196,14 @@ export default function ProductDetailPage() {
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-slate-300">
                   {product.brand} · {formatSubCategory(product.sub_category, lang)}
                 </span>
+                {packSize ? (
+                  <span
+                    className="num rounded-full border border-teal-400/25 bg-teal-400/10 px-2.5 py-1 text-xs font-semibold text-teal-200"
+                    title={t("attr.pack_size")}
+                  >
+                    {packSize}
+                  </span>
+                ) : null}
                 {product.scarcity_flag ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/12 px-2.5 py-1 text-xs font-semibold text-amber-300">
                     <Flame className="size-3.5 shrink-0" />

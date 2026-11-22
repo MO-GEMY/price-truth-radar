@@ -31,9 +31,15 @@ from .base import (
     Category,
     ImpersonatedHttpClient,
     RawProductSnapshot,
+    ScrapeVertical,
     ThrottledResponseError,
     parse_egp_price,
     utc_now_naive,
+)
+from .groceries import (
+    extract_grocery_brand,
+    parse_grocery_packaging,
+    refine_grocery_sub_category,
 )
 from .noon import (
     _extract_brand,
@@ -62,6 +68,24 @@ AMAZON_EG_DISCOVER_EXTRA_QUERIES: list[tuple[str, Category, str]] = [
     ("refrigerators", "home_appliances", "refrigerator no frost"),
     ("monitors", "electronics", "gaming monitor 144hz"),
     ("footwear", "fashion", "adidas running shoes"),
+]
+
+# Egyptian Groceries ("سلة البيت المصري") — 7 high-frequency household sub-categories
+AMAZON_EG_GROCERY_QUERIES: list[tuple[str, Category, str]] = [
+    ("oils_ghee", "groceries", "crystal sunflower oil"),
+    ("rice_pasta", "groceries", "el maleka pasta"),
+    ("dairy_cheese", "groceries", "juhayna milk"),
+    ("tea_coffee", "groceries", "nescafe lipton tea"),
+    ("canned_sauces", "groceries", "heinz tomato paste"),
+    ("beverages", "groceries", "juhayna juice"),
+    ("detergents", "groceries", "ariel persil detergent"),
+    ("oils_ghee", "groceries", "rawabi fern ghee"),
+    ("rice_pasta", "groceries", "el doha rice"),
+    ("dairy_cheese", "groceries", "obour land domty cheese"),
+    ("tea_coffee", "groceries", "abu auf coffee"),
+    ("canned_sauces", "groceries", "sunshine tuna"),
+    ("beverages", "groceries", "pepsi soft drink"),
+    ("detergents", "groceries", "fairy pril dishwashing"),
 ]
 
 _ASIN_RE = re.compile(r"^[A-Z0-9]{10}$")
@@ -193,6 +217,8 @@ class AmazonEgScraper(BaseScraper):
     base_url = "https://www.amazon.eg"
     default_limit = 250
     discover_limit = 450
+    groceries_limit = 300
+    supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 4.0
     request_timeout = 30.0
 
@@ -205,14 +231,21 @@ class AmazonEgScraper(BaseScraper):
         now = utc_now_naive()
         today = now.date()
 
-        queries = (
-            AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES
-            if self.mode == "discover"
-            else AMAZON_EG_QUERIES
-        )
+        is_groceries = self.vertical == "groceries"
+        if is_groceries:
+            queries = AMAZON_EG_GROCERY_QUERIES
+        elif self.mode == "discover":
+            queries = AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES
+        else:
+            queries = AMAZON_EG_QUERIES
+
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_query_cap = max(3, math.ceil(target_limit / len(queries)))
-        max_pages = 4 if self.mode == "discover" else (2 if target_limit <= 120 else 3)
+        per_query_cap = (
+            max(2, math.ceil(target_limit / len(queries)))
+            if is_groceries
+            else max(3, math.ceil(target_limit / len(queries)))
+        )
+        max_pages = 2 if is_groceries else (4 if self.mode == "discover" else (2 if target_limit <= 120 else 3))
         throttled = False
 
         with ImpersonatedHttpClient(
@@ -294,11 +327,17 @@ class AmazonEgScraper(BaseScraper):
                             or "temporarily out of stock" in card_text_low
                         )
 
-                        brand = _normalize_amazon_brand(raw_brand, title)
-                        sub_category = _refine_sub_category(title, top_category, default_sub)
-                        attrs: dict[str, Any] = _extract_specs(title, top_category, sub_category)
-                        attrs.pop("noon_category", None)
-                        attrs["amazon_query"] = query
+                        if top_category == "groceries":
+                            brand = extract_grocery_brand(title, raw_brand)
+                            sub_category = refine_grocery_sub_category(title, default_sub)
+                            attrs = parse_grocery_packaging(title)
+                            attrs["amazon_query"] = query
+                        else:
+                            brand = _normalize_amazon_brand(raw_brand, title)
+                            sub_category = _refine_sub_category(title, top_category, default_sub)
+                            attrs = _extract_specs(title, top_category, sub_category)
+                            attrs.pop("noon_category", None)
+                            attrs["amazon_query"] = query
 
                         product_url = f"{self.base_url}/-/en/dp/{asin}"
                         snap = self.validate_record(

@@ -47,6 +47,55 @@ WITH cleaned AS (
                 THEN (attributes_json::JSONB ->> 'total_sizes')::INTEGER
             ELSE NULL::INTEGER
         END AS total_sizes,
+        CASE
+            WHEN (attributes_json::JSONB ->> 'net_weight_g') ~ '^[0-9]+$'
+                 AND (attributes_json::JSONB ->> 'net_weight_g')::INTEGER > 0
+                THEN (attributes_json::JSONB ->> 'net_weight_g')::INTEGER
+            ELSE NULL::INTEGER
+        END AS net_weight_g,
+        CASE
+            WHEN (attributes_json::JSONB ->> 'net_volume_ml') ~ '^[0-9]+$'
+                 AND (attributes_json::JSONB ->> 'net_volume_ml')::INTEGER > 0
+                THEN (attributes_json::JSONB ->> 'net_volume_ml')::INTEGER
+            ELSE NULL::INTEGER
+        END AS net_volume_ml,
+        CASE
+            WHEN (attributes_json::JSONB ->> 'pack_count') ~ '^[0-9]+$'
+                 AND (attributes_json::JSONB ->> 'pack_count')::INTEGER > 0
+                THEN (attributes_json::JSONB ->> 'pack_count')::INTEGER
+            ELSE 1::INTEGER
+        END AS pack_count,
+        NULLIF(TRIM(attributes_json::JSONB ->> 'pack_size'), '')::VARCHAR AS pack_size,
+        NULLIF(
+            REGEXP_REPLACE(
+                COALESCE(
+                    attributes_json::JSONB ->> 'ean',
+                    attributes_json::JSONB ->> 'gtin',
+                    ''
+                ),
+                '[^0-9]',
+                '',
+                'g'
+            ),
+            ''
+        )::VARCHAR AS ean,
+        CASE
+            WHEN (attributes_json::JSONB ->> 'net_weight_g') ~ '^[0-9]+$'
+                 AND (attributes_json::JSONB ->> 'net_weight_g')::INTEGER > 0
+                THEN ROUND(
+                    (current_price::NUMERIC * 1000.0)
+                    / (attributes_json::JSONB ->> 'net_weight_g')::NUMERIC,
+                    2
+                )::NUMERIC(12,2)
+            WHEN (attributes_json::JSONB ->> 'net_volume_ml') ~ '^[0-9]+$'
+                 AND (attributes_json::JSONB ->> 'net_volume_ml')::INTEGER > 0
+                THEN ROUND(
+                    (current_price::NUMERIC * 1000.0)
+                    / (attributes_json::JSONB ->> 'net_volume_ml')::NUMERIC,
+                    2
+                )::NUMERIC(12,2)
+            ELSE NULL::NUMERIC(12,2)
+        END AS unit_price_egp,
         snapshot_date::DATE AS snapshot_date,
         scraped_at::TIMESTAMP AS scraped_at,
         ROW_NUMBER() OVER (
@@ -75,6 +124,12 @@ SELECT
     in_stock,
     available_sizes_count,
     total_sizes,
+    net_weight_g,
+    net_volume_ml,
+    pack_count,
+    pack_size,
+    ean,
+    unit_price_egp,
     snapshot_date,
     scraped_at
 FROM cleaned

@@ -5,8 +5,43 @@
     )
 }}
 
-WITH matched_raw AS (
+WITH candidates AS (
     SELECT
+        -- Strict grocery matching guard (defense-in-depth at SQL layer):
+        -- 1. Match by validated EAN/GTIN barcode when present.
+        -- 2. Otherwise enforce exact net_weight_g / net_volume_ml / pack_count
+        --    so different package sizes (e.g. 700ml vs 1L) can NEVER group together.
+        CASE
+            WHEN category = 'groceries' THEN
+                CASE
+                    WHEN NULLIF(
+                        REGEXP_REPLACE(
+                            COALESCE(attributes_json ->> 'ean', attributes_json ->> 'gtin', ''),
+                            '[^0-9]',
+                            '',
+                            'g'
+                        ),
+                        ''
+                    ) ~ '^[0-9]{8}([0-9]{4,6})?$'
+                        THEN 'grocery_gtin_' || REGEXP_REPLACE(
+                            COALESCE(attributes_json ->> 'ean', attributes_json ->> 'gtin', ''),
+                            '[^0-9]',
+                            '',
+                            'g'
+                        )
+                    WHEN canonical_product_key IS NOT NULL
+                         AND (
+                             ((attributes_json ->> 'net_weight_g') ~ '^[0-9]+$' AND (attributes_json ->> 'net_weight_g')::INTEGER > 0)
+                             OR ((attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$' AND (attributes_json ->> 'net_volume_ml')::INTEGER > 0)
+                         )
+                        THEN canonical_product_key
+                             || '__w' || COALESCE(CASE WHEN (attributes_json ->> 'net_weight_g') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_weight_g') END, '0')
+                             || '_v' || COALESCE(CASE WHEN (attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_volume_ml') END, '0')
+                             || '_x' || COALESCE(CASE WHEN (attributes_json ->> 'pack_count') ~ '^[0-9]+$' THEN (attributes_json ->> 'pack_count') END, '1')
+                    ELSE NULL
+                END
+            ELSE canonical_product_key
+        END AS effective_match_key,
         canonical_product_key,
         TRIM(
             REGEXP_REPLACE(
@@ -23,13 +58,29 @@ WITH matched_raw AS (
         current_price,
         in_stock,
         product_url,
+        discount_verdict
+    FROM {{ ref('mart_product_verdicts') }}
+),
+
+matched_raw AS (
+    SELECT
+        COALESCE(canonical_product_key, effective_match_key) AS canonical_product_key,
+        effective_match_key,
+        clean_title_candidate,
+        category,
+        brand,
+        product_sk,
+        store_name,
+        current_price,
+        in_stock,
+        product_url,
         discount_verdict,
         ROW_NUMBER() OVER (
-            PARTITION BY canonical_product_key, store_name
+            PARTITION BY effective_match_key, store_name
             ORDER BY in_stock DESC, current_price ASC, product_sk ASC
         ) AS store_rn
-    FROM {{ ref('mart_product_verdicts') }}
-    WHERE canonical_product_key IS NOT NULL
+    FROM candidates
+    WHERE effective_match_key IS NOT NULL
 ),
 
 -- Keep one representative (cheapest in-stock) listing per store per canonical product
@@ -37,6 +88,7 @@ WITH matched_raw AS (
 matched_base AS (
     SELECT
         canonical_product_key,
+        effective_match_key,
         clean_title_candidate,
         category,
         brand,
@@ -52,11 +104,11 @@ matched_base AS (
 
 lowest_ranked AS (
     SELECT
-        canonical_product_key,
+        effective_match_key,
         store_name AS lowest_price_store,
         clean_title_candidate AS product_title_clean,
         ROW_NUMBER() OVER (
-            PARTITION BY canonical_product_key
+            PARTITION BY effective_match_key
             ORDER BY current_price ASC, in_stock DESC, store_name ASC
         ) AS rn
     FROM matched_base
@@ -64,7 +116,8 @@ lowest_ranked AS (
 
 aggregated AS (
     SELECT
-        canonical_product_key,
+        effective_match_key,
+        MIN(canonical_product_key) AS canonical_product_key,
         MIN(category) AS category,
         MIN(brand) AS brand,
         COUNT(DISTINCT store_name)::INTEGER AS stores_count,
@@ -82,12 +135,12 @@ aggregated AS (
             ORDER BY current_price ASC, store_name ASC
         )::JSONB AS listings_json
     FROM matched_base
-    GROUP BY canonical_product_key
+    GROUP BY effective_match_key
     HAVING COUNT(DISTINCT store_name) >= 2
 )
 
 SELECT
-    a.canonical_product_key::VARCHAR AS canonical_product_key,
+    a.effective_match_key::VARCHAR AS canonical_product_key,
     lr.product_title_clean::TEXT AS product_title_clean,
     a.category::VARCHAR AS category,
     a.brand::VARCHAR AS brand,
@@ -109,6 +162,6 @@ SELECT
     a.listings_json::JSONB AS listings_json
 FROM aggregated a
 INNER JOIN lowest_ranked lr
-    ON a.canonical_product_key = lr.canonical_product_key
+    ON a.effective_match_key = lr.effective_match_key
    AND lr.rn = 1
 ORDER BY price_spread_pct DESC, a.canonical_product_key ASC

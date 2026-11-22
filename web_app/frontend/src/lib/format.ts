@@ -143,6 +143,13 @@ const SUBCATEGORY_LABELS: Record<string, { en: string; ar: string }> = {
   heels: { en: "Heels", ar: "كعب عالي" },
   bags: { en: "Bags", ar: "شنط" },
   handbags: { en: "Handbags", ar: "شنط يد" },
+  oils_ghee: { en: "Oils & Ghee", ar: "زيوت وسمن" },
+  rice_pasta: { en: "Rice & Pasta", ar: "أرز ومكرونة" },
+  dairy_cheese: { en: "Dairy & Cheese", ar: "ألبان وأجبان" },
+  tea_coffee: { en: "Tea & Coffee", ar: "شاي وقهوة" },
+  canned_sauces: { en: "Canned & Sauces", ar: "معلبات وصلصات" },
+  beverages: { en: "Beverages", ar: "مشروبات" },
+  detergents: { en: "Detergents", ar: "منظفات" },
 };
 
 export function formatSubCategory(slug: string, lang: Lang): string {
@@ -153,4 +160,33 @@ export function formatSubCategory(slug: string, lang: Lang): string {
     .replace(/[_-]+/g, " ")
     .trim()
     .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+/**
+ * Compact grocery size chip from `attributes_json` — e.g. "1L", "500g",
+ * "6 × 1L". Reads `pack_size` (verbatim string) first, then derives a short
+ * label from `net_weight_g` / `net_volume_ml`. Returns null when the product
+ * carries no size info, so non-grocery cards stay uncluttered.
+ */
+export function formatPackSize(
+  attrs: Record<string, unknown> | null | undefined,
+): string | null {
+  if (!attrs) return null;
+  const packSize = attrs["pack_size"];
+  if (typeof packSize === "string" && packSize.trim().length > 0) {
+    return packSize.trim();
+  }
+  const weight = attrs["net_weight_g"];
+  if (typeof weight === "number" && Number.isFinite(weight) && weight > 0) {
+    return weight >= 1000 ? `${trimZeros(weight / 1000)}kg` : `${trimZeros(weight)}g`;
+  }
+  const volume = attrs["net_volume_ml"];
+  if (typeof volume === "number" && Number.isFinite(volume) && volume > 0) {
+    return volume >= 1000 ? `${trimZeros(volume / 1000)}L` : `${trimZeros(volume)}ml`;
+  }
+  return null;
+}
+
+function trimZeros(value: number): string {
+  return String(Math.round(value * 100) / 100);
 }
