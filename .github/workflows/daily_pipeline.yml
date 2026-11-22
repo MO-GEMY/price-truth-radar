@@ -13,10 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Note: `2b` blocks cloud/datacenter IPs and runs locally via scripts/run_local_scrapers.ps1
+        # Note: `2b` and `sigma` block cloud/datacenter IPs and run locally via scripts/run_local_scrapers.ps1
         # Fashion stores run in fashion-daily.yml; Grocery stores run in groceries-daily.yml
         store:
-          - sigma
           - btech
           - noon
           - amazon_eg

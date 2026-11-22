@@ -365,6 +365,68 @@ class PoliteHttpClient:
         assert last_exc is not None
         raise last_exc
 
+    def post(
+        self,
+        url: str,
+        *,
+        json: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
+        headers: Optional[dict[str, str]] = None,
+        min_delay_seconds: Optional[float] = None,
+        timeout: Optional[float] = None,
+    ) -> httpx.Response:
+        last_exc: Optional[Exception] = None
+        effective_timeout = timeout if timeout is not None else self.timeout
+        for attempt in range(1, self.max_retries + 1):
+            self._wait_rate_limit(min_delay_override=min_delay_seconds)
+            try:
+                resp = self._client.post(
+                    url,
+                    json=json,
+                    params=params,
+                    headers=headers,
+                    timeout=effective_timeout,
+                )
+                if resp.status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
+                    retry_after = resp.headers.get("Retry-After")
+                    sleep_for = (
+                        float(retry_after)
+                        if retry_after and retry_after.isdigit()
+                        else self.backoff_base**attempt
+                    )
+                    logger.warning(
+                        "HTTP %s for POST %s (attempt %d/%d); retrying in %.1fs",
+                        resp.status_code,
+                        url,
+                        attempt,
+                        self.max_retries,
+                        sleep_for,
+                    )
+                    time.sleep(sleep_for)
+                    continue
+                resp.raise_for_status()
+                return resp
+            except (httpx.TimeoutException, httpx.TransportError, httpx.HTTPStatusError) as exc:
+                last_exc = exc
+                if attempt < self.max_retries:
+                    sleep_for = self.backoff_base**attempt
+                    logger.warning(
+                        "Request error for POST %s (attempt %d/%d): %s; retrying in %.1fs",
+                        url,
+                        attempt,
+                        self.max_retries,
+                        exc,
+                        sleep_for,
+                    )
+                    time.sleep(sleep_for)
+                    continue
+                raise
+            finally:
+                self._last_request_ts = time.monotonic()
+
+        assert last_exc is not None
+        raise last_exc
+
 
 class ImpersonatedHttpClient:
     """TLS-impersonated HTTP client powered by `curl_cffi` with polite jitter & throttle detection."""
@@ -416,11 +478,33 @@ class ImpersonatedHttpClient:
         if remaining > 0:
             time.sleep(remaining)
 
-    def get(
+    def _compute_backoff(
         self,
+        status: Optional[int],
+        attempt: int,
+        retry_after: Optional[str] = None,
+    ) -> float:
+        if retry_after:
+            try:
+                parsed = float(retry_after.strip())
+                if parsed > 0:
+                    return min(parsed, 60.0)
+            except ValueError:
+                pass
+        if status == 429:
+            schedule = (4.0, 8.0, 15.0, 25.0)
+            base_delay = schedule[min(max(attempt - 1, 0), len(schedule) - 1)]
+            return base_delay + random.uniform(0.3, 1.0)
+        return (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+
+    def _request(
+        self,
+        method: str,
         url: str,
         *,
         params: Optional[dict[str, Any]] = None,
+        json: Optional[Any] = None,
+        data: Optional[Any] = None,
         min_delay_seconds: Optional[float] = None,
         timeout: Optional[float] = None,
         headers: Optional[dict[str, str]] = None,
@@ -436,23 +520,31 @@ class ImpersonatedHttpClient:
         for attempt in range(1, self.max_retries + 1):
             self._wait_rate_limit(min_delay_override=min_delay_seconds)
             try:
-                resp = self._session.get(
-                    url,
-                    params=params,
-                    headers=merged_headers,
-                    timeout=effective_timeout,
-                    allow_redirects=True,
-                )
+                if method == "POST":
+                    resp = self._session.post(
+                        url,
+                        params=params,
+                        json=json,
+                        data=data,
+                        headers=merged_headers,
+                        timeout=effective_timeout,
+                        allow_redirects=True,
+                    )
+                else:
+                    resp = self._session.get(
+                        url,
+                        params=params,
+                        headers=merged_headers,
+                        timeout=effective_timeout,
+                        allow_redirects=True,
+                    )
                 status = int(resp.status_code)
                 if status in IMPERSONATED_RETRYABLE_CODES:
-                    msg = f"HTTP {status} for {url}"
+                    msg = f"HTTP {status} for {method} {url}"
                     last_exc = ThrottledResponseError(msg)
                     if attempt < self.max_retries:
-                        retry_after = resp.headers.get("Retry-After")
-                        sleep_for = (
-                            float(retry_after)
-                            if retry_after and retry_after.isdigit()
-                            else (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+                        sleep_for = self._compute_backoff(
+                            status, attempt, resp.headers.get("Retry-After")
                         )
                         logger.warning(
                             "%s (attempt %d/%d); backing off %.1fs",
@@ -473,7 +565,7 @@ class ImpersonatedHttpClient:
                     if reason is not None:
                         last_exc = ThrottledResponseError(f"Throttled response for {url}: {reason}")
                         if attempt < self.max_retries:
-                            sleep_for = (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+                            sleep_for = self._compute_backoff(None, attempt)
                             logger.warning(
                                 "%s (attempt %d/%d); backing off %.1fs",
                                 last_exc,
@@ -491,9 +583,10 @@ class ImpersonatedHttpClient:
             except Exception as exc:
                 last_exc = exc
                 if attempt < self.max_retries:
-                    sleep_for = (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+                    sleep_for = self._compute_backoff(None, attempt)
                     logger.warning(
-                        "Impersonated GET error for %s (attempt %d/%d): %s; retrying in %.1fs",
+                        "Impersonated %s error for %s (attempt %d/%d): %s; retrying in %.1fs",
+                        method,
                         url,
                         attempt,
                         self.max_retries,
@@ -508,6 +601,54 @@ class ImpersonatedHttpClient:
 
         assert last_exc is not None
         raise last_exc
+
+    def get(
+        self,
+        url: str,
+        *,
+        params: Optional[dict[str, Any]] = None,
+        min_delay_seconds: Optional[float] = None,
+        timeout: Optional[float] = None,
+        headers: Optional[dict[str, str]] = None,
+        check_throttle: bool = True,
+        min_html_bytes: int = 5120,
+    ) -> Any:
+        return self._request(
+            "GET",
+            url,
+            params=params,
+            min_delay_seconds=min_delay_seconds,
+            timeout=timeout,
+            headers=headers,
+            check_throttle=check_throttle,
+            min_html_bytes=min_html_bytes,
+        )
+
+    def post(
+        self,
+        url: str,
+        *,
+        json: Optional[Any] = None,
+        data: Optional[Any] = None,
+        params: Optional[dict[str, Any]] = None,
+        min_delay_seconds: Optional[float] = None,
+        timeout: Optional[float] = None,
+        headers: Optional[dict[str, str]] = None,
+        check_throttle: bool = False,
+        min_html_bytes: int = 5120,
+    ) -> Any:
+        return self._request(
+            "POST",
+            url,
+            params=params,
+            json=json,
+            data=data,
+            min_delay_seconds=min_delay_seconds,
+            timeout=timeout,
+            headers=headers,
+            check_throttle=check_throttle,
+            min_html_bytes=min_html_bytes,
+        )
 
 
 class BaseScraper(ABC):

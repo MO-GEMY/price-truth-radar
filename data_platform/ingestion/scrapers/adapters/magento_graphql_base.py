@@ -73,6 +73,7 @@ class MagentoGraphQLBaseScraper(BaseScraper):
     product_url_prefix: str = "/en/"  # joined with url_key
     product_url_suffix: str = ""  # e.g. ".html"
     use_impersonation: bool = False
+    use_post: bool = False
     store_header: Optional[str] = None
     default_brand: str = ""
     override_brand: bool = False
@@ -228,11 +229,32 @@ class MagentoGraphQLBaseScraper(BaseScraper):
                     break
 
                 logger.info("[%s] Fetching GraphQL query=%r (%s) page %d", self.store_name, query, default_sub, page)
+                variables_dict = {"search": query, "pageSize": self.page_size, "currentPage": page}
                 variables_json = (
                     f'{{"search": "{query}", "pageSize": {self.page_size}, "currentPage": {page}}}'
                 )
                 try:
-                    if self.use_impersonation:
+                    if self.use_post:
+                        post_headers = {"Content-Type": "application/json", **extra_headers}
+                        post_body = {"query": self.gql_query, "variables": variables_dict}
+                        if self.use_impersonation:
+                            resp = fetcher.post(
+                                self.graphql_url,
+                                json=post_body,
+                                headers=post_headers,
+                                min_delay_seconds=effective_delay,
+                                timeout=self.request_timeout,
+                                check_throttle=False,
+                            )
+                        else:
+                            resp = fetcher.post(
+                                self.graphql_url,
+                                json=post_body,
+                                headers=post_headers,
+                                min_delay_seconds=effective_delay,
+                                timeout=self.request_timeout,
+                            )
+                    elif self.use_impersonation:
                         resp = fetcher.get(
                             self.graphql_url,
                             params={"query": self.gql_query, "variables": variables_json},
