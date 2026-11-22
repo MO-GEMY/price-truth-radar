@@ -56,6 +56,7 @@ class StoreRegistryEntry:
     default_limit: Optional[int] = None
     discover_limit: Optional[int] = None
     config: dict[str, Any] = field(default_factory=dict)
+    notes: str = ""
 
     @property
     def contract_category(self) -> Category:
@@ -112,6 +113,7 @@ def load_stores_registry(
             default_limit=int(item["default_limit"]) if item.get("default_limit") else None,
             discover_limit=int(item["discover_limit"]) if item.get("discover_limit") else None,
             config=dict(item.get("config") or {}),
+            notes=str(item.get("notes") or "").strip(),
         )
         if enabled_only and not entry.enabled:
             continue

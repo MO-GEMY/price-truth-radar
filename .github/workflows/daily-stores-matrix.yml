@@ -6,19 +6,19 @@ on:
     - cron: '53 0 * * *'
   workflow_dispatch:
     inputs:
-      batch:
-        description: "Optional batch name filter (e.g. 'core_1', 'groceries_1', 'fashion_1'; blank = all active cloud batches)"
-        required: false
-        default: ""
-        type: string
       mode:
-        description: "Scrape mode"
+        description: "Scrape mode ('daily' or 'discover')"
         required: false
         default: "daily"
         type: choice
         options:
           - daily
-          - discovery
+          - discover
+      batch_filter:
+        description: "Optional batch name (or comma-separated batches) to run, or 'all' for every active cloud batch"
+        required: false
+        default: "all"
+        type: string
       delta_mode:
         description: "Enable Delta Snapshots (skip unchanged rows to save 80-90% Neon storage)"
         required: false
@@ -54,7 +54,7 @@ jobs:
       - name: Build cloud batch list
         id: plan
         env:
-          BATCH_FILTER: ${{ github.event.inputs.batch || '' }}
+          BATCH_FILTER: ${{ github.event.inputs.batch_filter || 'all' }}
         run: |
           python - <<'PY'
           import json
@@ -69,8 +69,8 @@ jobs:
               for s in stores
               if s.get("enabled") and s.get("region_mode") == "cloud" and s.get("batch")
           })
-          raw_filter = os.environ.get("BATCH_FILTER", "").strip()
-          if raw_filter:
+          raw_filter = os.environ.get("BATCH_FILTER", "all").strip()
+          if raw_filter and raw_filter.lower() != "all":
               allowed = {b.strip() for b in raw_filter.split(",") if b.strip()}
               batches = [b for b in batches if b in allowed]
 

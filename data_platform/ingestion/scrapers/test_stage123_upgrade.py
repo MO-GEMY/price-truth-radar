@@ -229,15 +229,17 @@ class TestStage2And3RegistryDeltaAndMatrix(unittest.TestCase):
         all_stores = load_stores_registry()
         self.assertGreaterEqual(len(all_stores), 100)
         enabled_stores = load_stores_registry(enabled_only=True)
-        self.assertEqual(len(enabled_stores), 30)
+        self.assertGreaterEqual(len(enabled_stores), 42)
 
         local_only = {s.store_key for s in load_stores_registry(enabled_only=True, region_mode="local_only")}
         self.assertEqual(local_only, {"2b", "sigma"})
 
         cloud_batches = list_active_batches(region_mode="cloud")
         self.assertNotIn("local_core", cloud_batches)
-        self.assertGreaterEqual(len(cloud_batches), 5)
+        self.assertGreaterEqual(len(cloud_batches), 9)
         self.assertIn("core_1", cloud_batches)
+        self.assertIn("core_4", cloud_batches)
+        self.assertIn("home_1", cloud_batches)
         self.assertIn("groceries_1", cloud_batches)
         self.assertIn("fashion_1", cloud_batches)
 
@@ -285,6 +287,34 @@ class TestStage2And3RegistryDeltaAndMatrix(unittest.TestCase):
         self.assertIn("scrape-batch", wf["jobs"])
         self.assertIn("match-and-dbt", wf["jobs"])
         self.assertEqual(wf["jobs"]["scrape-batch"]["timeout-minutes"], 25)
+        on_cfg = wf.get("on") or wf.get(True)
+        inputs = on_cfg["workflow_dispatch"]["inputs"]
+        self.assertEqual(inputs["mode"]["default"], "daily")
+        self.assertEqual(inputs["mode"]["options"], ["daily", "discover"])
+        self.assertEqual(inputs["batch_filter"]["default"], "all")
+
+    def test_woocommerce_minor_unit_zero_not_divided_by_100(self) -> None:
+        wc = WooCommerceBaseScraper(http_client=None)  # type: ignore[arg-type]
+        wc.store_name = "baraka_computer"
+        wc.category = "electronics"
+        wc.base_url = "https://barakacomputer.net"
+        rec = wc._parse_item(
+            {
+                "id": 101,
+                "name": "GIGABYTE B760M GAMING X DDR4",
+                "permalink": "https://barakacomputer.net/product/b760m",
+                "prices": {"price": "7850", "regular_price": "9000", "currency_minor_unit": 0, "currency_code": "EGP"},
+                "images": [{"src": "https://barakacomputer.net/img.jpg"}],
+                "categories": [{"name": "Motherboards"}],
+                "is_in_stock": True,
+            },
+            date(2026, 11, 22),
+            datetime(2026, 11, 22, 4, 0, 0),
+        )
+        self.assertIsNotNone(rec)
+        assert rec is not None
+        self.assertEqual(rec.current_price, Decimal("7850.00"))
+        self.assertEqual(rec.claimed_original_price, Decimal("9000.00"))
 
 
 if __name__ == "__main__":

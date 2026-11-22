@@ -114,7 +114,8 @@ class WooCommerceBaseScraper(BaseScraper):
             return None
 
         prices = item.get("prices") if isinstance(item.get("prices"), dict) else {}
-        minor_unit = int(prices.get("currency_minor_unit") or 2)
+        raw_minor = prices.get("currency_minor_unit")
+        minor_unit = int(raw_minor) if raw_minor is not None else 2
         current_price = _parse_wc_minor_price(prices.get("price"), minor_unit)
         if current_price is None:
             return None
