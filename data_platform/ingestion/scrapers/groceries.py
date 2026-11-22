@@ -178,7 +178,7 @@ _MULTIPACK_UNIT_RE = re.compile(
 # Single quantity + unit pattern (EN & AR)
 _SINGLE_UNIT_RE = re.compile(
     r"(?<!\d)(\d+(?:\.\d+)?)\s*"
-    r"(kg|kgs|kilo|kilogram|kilograms|كجم|كيلو(?:جرام|غرام)?|"
+    r"(kg|kgs|kilo|kilogram|kilograms|k|كجم|كيلو(?:جرام|غرام)?|"
     r"gm|gr|grams|gram|g|جم|جرام|غرام|"
     r"ml|milliliter|milliliters|millilitre|millilitres|مللي|ملل|مل|"
     r"liters|liter|litres|litre|ltr|lt|l|لتر)(?![a-zA-Z\u0600-\u06FF])",
@@ -198,7 +198,7 @@ _PACK_COUNT_RE = re.compile(
 
 _EAN_GTIN_RE = re.compile(r"^\d{8}(?:\d{4,6})?$")
 
-_WEIGHT_KG_UNITS = {"kg", "kgs", "kilo", "kilogram", "kilograms", "كجم", "كيلو", "كيلوجرام", "كيلوغرام"}
+_WEIGHT_KG_UNITS = {"k", "kg", "kgs", "kilo", "kilogram", "kilograms", "كجم", "كيلو", "كيلوجرام", "كيلوغرام"}
 _WEIGHT_G_UNITS = {"g", "gm", "gr", "gram", "grams", "جم", "جرام", "غرام"}
 _VOL_L_UNITS = {"l", "lt", "ltr", "liter", "liters", "litre", "litres", "لتر"}
 _VOL_ML_UNITS = {"ml", "milliliter", "milliliters", "millilitre", "millilitres", "مل", "ملل", "مللي"}
@@ -437,25 +437,29 @@ def refine_grocery_sub_category(title: str, default_sub: str) -> str:
     return "canned_sauces"
 
 
-def compute_grocery_candidate_key(record: RawProductSnapshot) -> Optional[str]:
-    """
-    Strict cross-store matching key for `category == "groceries"`:
-      1. Exact EAN/GTIN barcode (`grocery_gtin_<digits>`) when present.
-      2. Otherwise: `normalized_brand + core_product_tokens + exact net_weight_g / net_volume_ml / pack_count`.
-         NEVER matches products lacking verified weight/volume or differing in package size/pack_count.
-    """
+def compute_grocery_barcode_key(record: RawProductSnapshot) -> Optional[str]:
+    """Return `grocery_gtin_<digits>` if a valid 8–14 digit EAN/GTIN barcode is present."""
     attrs = record.attributes_json or {}
-
-    # 1. Exact barcode match (highest precision)
     for key in ("ean", "gtin", "gtin13", "gtin14"):
         raw_code = attrs.get(key)
         if raw_code is not None:
             digits = re.sub(r"\D", "", str(raw_code).strip())
             if _EAN_GTIN_RE.match(digits):
                 return f"grocery_gtin_{digits}"
+    return None
 
-    # 2. Strict brand + core tokens + exact package size/count
-    brand_slug = normalize_snake_slug(extract_grocery_brand(record.product_title, record.brand), fallback="unknown", max_len=32)
+
+def compute_grocery_size_key(record: RawProductSnapshot) -> Optional[str]:
+    """
+    Return strict `groc_<brand>_<core_tokens>_<exact_weight_or_volume>_x<pack_count>` key.
+    Returns None if brand or exact net_weight_g/net_volume_ml is missing.
+    """
+    attrs = record.attributes_json or {}
+    brand_slug = normalize_snake_slug(
+        extract_grocery_brand(record.product_title, record.brand),
+        fallback="unknown",
+        max_len=32,
+    )
     if not brand_slug or brand_slug == "unknown":
         return None
 
@@ -499,3 +503,13 @@ def compute_grocery_candidate_key(record: RawProductSnapshot) -> Optional[str]:
 
     core_slug = "_".join(core_tokens)
     return normalize_snake_slug(f"groc_{brand_slug}_{core_slug}_{size_sig}", max_len=160)
+
+
+def compute_grocery_candidate_key(record: RawProductSnapshot) -> Optional[str]:
+    """
+    Strict cross-store matching key for `category == "groceries"`:
+      1. Exact EAN/GTIN barcode (`grocery_gtin_<digits>`) when present.
+      2. Otherwise: `normalized_brand + core_product_tokens + exact net_weight_g / net_volume_ml / pack_count`.
+         NEVER matches products lacking verified weight/volume or differing in package size/pack_count.
+    """
+    return compute_grocery_barcode_key(record) or compute_grocery_size_key(record)

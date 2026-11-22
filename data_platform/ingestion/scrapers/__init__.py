@@ -21,15 +21,19 @@ from .base import (
 from .btech import BTechScraper
 from .groceries import (
     GROCERY_SUB_CATEGORIES,
+    compute_grocery_barcode_key,
     compute_grocery_candidate_key,
+    compute_grocery_size_key,
     extract_grocery_brand,
     parse_grocery_packaging,
     refine_grocery_sub_category,
 )
+from .hyperone import HyperOneScraper
 from .matcher import MatchSummary, assign_canonical_keys, compute_candidate_key
 from .noon import NoonScraper
 from .shopify import DalydressScraper, DejavuScraper, ShopifyScraper, TownTeamScraper
 from .sigma import SigmaScraper
+from .spinneys import SpinneysScraper
 from .two_b import TwoBScraper
 
 SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
@@ -37,8 +41,10 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     BTechScraper.store_name: BTechScraper,
     DalydressScraper.store_name: DalydressScraper,
     DejavuScraper.store_name: DejavuScraper,
+    HyperOneScraper.store_name: HyperOneScraper,
     NoonScraper.store_name: NoonScraper,
     SigmaScraper.store_name: SigmaScraper,
+    SpinneysScraper.store_name: SpinneysScraper,
     TownTeamScraper.store_name: TownTeamScraper,
     TwoBScraper.store_name: TwoBScraper,
 }
@@ -51,6 +57,7 @@ __all__ = [
     "DalydressScraper",
     "DejavuScraper",
     "GROCERY_SUB_CATEGORIES",
+    "HyperOneScraper",
     "ImpersonatedHttpClient",
     "MatchSummary",
     "NoonScraper",
@@ -61,12 +68,15 @@ __all__ = [
     "ScrapeVertical",
     "ShopifyScraper",
     "SigmaScraper",
+    "SpinneysScraper",
     "ThrottledResponseError",
     "TownTeamScraper",
     "TwoBScraper",
     "assign_canonical_keys",
     "compute_candidate_key",
+    "compute_grocery_barcode_key",
     "compute_grocery_candidate_key",
+    "compute_grocery_size_key",
     "extract_grocery_brand",
     "fetch_latest_snapshots_from_neon",
     "fetch_tracked_store_ids_from_neon",

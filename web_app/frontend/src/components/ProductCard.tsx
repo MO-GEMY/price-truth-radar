@@ -11,6 +11,7 @@ import {
   formatPctPlain,
   formatPrice,
   formatSubCategory,
+  formatUnitPrice,
 } from "@/lib/format";
 import { ProductImage } from "./ProductImage";
 import { VerdictBadge } from "./VerdictBadge";
@@ -38,6 +39,7 @@ export function ProductCard({
     product.claimed_discount_pct >= 10 && product.real_discount_pct < 3 && gap >= 10;
   const isFashion = product.category === "fashion";
   const packSize = formatPackSize(product.attributes_json);
+  const unitPrice = formatUnitPrice(product, lang);
 
   const detailHref = `/products/${product.product_sk}`;
 
@@ -119,6 +121,12 @@ export function ProductCard({
                 </span>
               ) : null}
             </div>
+
+            {unitPrice ? (
+              <span className="num block text-[11px] font-medium text-slate-500">
+                {unitPrice}
+              </span>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-1.5">
               {product.claimed_discount_pct > 0 ? (

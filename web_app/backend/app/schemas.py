@@ -5,9 +5,29 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, field_serializer, model_validator
 
 Category = Literal["electronics", "fashion", "home_appliances", "groceries"]
+UnitPriceUnit = Literal["kg", "L"]
+
+
+def compute_unit_pricing(
+    price: float,
+    attributes_json: Optional[dict[str, Any]],
+) -> tuple[Optional[float], Optional[UnitPriceUnit]]:
+    """Derive normalized EGP/kg or EGP/L unit price from packaging attributes."""
+    if not isinstance(attributes_json, dict) or price <= 0:
+        return None, None
+
+    raw_weight = attributes_json.get("net_weight_g")
+    if isinstance(raw_weight, (int, float)) and raw_weight > 0:
+        return round((float(price) * 1000.0) / float(raw_weight), 2), "kg"
+
+    raw_vol = attributes_json.get("net_volume_ml")
+    if isinstance(raw_vol, (int, float)) and raw_vol > 0:
+        return round((float(price) * 1000.0) / float(raw_vol), 2), "L"
+
+    return None, None
 
 DiscountVerdict = Literal[
     "ALL_TIME_LOW",
@@ -70,6 +90,17 @@ class ProductVerdictItem(BaseModel):
     scarcity_flag: bool
     in_stock: bool
     last_updated_at: datetime
+    unit_price_egp: Optional[float] = None
+    unit_price_unit: Optional[UnitPriceUnit] = None
+
+    @model_validator(mode="after")
+    def _populate_unit_pricing(self) -> "ProductVerdictItem":
+        derived_price, derived_unit = compute_unit_pricing(self.current_price, self.attributes_json)
+        if self.unit_price_egp is None and derived_price is not None:
+            self.unit_price_egp = derived_price
+        if self.unit_price_unit is None and derived_unit is not None:
+            self.unit_price_unit = derived_unit
+        return self
 
     @field_serializer("last_updated_at")
     def serialize_last_updated(self, v: datetime) -> str:
@@ -106,6 +137,8 @@ class AlternativeListing(BaseModel):
     in_stock: bool
     product_url: str
     discount_verdict: DiscountVerdict
+    unit_price_egp: Optional[float] = None
+    unit_price_unit: Optional[UnitPriceUnit] = None
 
 
 class ProductDetailResponse(BaseModel):

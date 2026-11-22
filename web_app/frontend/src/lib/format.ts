@@ -190,3 +190,75 @@ export function formatPackSize(
 function trimZeros(value: number): string {
   return String(Math.round(value * 100) / 100);
 }
+
+/* ------------------------------------------------------------------ */
+/* Unit price (EGP/kg, EGP/L) — shrinkflation transparency             */
+/* ------------------------------------------------------------------ */
+
+export interface UnitPriceInput {
+  unit_price_egp?: number | null;
+  unit_price_unit?: "kg" | "L" | string | null;
+  current_price?: number;
+  attributes_json?: Record<string, unknown> | null;
+}
+
+const AR_UNIT: Record<string, string> = { kg: "كجم", L: "لتر" };
+
+/**
+ * Bilingual unit-price caption — e.g. "EGP 35.5 / kg" (EN) or "35.5 ج.م./كجم" (AR).
+ *
+ * Resolution order:
+ *  1. backend-provided `unit_price_egp` (+ `unit_price_unit`, defaulting to kg);
+ *  2. graceful client-side fallback from `current_price` ÷ `net_weight_g` (kg)
+ *     or `net_volume_ml` (L) in `attributes_json`;
+ *  3. null when nothing is derivable, so non-grocery products stay uncluttered.
+ */
+export function formatUnitPrice(
+  input: UnitPriceInput | null | undefined,
+  lang: Lang,
+): string | null {
+  if (!input) return null;
+
+  let value: number | null = null;
+  let unit: string | null = null;
+
+  const provided = input.unit_price_egp;
+  if (typeof provided === "number" && Number.isFinite(provided) && provided > 0) {
+    value = provided;
+    unit =
+      input.unit_price_unit && String(input.unit_price_unit).trim().length > 0
+        ? String(input.unit_price_unit).trim().toLowerCase() === "l"
+          ? "L"
+          : String(input.unit_price_unit).trim().toLowerCase()
+        : "kg";
+  } else {
+    const price = input.current_price;
+    const attrs = input.attributes_json;
+    if (typeof price !== "number" || !Number.isFinite(price) || price <= 0 || !attrs) {
+      return null;
+    }
+    const weight = attrs["net_weight_g"];
+    const volume = attrs["net_volume_ml"];
+    if (typeof weight === "number" && Number.isFinite(weight) && weight > 0) {
+      value = (price * 1000) / weight;
+      unit = "kg";
+    } else if (typeof volume === "number" && Number.isFinite(volume) && volume > 0) {
+      value = (price * 1000) / volume;
+      unit = "L";
+    }
+  }
+
+  if (value === null || unit === null || !Number.isFinite(value) || value <= 0) return null;
+
+  const digits = value >= 100 ? 0 : 1;
+  const formatted = new Intl.NumberFormat(
+    lang === "ar" ? "ar-EG-u-nu-latn" : "en-US",
+    { maximumFractionDigits: digits, minimumFractionDigits: 0 },
+  ).format(value);
+
+  if (lang === "ar") {
+    const unitAr = AR_UNIT[unit] ?? unit;
+    return `${formatted} ج.م./${unitAr}`;
+  }
+  return `EGP ${formatted} / ${unit}`;
+}

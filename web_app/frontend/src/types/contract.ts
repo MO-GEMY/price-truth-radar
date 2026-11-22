@@ -61,6 +61,9 @@ export interface Product {
   scarcity_flag: boolean;
   in_stock: boolean;
   last_updated_at: string;
+  /** Unit price for groceries (shrinkflation transparency) — optional until the backend emits it. */
+  unit_price_egp?: number | null;
+  unit_price_unit?: "kg" | "L" | string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -145,6 +148,9 @@ export interface AlternativeListing {
   in_stock: boolean;
   product_url: string;
   discount_verdict: DiscountVerdict;
+  /** Optional groceries unit price (shrinkflation transparency). */
+  unit_price_egp?: number | null;
+  unit_price_unit?: "kg" | "L" | string | null;
 }
 
 export interface ProductDetailResponse {
@@ -171,6 +177,9 @@ export interface CompareListing {
   in_stock: boolean;
   product_url: string;
   discount_verdict: DiscountVerdict;
+  /** Optional groceries unit price (shrinkflation transparency). */
+  unit_price_egp?: number | null;
+  unit_price_unit?: "kg" | "L" | string | null;
 }
 
 export interface CrossStoreMatch {

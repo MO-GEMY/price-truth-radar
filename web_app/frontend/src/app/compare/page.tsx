@@ -21,7 +21,7 @@ import type {
 } from "@/types/contract";
 import { fetchCompare, type DataSource } from "@/lib/api";
 import { useLanguage } from "@/lib/i18n";
-import { formatNumber, formatPctPlain, formatPrice } from "@/lib/format";
+import { formatNumber, formatPctPlain, formatPrice, formatUnitPrice } from "@/lib/format";
 import { storeDisplayName } from "@/lib/stores";
 import { MockBanner } from "@/components/MockBanner";
 import { Pagination } from "@/components/Pagination";
@@ -182,20 +182,25 @@ function MatchCard({
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden">
                         {t("compare.colPricePos")}
                       </p>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <StoreBadge name={listing.store_name} size="sm" />
-                          {isCheapest ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/45 bg-emerald-500/18 px-2 py-0.5 text-[10px] font-bold text-emerald-200">
-                              <Crown className="size-3 shrink-0" />
-                              {t("detail.cheapest")}
-                            </span>
-                          ) : null}
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StoreBadge name={listing.store_name} size="sm" />
+                            {isCheapest ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/45 bg-emerald-500/18 px-2 py-0.5 text-[10px] font-bold text-emerald-200">
+                                <Crown className="size-3 shrink-0" />
+                                {t("detail.cheapest")}
+                              </span>
+                            ) : null}
+                          </div>
+                          <span className="num text-base font-extrabold text-white">
+                            {formatPrice(listing.price, lang)}
+                          </span>
                         </div>
-                        <span className="num text-base font-extrabold text-white">
-                          {formatPrice(listing.price, lang)}
-                        </span>
-                      </div>
+                        {formatUnitPrice(listing, lang) ? (
+                          <p className="num text-end text-[10px] font-medium text-slate-500">
+                            {formatUnitPrice(listing, lang)}
+                          </p>
+                        ) : null}
 
                       {/* Horizontal price-range bar comparing store against min/max */}
                       <div className="flex items-center gap-2.5">

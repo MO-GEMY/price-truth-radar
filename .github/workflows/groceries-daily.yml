@@ -1,4 +1,4 @@
-name: Daily Groceries Pipeline (Wave 1)
+name: Daily Groceries Pipeline (Waves 1 & 2)
 
 on:
   schedule:
@@ -16,6 +16,8 @@ jobs:
         store:
           - amazon_eg
           - noon
+          - spinneys
+          - hyperone
 
     steps:
       - name: Checkout repository
@@ -30,6 +32,7 @@ jobs:
         run: pip install -r data_platform/requirements.txt
 
       - name: Run live grocery scraper (${{ matrix.store }})
+        continue-on-error: true
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
         run: python data_platform/ingestion/scrapers/run_scrapers.py --store ${{ matrix.store }} --vertical groceries --mode daily

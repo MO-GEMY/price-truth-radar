@@ -44,6 +44,18 @@ export const STORE_META: Record<string, StoreMeta> = {
     accent: "#f9a8d4",
     urlLookup: true,
   },
+  spinneys: {
+    name: { en: "Spinneys", ar: "سبينيس" },
+    domain: "spinneys-egypt.com",
+    accent: "#10b981",
+    urlLookup: true,
+  },
+  hyperone: {
+    name: { en: "HyperOne", ar: "هايبر وان" },
+    domain: "hyperone.com.eg",
+    accent: "#e11d48",
+    urlLookup: true,
+  },
 };
 
 /** Stores highlighted in the direct-link guidance (largest catalogs first). */

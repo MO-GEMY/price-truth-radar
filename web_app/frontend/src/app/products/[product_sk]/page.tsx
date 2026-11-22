@@ -25,6 +25,7 @@ import {
   formatPctPlain,
   formatPrice,
   formatSubCategory,
+  formatUnitPrice,
 } from "@/lib/format";
 import { storeDisplayName } from "@/lib/stores";
 import { VERDICT_TONES } from "@/lib/verdicts";
@@ -155,6 +156,7 @@ export default function ProductDetailPage() {
 
   const totalMatchedStores = alternatives.length + 1;
   const packSize = formatPackSize(product.attributes_json);
+  const unitPrice = formatUnitPrice(product, lang);
 
   return (
     <>
@@ -245,39 +247,44 @@ export default function ProductDetailPage() {
               </div>
 
               {/* Hero EGP pricing */}
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2 pt-1">
-                <span className="num text-3xl font-extrabold tracking-tight text-white">
-                  {formatPrice(product.current_price, lang)}
-                </span>
-                {product.claimed_original_price !== null ? (
-                  <span className="num text-base font-medium text-slate-500 line-through">
-                    {formatPrice(product.claimed_original_price, lang)}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+                  <span className="num text-3xl font-extrabold tracking-tight text-white">
+                    {formatPrice(product.current_price, lang)}
                   </span>
-                ) : null}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {product.claimed_discount_pct > 0 ? (
-                    <span className="num inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs font-semibold text-slate-300">
-                      <span>{t("card.claimed")}</span>
-                      <span dir="ltr" className="inline-block">
-                        −{formatPctPlain(product.claimed_discount_pct, lang)}
-                      </span>
+                  {product.claimed_original_price !== null ? (
+                    <span className="num text-base font-medium text-slate-500 line-through">
+                      {formatPrice(product.claimed_original_price, lang)}
                     </span>
                   ) : null}
-                  <span
-                    className={`num inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-bold ${
-                      product.real_discount_pct >= 5
-                        ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-300"
-                        : product.real_discount_pct >= 0
-                          ? "border-slate-500/35 bg-slate-500/10 text-slate-300"
-                          : "border-rose-400/35 bg-rose-500/12 text-rose-300"
-                    }`}
-                  >
-                    <span>{t("card.real")}</span>
-                    <span dir="ltr" className="inline-block">
-                      {formatPct(product.real_discount_pct, lang)}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {product.claimed_discount_pct > 0 ? (
+                      <span className="num inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs font-semibold text-slate-300">
+                        <span>{t("card.claimed")}</span>
+                        <span dir="ltr" className="inline-block">
+                          −{formatPctPlain(product.claimed_discount_pct, lang)}
+                        </span>
+                      </span>
+                    ) : null}
+                    <span
+                      className={`num inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-bold ${
+                        product.real_discount_pct >= 5
+                          ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-300"
+                          : product.real_discount_pct >= 0
+                            ? "border-slate-500/35 bg-slate-500/10 text-slate-300"
+                            : "border-rose-400/35 bg-rose-500/12 text-rose-300"
+                      }`}
+                    >
+                      <span>{t("card.real")}</span>
+                      <span dir="ltr" className="inline-block">
+                        {formatPct(product.real_discount_pct, lang)}
+                      </span>
                     </span>
-                  </span>
+                  </div>
                 </div>
+                {unitPrice ? (
+                  <p className="num text-xs font-medium text-slate-500">{unitPrice}</p>
+                ) : null}
               </div>
 
               {/* Primary CTAs */}

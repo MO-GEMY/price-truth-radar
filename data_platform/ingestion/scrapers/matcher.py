@@ -16,7 +16,11 @@ from dataclasses import dataclass
 from typing import Optional
 
 from .base import RawProductSnapshot, normalize_snake_slug
-from .groceries import compute_grocery_candidate_key
+from .groceries import (
+    compute_grocery_barcode_key,
+    compute_grocery_candidate_key,
+    compute_grocery_size_key,
+)
 
 # Brands normalized to canonical lowercase slugs
 _BRAND_ALIASES: dict[str, str] = {
@@ -545,12 +549,25 @@ def assign_canonical_keys(
 ) -> MatchSummary:
     """Assign `canonical_product_key` in-place ONLY for multi-store matches (`>= 2` stores).
 
+    For `category == "groceries"`, runs a strict 2-pass match:
+      Pass 1: Multi-store EAN/GTIN barcode match (`grocery_gtin_<digits>`).
+      Pass 2: Remaining unmatched groceries matched by strict
+              `brand + core_tokens + exact net_weight_g/net_volume_ml/pack_count`
+              so stores exposing EAN (e.g. HyperOne) still match stores without
+              EAN (e.g. Noon, Amazon.eg, Spinneys) when package sizes match exactly.
+
     Applies a `max_price_ratio` sanity guard so mismatched accessory-vs-device
     outliers are never linked together.
     """
-    buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     for rec in records:
         rec.canonical_product_key = None
+
+    buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    grocery_records: list[RawProductSnapshot] = []
+    for rec in records:
+        if rec.category == "groceries":
+            grocery_records.append(rec)
+            continue
         cand = compute_candidate_key(rec)
         if cand:
             buckets[cand].append(rec)
@@ -559,25 +576,51 @@ def assign_canonical_keys(
     matched_products = 0
     group_details: dict[str, list[tuple[str, float, str]]] = {}
 
-    for key, group in sorted(buckets.items()):
-        distinct_stores = {r.store_name for r in group}
-        if len(distinct_stores) < 2:
+    def _commit_buckets(candidate_buckets: dict[str, list[RawProductSnapshot]]) -> set[int]:
+        nonlocal matched_groups, matched_products
+        assigned_ids: set[int] = set()
+        for key, group in sorted(candidate_buckets.items()):
+            distinct_stores = {r.store_name for r in group}
+            if len(distinct_stores) < 2:
+                continue
+
+            prices = [float(r.current_price) for r in group]
+            min_p, max_p = min(prices), max(prices)
+            if min_p <= 0 or (max_p / min_p) > max_price_ratio:
+                continue
+
+            for rec in group:
+                rec.canonical_product_key = key
+                assigned_ids.add(id(rec))
+
+            matched_groups += 1
+            matched_products += len(group)
+            group_details[key] = sorted(
+                [(r.store_name, float(r.current_price), r.product_title) for r in group],
+                key=lambda x: (x[1], x[0]),
+            )
+        return assigned_ids
+
+    # Core verticals (electronics, home_appliances)
+    _commit_buckets(buckets)
+
+    # Groceries Pass 1: Multi-store EAN/GTIN barcode matches
+    barcode_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    for rec in grocery_records:
+        bkey = compute_grocery_barcode_key(rec)
+        if bkey:
+            barcode_buckets[bkey].append(rec)
+    matched_grocery_ids = _commit_buckets(barcode_buckets)
+
+    # Groceries Pass 2: Strict brand + core tokens + exact package size/pack_count
+    size_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    for rec in grocery_records:
+        if id(rec) in matched_grocery_ids:
             continue
-
-        prices = [float(r.current_price) for r in group]
-        min_p, max_p = min(prices), max(prices)
-        if min_p <= 0 or (max_p / min_p) > max_price_ratio:
-            continue
-
-        for rec in group:
-            rec.canonical_product_key = key
-
-        matched_groups += 1
-        matched_products += len(group)
-        group_details[key] = sorted(
-            [(r.store_name, float(r.current_price), r.product_title) for r in group],
-            key=lambda x: (x[1], x[0]),
-        )
+        skey = compute_grocery_size_key(rec)
+        if skey:
+            size_buckets[skey].append(rec)
+    _commit_buckets(size_buckets)
 
     return MatchSummary(
         matched_groups=matched_groups,

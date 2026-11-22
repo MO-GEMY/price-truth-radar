@@ -8,36 +8,27 @@
 WITH candidates AS (
     SELECT
         -- Strict grocery matching guard (defense-in-depth at SQL layer):
-        -- 1. Match by validated EAN/GTIN barcode when present.
+        -- 1. Preserve multi-store EAN/GTIN barcode keys (`grocery_gtin_*`).
         -- 2. Otherwise enforce exact net_weight_g / net_volume_ml / pack_count
         --    so different package sizes (e.g. 700ml vs 1L) can NEVER group together.
         CASE
             WHEN category = 'groceries' THEN
                 CASE
-                    WHEN NULLIF(
-                        REGEXP_REPLACE(
-                            COALESCE(attributes_json ->> 'ean', attributes_json ->> 'gtin', ''),
-                            '[^0-9]',
-                            '',
-                            'g'
-                        ),
-                        ''
-                    ) ~ '^[0-9]{8}([0-9]{4,6})?$'
-                        THEN 'grocery_gtin_' || REGEXP_REPLACE(
-                            COALESCE(attributes_json ->> 'ean', attributes_json ->> 'gtin', ''),
-                            '[^0-9]',
-                            '',
-                            'g'
-                        )
+                    WHEN canonical_product_key LIKE 'grocery_gtin_%'
+                        THEN canonical_product_key
                     WHEN canonical_product_key IS NOT NULL
                          AND (
                              ((attributes_json ->> 'net_weight_g') ~ '^[0-9]+$' AND (attributes_json ->> 'net_weight_g')::INTEGER > 0)
                              OR ((attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$' AND (attributes_json ->> 'net_volume_ml')::INTEGER > 0)
                          )
-                        THEN canonical_product_key
-                             || '__w' || COALESCE(CASE WHEN (attributes_json ->> 'net_weight_g') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_weight_g') END, '0')
-                             || '_v' || COALESCE(CASE WHEN (attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_volume_ml') END, '0')
-                             || '_x' || COALESCE(CASE WHEN (attributes_json ->> 'pack_count') ~ '^[0-9]+$' THEN (attributes_json ->> 'pack_count') END, '1')
+                        THEN CASE
+                            WHEN canonical_product_key ~ ('_(w' || COALESCE(CASE WHEN (attributes_json ->> 'net_weight_g') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_weight_g') END, '0') || 'g|v' || COALESCE(CASE WHEN (attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_volume_ml') END, '0') || 'ml)_x' || COALESCE(CASE WHEN (attributes_json ->> 'pack_count') ~ '^[0-9]+$' THEN (attributes_json ->> 'pack_count') END, '1') || '$')
+                                THEN canonical_product_key
+                            ELSE canonical_product_key
+                                 || '__w' || COALESCE(CASE WHEN (attributes_json ->> 'net_weight_g') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_weight_g') END, '0')
+                                 || '_v' || COALESCE(CASE WHEN (attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$' THEN (attributes_json ->> 'net_volume_ml') END, '0')
+                                 || '_x' || COALESCE(CASE WHEN (attributes_json ->> 'pack_count') ~ '^[0-9]+$' THEN (attributes_json ->> 'pack_count') END, '1')
+                        END
                     ELSE NULL
                 END
             ELSE canonical_product_key
@@ -56,6 +47,16 @@ WITH candidates AS (
         product_sk,
         store_name,
         current_price,
+        unit_price_egp,
+        CASE
+            WHEN (attributes_json ->> 'net_weight_g') ~ '^[0-9]+$'
+                 AND (attributes_json ->> 'net_weight_g')::INTEGER > 0
+                THEN 'kg'
+            WHEN (attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$'
+                 AND (attributes_json ->> 'net_volume_ml')::INTEGER > 0
+                THEN 'L'
+            ELSE NULL
+        END::VARCHAR AS unit_price_unit,
         in_stock,
         product_url,
         discount_verdict
@@ -72,6 +73,8 @@ matched_raw AS (
         product_sk,
         store_name,
         current_price,
+        unit_price_egp,
+        unit_price_unit,
         in_stock,
         product_url,
         discount_verdict,
@@ -95,6 +98,8 @@ matched_base AS (
         product_sk,
         store_name,
         current_price,
+        unit_price_egp,
+        unit_price_unit,
         in_stock,
         product_url,
         discount_verdict
@@ -128,6 +133,8 @@ aggregated AS (
                 'product_sk', product_sk,
                 'store_name', store_name,
                 'price', current_price,
+                'unit_price_egp', unit_price_egp,
+                'unit_price_unit', unit_price_unit,
                 'in_stock', in_stock,
                 'product_url', product_url,
                 'discount_verdict', discount_verdict
