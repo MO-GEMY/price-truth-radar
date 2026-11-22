@@ -22,15 +22,15 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Price Truth Radar — Real discounts vs fake ones",
+    default: "Price Truth Radar — Check a price",
     template: "%s · Price Truth Radar",
   },
   description:
-    "Bilingual price-integrity radar: expose fake discounts and pre-sale hikes, surface genuine deals and all-time lows across Egyptian e-commerce stores. Prices in EGP.",
+    "Check an Egyptian retailer’s price against its recorded price history and compare matched offers in EGP.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#03060b",
+  themeColor: "#F7F5EF",
 };
 
 /**
@@ -56,7 +56,7 @@ export default function RootLayout({
         <LanguageProvider>
           <div className="flex min-h-screen flex-col">
             <Header />
-            <main className="flex-1">{children}</main>
+            <main id="main-content" tabIndex={-1} className="flex-1">{children}</main>
             <Footer />
           </div>
         </LanguageProvider>

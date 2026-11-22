@@ -24,6 +24,7 @@ const STORAGE_KEY = "ptr-lang";
 interface LanguageContextValue {
   lang: Lang;
   dir: "ltr" | "rtl";
+  ready: boolean;
   setLang: (lang: Lang) => void;
   toggleLang: () => void;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
@@ -41,6 +42,7 @@ function applyDocumentAttrs(lang: Lang): void {
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
+  const [ready, setReady] = useState(false);
 
   // Restore the persisted language after mount.
   useEffect(() => {
@@ -54,6 +56,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       setLangState(stored);
       applyDocumentAttrs(stored);
     }
+    setReady(true);
   }, []);
 
   const setLang = useCallback((next: Lang) => {
@@ -85,8 +88,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<LanguageContextValue>(
-    () => ({ lang, dir: lang === "ar" ? "rtl" : "ltr", setLang, toggleLang, t }),
-    [lang, setLang, toggleLang, t],
+    () => ({ lang, dir: lang === "ar" ? "rtl" : "ltr", ready, setLang, toggleLang, t }),
+    [lang, ready, setLang, toggleLang, t],
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;

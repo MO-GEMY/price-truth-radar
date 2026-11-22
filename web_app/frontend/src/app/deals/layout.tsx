@@ -1,26 +1,26 @@
 import type { Metadata } from "next";
 import { SITE_NAME, absoluteUrl } from "@/lib/site";
 
+const title = "Price highlights";
+const description = "Selected listings with recorded price evidence from tracked retailers in Egypt.";
+
 export const metadata: Metadata = {
-  title: "فضائح الخصومات vs أفضل خصم حقيقي | Fake Discount Scandals vs Real Deals",
-  description:
-    "The season's loudest fake discount scandals and verified real deals across Egyptian stores — share them before the sale starts. فضائح الخصومات وأفضل الصفقات الحقيقية بالجنيه المصري.",
+  title,
+  description,
   alternates: { canonical: absoluteUrl("/deals") },
   openGraph: {
-    title: "فضائح الخصومات vs أفضل خصم حقيقي — Price Truth Radar",
-    description:
-      "أكبر تضخيمات الخصومات وأفضل الصفقات الحقيقية عبر متاجر مصر — شاركها قبل بدء التخفيضات.",
+    title,
+    description,
     url: absoluteUrl("/deals"),
     siteName: SITE_NAME,
-    locale: "ar_EG",
-    alternateLocale: ["en_US"],
+    locale: "en_EG",
+    alternateLocale: ["ar_EG"],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "فضائح الخصومات vs أفضل خصم حقيقي — Price Truth Radar",
-    description:
-      "أكبر تضخيمات الخصومات وأفضل الصفقات الحقيقية عبر متاجر مصر — شاركها قبل بدء التخفيضات.",
+    title,
+    description,
   },
 };
 

@@ -4,10 +4,9 @@
  * `process.env.NEXT_PUBLIC_API_URL`.
  *
  * Parallel-development fallback: when `NEXT_PUBLIC_API_URL` is empty, or a
- * request fails at the network level / times out / returns a 5xx, every call
- * transparently resolves from the local contract-matching mock dataset and
- * reports `source: "mock"` so the UI can show the demo-data banner.
- * Client errors (4xx, e.g. a 404 for an unknown product_sk) are surfaced.
+ * browse request fails because the live service is unavailable, browse
+ * responses may use labeled sample data. Live searches and receipts surface
+ * errors so that an unavailable backend cannot appear to be a missing match.
  */
 
 import type {
@@ -30,6 +29,7 @@ import {
   mockRadarFeed,
   mockSearch,
 } from "./mockData";
+import { normalizeHighlight, observedTimestamp, type PriceHighlight } from "./highlights";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "")
   .trim()
@@ -50,11 +50,13 @@ export interface ApiResult<T> {
 
 export class ApiError extends Error {
   readonly status: number;
+  readonly fields: Readonly<Record<string, string>>;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, fields: Record<string, string> = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.fields = fields;
   }
 }
 
@@ -82,7 +84,8 @@ export async function fetchJson<T>(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const onOuterAbort = () => controller.abort();
-  signal?.addEventListener("abort", onOuterAbort, { once: true });
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onOuterAbort, { once: true });
 
   try {
     const response = await fetch(buildUrl(path, params), {
@@ -161,38 +164,33 @@ export function fetchRadarFeed(
 }
 
 /** §5.4 GET /api/v1/products/search */
-export function fetchSearch(
+export async function fetchSearch(
   params: SearchParams,
   signal?: AbortSignal,
 ): Promise<ApiResult<SearchResponse>> {
-  return withFallback(
-    () =>
-      fetchJson<SearchResponse>(
-        "/api/v1/products/search",
-        { q: params.q, url: params.url, limit: params.limit ?? 20 },
-        signal,
-      ),
-    () => mockSearch(params),
+  if (!isApiConfigured()) return { data: mockSearch(params), source: "mock" };
+  const data = await fetchJson<SearchResponse>(
+    "/api/v1/products/search",
+    { q: params.q, url: params.url, limit: params.limit ?? 20 },
     signal,
   );
+  return { data, source: "api" };
 }
 
 /** §5.5 GET /api/v1/products/{product_sk} */
-export function fetchProductDetail(
+export async function fetchProductDetail(
   productSk: string,
   signal?: AbortSignal,
 ): Promise<ApiResult<ProductDetailResponse>> {
-  return withFallback(
-    () => fetchJson<ProductDetailResponse>(`/api/v1/products/${encodeURIComponent(productSk)}`, undefined, signal),
-    () => {
-      const mock = mockProductDetail(productSk);
-      if (!mock) {
-        throw new ApiError(404, `Product ${productSk} not found`);
-      }
-      return mock;
-    },
-    signal,
+  if (!isApiConfigured()) {
+    const mock = mockProductDetail(productSk);
+    if (!mock) throw new ApiError(404, `Product ${productSk} not found`);
+    return { data: mock, source: "mock" };
+  }
+  const data = await fetchJson<ProductDetailResponse>(
+    `/api/v1/products/${encodeURIComponent(productSk)}`, undefined, signal,
   );
+  return { data, source: "api" };
 }
 
 /** §5.6 GET /api/v1/compare */
@@ -225,23 +223,35 @@ export function fetchCompare(
 
 const HIGHLIGHT_LIMIT = 24;
 
-function highlightsFromFeed(
-  feed: RadarFeedResponse,
-  kind: "scandals" | "deals",
-): RadarHighlights["biggest_scandals"] {
-  // Price floor: marketplace bait listings (EGP 1 "TVs") poison the scandal
-  // ranking with 100% fake inflation — exclude anything below EGP 10.
-  const items = feed.items.filter((p) => p.current_price >= 10);
-  if (kind === "scandals") {
-    return items
-      .filter((p) => p.claimed_discount_pct >= 10)
-      .sort((a, b) => b.claimed_discount_pct - Math.max(b.real_discount_pct, 0) - (a.claimed_discount_pct - Math.max(a.real_discount_pct, 0)))
-      .map((p) => ({ ...p }));
-  }
-  return items
-    .filter((p) => p.real_discount_pct >= 5)
-    .sort((a, b) => b.real_discount_pct - a.real_discount_pct)
-    .map((p) => ({ ...p }));
+export interface HighlightsBucket {
+  items: PriceHighlight[];
+  source: DataSource;
+  updatedAt: string | null;
+}
+
+export interface HighlightsView {
+  scandals: HighlightsBucket | null;
+  deals: HighlightsBucket | null;
+  limited: boolean;
+}
+
+function highlightsFromFeed(result: ApiResult<RadarFeedResponse>, kind: "scandals" | "deals"): HighlightsBucket {
+  const products = result.data.items.filter((product) => product.in_stock && product.current_price >= 10);
+  const candidates = kind === "scandals"
+    ? products.filter((p) => p.discount_verdict === "FAKE_DISCOUNT" || p.discount_verdict === "PRESALE_HIKE")
+    : products.filter((p) => p.real_discount_pct >= 5 && p.discount_verdict !== "PRESALE_HIKE" && p.discount_verdict !== "FAKE_DISCOUNT");
+  const timestamps = candidates
+    .map((item) => observedTimestamp(item.last_updated_at))
+    .filter((value): value is string => value !== null);
+  const updatedAt = timestamps.reduce<string | null>(
+    (latest, value) => !latest || Date.parse(value) > Date.parse(latest) ? value : latest, null,
+  );
+  const items = candidates.map(normalizeHighlight);
+  return { source: result.source, updatedAt, items: kind === "deals" ? items.filter(hasObservedSavings) : items };
+}
+
+function hasObservedSavings(item: PriceHighlight): boolean {
+  return item.observedSavings !== null && item.observedSavings >= 0.05;
 }
 
 /**
@@ -255,10 +265,10 @@ function highlightsFromFeed(
  *    can render its empty state.
  */
 export async function fetchRadarHighlights(
-  category: string,
+  category: RadarFeedParams["category"],
   limit = HIGHLIGHT_LIMIT,
   signal?: AbortSignal,
-): Promise<ApiResult<RadarHighlights>> {
+): Promise<HighlightsView> {
   if (isApiConfigured()) {
     try {
       const data = await fetchJson<RadarHighlights>(
@@ -266,13 +276,11 @@ export async function fetchRadarHighlights(
         { limit, category },
         signal,
       );
+      const updatedAt = observedTimestamp(data.updated_at);
       return {
-        data: {
-          updated_at: data.updated_at ?? new Date().toISOString(),
-          biggest_scandals: data.biggest_scandals ?? [],
-          best_real_deals: data.best_real_deals ?? [],
-        },
-        source: "api",
+        scandals: { items: (data.biggest_scandals ?? []).map(normalizeHighlight), updatedAt, source: "api" },
+        deals: { items: (data.best_real_deals ?? []).map(normalizeHighlight).filter(hasObservedSavings), updatedAt, source: "api" },
+        limited: false,
       };
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -282,24 +290,20 @@ export async function fetchRadarHighlights(
     }
   }
 
-  const cat = category === "all" ? "all" : (category as RadarFeedParams["category"]);
-  const [scandalsFeed, dealsFeed] = await Promise.all([
+  const [scandalsFeed, dealsFeed] = await Promise.allSettled([
     fetchRadarFeed(
-      { category: cat, sort: "claimed_vs_real_gap_desc", page: 1, limit },
+      { category, sort: "claimed_vs_real_gap_desc", page: 1, limit },
       signal,
     ),
     fetchRadarFeed(
-      { category: cat, sort: "real_discount_pct_desc", page: 1, limit },
+      { category, sort: "real_discount_pct_desc", page: 1, limit },
       signal,
     ),
   ]);
-  return {
-    data: {
-      updated_at: scandalsFeed.data.items[0]?.last_updated_at ?? new Date().toISOString(),
-      biggest_scandals: highlightsFromFeed(scandalsFeed.data, "scandals").map((i) => ({ ...i })),
-      best_real_deals: highlightsFromFeed(dealsFeed.data, "deals").map((i) => ({ ...i })),
-    },
-    source: scandalsFeed.source,
+  if (scandalsFeed.status === "rejected" && dealsFeed.status === "rejected") throw scandalsFeed.reason;
+  return { limited: true,
+    scandals: scandalsFeed.status === "fulfilled" ? highlightsFromFeed(scandalsFeed.value, "scandals") : null,
+    deals: dealsFeed.status === "fulfilled" ? highlightsFromFeed(dealsFeed.value, "deals") : null,
   };
 }
 
@@ -315,10 +319,12 @@ export async function submitPriceAlert(
   body: PriceAlertRequest,
   signal?: AbortSignal,
 ): Promise<PriceAlertResponse> {
+  if (!isApiConfigured()) throw new ApiError(503, "Alert service unavailable");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const onOuterAbort = () => controller.abort();
-  signal?.addEventListener("abort", onOuterAbort, { once: true });
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onOuterAbort, { once: true });
   try {
     const res = await fetch(`${API_BASE}/api/alerts`, {
       method: "POST",
@@ -328,19 +334,34 @@ export async function submitPriceAlert(
       cache: "no-store",
     });
     const text = await res.text();
-    let payload: Partial<PriceAlertResponse> & { detail?: string; message?: string } = {};
+    let payload: { id?: string | number; status?: string; message?: unknown; detail?: unknown } = {};
     try {
-      payload = text ? JSON.parse(text) : {};
+      const body: unknown = JSON.parse(text);
+      if (body && typeof body === "object" && !Array.isArray(body)) payload = body;
     } catch {
       /* non-JSON body */
     }
     if (!res.ok) {
-      throw new ApiError(res.status, payload.message || payload.detail || `HTTP ${res.status}`);
+      const fields: Record<string, string> = {};
+      if (Array.isArray(payload.detail)) {
+        for (const issue of payload.detail) {
+          const field = Array.isArray(issue?.loc) ? issue.loc.at(-1) : undefined;
+          if ((field === "destination" || field === "target_price") && typeof issue.msg === "string") {
+            fields[field] = issue.msg;
+          }
+        }
+      }
+      const message = typeof payload.message === "string" ? payload.message
+        : typeof payload.detail === "string" ? payload.detail : `HTTP ${res.status}`;
+      throw new ApiError(res.status, message, fields);
+    }
+    if ((typeof payload.id !== "number" && typeof payload.id !== "string") || !payload.id || payload.status !== "active") {
+      throw new ApiError(502, "Alert confirmation could not be verified");
     }
     return {
-      id: String(payload.id ?? ""),
-      status: payload.status ?? "active",
-      message: payload.message ?? "",
+      id: String(payload.id),
+      status: payload.status,
+      message: typeof payload.message === "string" ? payload.message : "",
     };
   } finally {
     clearTimeout(timer);
@@ -372,7 +393,7 @@ export async function fetchSitemapEntries(signal?: AbortSignal): Promise<Sitemap
     });
     if (!res.ok) return null;
     const body = await res.json();
-    const list = Array.isArray(body) ? body : body?.entries ?? body?.items;
+    const list = Array.isArray(body) ? body : body?.products ?? body?.entries ?? body?.items;
     if (!Array.isArray(list)) return null;
     const entries: SitemapEntry[] = [];
     for (const item of list.slice(0, 5000)) {
@@ -381,7 +402,9 @@ export async function fetchSitemapEntries(signal?: AbortSignal): Promise<Sitemap
         continue;
       }
       if (item && typeof item === "object") {
-        const loc = item.loc ?? item.slug ?? item.url ?? item.path;
+        const loc = typeof item.product_sk === "string" && item.product_sk
+          ? `/products/${encodeURIComponent(item.product_sk)}`
+          : item.loc ?? item.slug ?? item.url ?? item.path;
         if (typeof loc === "string" && loc) {
           entries.push({
             loc,

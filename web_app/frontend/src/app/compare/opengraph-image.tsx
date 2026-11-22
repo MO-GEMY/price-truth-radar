@@ -7,10 +7,8 @@ export const contentType = "image/png";
 export default async function OgImage() {
   return makeOgResponse(
     {
-      title: "Cross-Store Price Comparison — same model, real lowest price",
-      verdictEn: "Compare before you buy",
-      isScandal: false,
-      store: "Electronics · Appliances · Groceries · Fashion",
+      title: "Compare stores",
+      footer: "See available offers for the same model or pack",
     },
   );
 }

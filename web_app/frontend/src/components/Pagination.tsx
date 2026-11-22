@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import { formatNumber } from "@/lib/format";
 
 /** Compact page-number window: 1 … c-1 c c+1 … N */
 function pageWindow(page: number, totalPages: number): (number | "…")[] {
@@ -29,11 +30,8 @@ export function Pagination({
   totalPages: number;
   onPage: (page: number) => void;
 }) {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   if (totalPages <= 1) return null;
-
-  const btn =
-    "flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <nav
@@ -42,17 +40,17 @@ export function Pagination({
     >
       <button
         type="button"
-        className={`${btn} border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/25 hover:text-white`}
+        className="ptr-chip"
         disabled={page <= 1}
         onClick={() => onPage(page - 1)}
         aria-label={t("feed.prev")}
       >
-        <ChevronLeft className="size-4 rtl:rotate-180" />
+        <ChevronLeft className="size-4 rtl:rotate-180" aria-hidden="true" />
       </button>
 
       {pageWindow(page, totalPages).map((p, i) =>
         p === "…" ? (
-          <span key={`gap-${i}`} className="px-1 text-slate-500">
+          <span key={`gap-${i}`} className="px-1 ptr-muted" aria-hidden="true">
             …
           </span>
         ) : (
@@ -61,28 +59,24 @@ export function Pagination({
             type="button"
             onClick={() => onPage(p)}
             aria-current={p === page ? "page" : undefined}
-            className={`${btn} ${
-              p === page
-                ? "border-teal-400/45 bg-teal-400/15 text-teal-200"
-                : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/25 hover:text-white"
-            }`}
+            className="ptr-chip"
           >
-            {p}
+            {formatNumber(p, lang)}
           </button>
         ),
       )}
 
       <button
         type="button"
-        className={`${btn} border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/25 hover:text-white`}
+        className="ptr-chip"
         disabled={page >= totalPages}
         onClick={() => onPage(page + 1)}
         aria-label={t("feed.next")}
       >
-        <ChevronRight className="size-4 rtl:rotate-180" />
+        <ChevronRight className="size-4 rtl:rotate-180" aria-hidden="true" />
       </button>
 
-      <span className="num ms-2 text-xs text-slate-500">
+      <span className="num ms-2 text-xs ptr-muted">
         {t("feed.pageInfo", { page, totalPages })}
       </span>
     </nav>

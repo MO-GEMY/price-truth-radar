@@ -55,13 +55,16 @@ export function AttributesPanel({ product }: { product: Product }) {
 
   /* -------- Fashion: available-sizes pill grid -------- */
   if (product.category === "fashion") {
-    const available = (attrs["available_sizes"] as string[] | undefined) ?? [];
-    const total = (attrs["total_sizes"] as number | undefined) ?? available.length;
+    const rawSizes = attrs.available_sizes;
+    const available = Array.isArray(rawSizes)
+      ? [...new Set(rawSizes.filter((size): size is string => typeof size === "string" && Boolean(size.trim())))]
+      : [];
+    const total = typeof attrs.total_sizes === "number" && attrs.total_sizes > 0 ? attrs.total_sizes : null;
 
     return (
-      <div className="surface rounded-2xl p-5 sm:p-6">
-        <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-          <Shirt className="size-4 text-emerald-400" />
+      <section className="surface ptr-section">
+        <h2 className="flex items-center gap-2">
+          <Shirt className="size-4" aria-hidden="true" />
           {t("detail.sizes")}
         </h2>
         {available.length > 0 ? (
@@ -69,36 +72,39 @@ export function AttributesPanel({ product }: { product: Product }) {
             {available.map((size) => (
               <span
                 key={size}
-                className="flex min-w-11 items-center justify-center rounded-xl border border-emerald-400/35 bg-emerald-500/12 px-2.5 py-2 text-sm font-bold text-emerald-200"
+                className="ptr-badge ptr-badge-good"
               >
                 {size}
               </span>
             ))}
           </div>
         ) : (
-          <p className="mt-3 text-sm font-semibold text-rose-300">{t("card.outOfStock")}</p>
+          <p className="mt-3 text-sm ptr-muted">{t(product.in_stock ? "ui.sizesUnavailable" : "card.outOfStock")}</p>
         )}
-        <p className="num mt-4 text-xs text-slate-400">
+        {total !== null && Array.isArray(rawSizes) && <p className="num mt-4 text-xs ptr-muted">
           {t("detail.sizesSummary", {
             available: formatNumber(available.length, lang),
             total: formatNumber(total, lang),
           })}
-        </p>
+        </p>}
         {product.scarcity_flag ? (
-          <p className="mt-2 text-xs font-semibold text-amber-300">{t("card.lowStock")}</p>
+          <p className="mt-2 text-xs ptr-error">{t("card.lowStock")}</p>
         ) : null}
-      </div>
+      </section>
     );
   }
 
   /* -------- Electronics & Home Appliances: crisp 2-column spec sheet -------- */
-  const entries = Object.entries(attrs).filter(
-    ([key, value]) =>
-      !HIDDEN_INTERNAL_KEYS.has(key) &&
-      value !== null &&
-      value !== undefined &&
-      value !== "",
-  );
+  const labels = new Set<string>();
+  const entries = Object.entries(attrs).filter(([key, value]) => {
+    if (HIDDEN_INTERNAL_KEYS.has(key) || value == null || value === "" ||
+      (typeof value === "object" && (!Array.isArray(value) || !value.length ||
+        value.some((item) => item == null || typeof item === "object")))) return false;
+    const label = attributeLabel(key, t);
+    if (labels.has(label)) return false;
+    labels.add(label);
+    return true;
+  });
   if (entries.length === 0) return null;
 
   const renderValue = (key: string, value: unknown): string => {
@@ -125,26 +131,25 @@ export function AttributesPanel({ product }: { product: Product }) {
   };
 
   return (
-    <div className="surface rounded-2xl p-5 sm:p-6">
-      <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-        <Cpu className="size-4 text-teal-400" />
+    <section className="surface ptr-section">
+      <h2 className="flex items-center gap-2">
+        <Cpu className="size-4" aria-hidden="true" />
         {t("detail.attributes")}
       </h2>
-      <dl className="mt-4 grid grid-cols-1 gap-x-8 divide-y divide-white/[0.06] sm:grid-cols-2">
+      <dl className="ptr-specs">
         {entries.map(([key, value]) => (
           <div
             key={key}
-            className="flex items-center justify-between gap-4 border-b border-white/[0.06] py-3"
           >
-            <dt className="shrink-0 text-xs font-medium text-slate-400">
+            <dt className="text-sm ptr-muted">
               {attributeLabel(key, t)}
             </dt>
-            <dd className="num min-w-0 break-words text-end text-sm font-semibold text-slate-100">
-              {renderValue(key, value)}
+            <dd className="num min-w-0 break-words text-end text-sm font-semibold">
+              <bdi>{renderValue(key, value)}</bdi>
             </dd>
           </div>
         ))}
       </dl>
-    </div>
+    </section>
   );
 }

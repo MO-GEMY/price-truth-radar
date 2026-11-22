@@ -207,12 +207,17 @@ export interface CompareResponse {
 /* Scandals vs Real Deals radar (launch page)                          */
 /* ------------------------------------------------------------------ */
 
-/**
- * Item shape for the `/api/radar/highlights` launch endpoint. The backend is
- * being built in parallel, so every field is optional and the UI tolerates
- * extra fields — items structurally overlap with `Product`.
- */
+/** The native highlights payload and the feed fields accepted by its adapter. */
 export interface HighlightItem {
+  id?: string;
+  title?: string;
+  product_key?: string;
+  baseline_price?: number | null;
+  rolling_60d_median?: number | null;
+  claimed_old_price?: number | null;
+  real_drop_pct?: number;
+  verdict?: string;
+  last_updated_at?: string;
   product_sk?: string;
   canonical_product_key?: string | null;
   product_title?: string;
@@ -227,11 +232,10 @@ export interface HighlightItem {
   real_discount_pct?: number;
   discount_verdict?: string;
   in_stock?: boolean;
-  [key: string]: unknown;
 }
 
 export interface RadarHighlights {
-  updated_at?: string;
+  updated_at?: string | null;
   biggest_scandals: HighlightItem[];
   best_real_deals: HighlightItem[];
 }

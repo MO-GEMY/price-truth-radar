@@ -1,223 +1,107 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CalendarClock, CheckCircle2 } from "lucide-react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useState } from "react";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { PriceHistoryPoint } from "@/types/contract";
-import { useLanguage } from "@/lib/i18n";
 import { formatChartTick, formatDate, formatPrice } from "@/lib/format";
+import { useLanguage } from "@/lib/i18n";
 
-interface ChartDatum {
-  date: string;
-  price: number;
-  claimed: number | null;
-  median: number;
+const DAY = 86_400_000;
+const rangeLabels = { 0: "ui.historyAll", 14: "ui.history14", 60: "ui.history60" } as const;
+const series = [
+  { key: "price", label: "detail.current", color: "#005e53" },
+  { key: "claimed", label: "chart.claimedOriginal", color: "#943b25", dash: "6 4" },
+  { key: "median", label: "chart.median", color: "#775015", dash: "2 4" },
+] as const;
+
+function dayLabel(value: number, lang: "en" | "ar"): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? formatChartTick(date.toISOString().slice(0, 10), lang) : "";
 }
 
-const COLOR_PRICE = "#2dd4bf";
-const COLOR_CLAIMED = "#fbbf24";
-const COLOR_MEDIAN = "#94a3b8";
-
-function compactNumber(value: number, lang: "en" | "ar"): string {
-  return new Intl.NumberFormat(lang === "ar" ? "ar-EG-u-nu-latn" : "en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
-/**
- * Interactive price-history time series (CONTRACTS.md §3.2 / §5.5).
- * When only a Day-1 baseline snapshot exists, renders a clean, trustworthy
- * baseline card instead of a sparse single-dot chart.
- */
 export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
   const { lang, t } = useLanguage();
-  const [mounted, setMounted] = useState(false);
+  const [range, setRange] = useState<keyof typeof rangeLabels>(0);
+  const data = history.map((point) => ({
+    time: Date.parse(point.snapshot_date),
+    date: point.snapshot_date,
+    price: point.price,
+    claimed: point.claimed_original_price,
+    median: point.rolling_60d_median > 0 ? point.rolling_60d_median : null,
+  })).filter((point) => Number.isFinite(point.time) && Number.isFinite(point.price))
+    .sort((a, b) => a.time - b.time);
 
-  useEffect(() => setMounted(true), []);
-
-  const data: ChartDatum[] = history.map((h) => ({
-    date: h.snapshot_date,
-    price: h.price,
-    claimed: h.claimed_original_price,
-    median: h.rolling_60d_median,
-  }));
-
-  if (data.length === 0) return null;
-
-  /* -------- Polished Day-1 Baseline state -------- */
+  if (!data.length) return <p className="ptr-muted text-sm">{t("ui.noHistory")}</p>;
   if (data.length === 1) {
-    const point = data[0];
-    return (
-      <div className="rounded-xl border border-teal-400/20 bg-gradient-to-br from-teal-500/[0.06] via-[#060b14] to-[#050810] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/35 bg-emerald-500/12 px-3 py-1 text-xs font-bold text-emerald-300">
-            <CheckCircle2 className="size-3.5 shrink-0" />
-            {t("detail.baselineBadge")}
-          </span>
-          <span className="num text-xs font-semibold text-slate-400">
-            {t("detail.baselineTitle", { date: formatDate(point.date, lang) })}
-          </span>
-        </div>
-
-        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-slate-300 sm:text-sm">
-          {t("detail.baselineBody")}
-        </p>
-
-        {/* Visual baseline timeline */}
-        <div className="mt-5 flex items-center gap-3" aria-hidden>
-          <span className="pulse-dot size-2.5 shrink-0 rounded-full bg-teal-400 text-teal-400" />
-          <div className="h-0.5 flex-1 rounded-full bg-gradient-to-r from-teal-400/70 via-slate-600/40 to-transparent rtl:bg-gradient-to-l" />
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              {t("detail.baselineRecordedPrice")}
-            </p>
-            <p className="num mt-1 text-lg font-extrabold text-teal-300">
-              {formatPrice(point.price, lang)}
-            </p>
-          </div>
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              {t("detail.baselineClaimedPrice")}
-            </p>
-            <p className="num mt-1 text-lg font-bold text-slate-200">
-              {point.claimed !== null ? formatPrice(point.claimed, lang) : "—"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              <CalendarClock className="size-3.5 text-slate-400" />
-              {t("detail.baselineNextSnapshot")}
-            </p>
-            <p className="mt-1 text-sm font-semibold text-slate-200">
-              {t("detail.baselineDaily")}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    const [point] = data;
+    return <div className="ptr-notice ptr-baseline">
+      <p className="font-semibold">{t("detail.baselineTitle", { date: formatDate(point.date, lang) })}</p>
+      <p>{t("detail.baselineRecordedPrice")} · <bdi>{formatPrice(point.price, lang)}</bdi></p>
+      {point.claimed !== null && <p>{t("detail.baselineClaimedPrice")} · <bdi>{formatPrice(point.claimed, lang)}</bdi></p>}
+      <p className="ptr-muted">{t("detail.baselineBody")}</p>
+    </div>;
   }
 
-  /* -------- Multi-day interactive time series -------- */
-  const prices = data.map((d) => d.price);
-  const claimedValues = data
-    .map((d) => d.claimed)
-    .filter((c): c is number => c !== null);
-  const min = Math.min(...prices, ...data.map((d) => d.median));
-  const max = Math.max(...prices, ...data.map((d) => d.median), ...claimedValues);
-  const span = max - min;
-  const pad = Math.max(span * 0.1, span === 0 ? min * 0.05 : 0, 50);
-  const yMin = Math.max(0, Math.floor(min - pad));
-  const yMax = Math.ceil(max + pad);
-
-  const legend = [
-    { color: COLOR_PRICE, label: t("detail.current"), dashed: false },
-    { color: COLOR_CLAIMED, label: t("chart.claimedOriginal"), dashed: true },
-    { color: COLOR_MEDIAN, label: t("chart.median"), dashed: true },
-  ];
+  const newest = data[data.length - 1].time;
+  const ranges = ([0, 14, 60] as const).filter((days) => days === 0 || newest - data[0].time >= days * DAY);
+  const days = ranges.includes(range) ? range : 0;
+  const visible = days ? data.filter((point) => point.time >= newest - (days - 1) * DAY) : data;
+  const active = series.filter((entry) => visible.some((point) => point[entry.key] !== null));
+  const values = visible.flatMap((point) => active.map((entry) => point[entry.key]).filter((value) => value !== null));
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const pad = Math.max((maximum - minimum) * 0.08, minimum * 0.02, 1);
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-        {legend.map((item) => (
-          <span key={item.label} className="flex items-center gap-2 text-xs font-medium text-slate-300">
-            <span
-              className="inline-block h-0.5 w-5 rounded-full"
-              style={{
-                backgroundColor: item.dashed ? "transparent" : item.color,
-                borderTop: item.dashed ? `2px dashed ${item.color}` : undefined,
-              }}
-            />
-            {item.label}
-          </span>
-        ))}
-      </div>
-
-      {mounted ? (
-        <ResponsiveContainer width="100%" height={340}>
-          <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-            <CartesianGrid stroke="rgba(148,163,184,0.1)" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={(value) => formatChartTick(String(value), lang)}
-              tick={{ fill: "#64748b", fontSize: 11 }}
-              axisLine={{ stroke: "rgba(148,163,184,0.18)" }}
-              tickLine={false}
-              minTickGap={32}
-            />
-            <YAxis
-              tickFormatter={(value) => compactNumber(Number(value), lang)}
-              tick={{ fill: "#64748b", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={56}
-              domain={[yMin, yMax]}
-            />
-            <Tooltip
-              cursor={{ stroke: "rgba(148,163,184,0.28)", strokeDasharray: "4 4" }}
-              contentStyle={{
-                backgroundColor: "rgba(6,10,18,0.96)",
-                border: "1px solid rgba(148,163,184,0.22)",
-                borderRadius: 12,
-                fontSize: 12,
-                boxShadow: "0 16px 48px rgba(0,0,0,0.7)",
-              }}
-              labelStyle={{ color: "#e2e8f0", fontWeight: 700, marginBottom: 6 }}
-              itemStyle={{ padding: 0 }}
-              labelFormatter={(label) => formatChartTick(String(label), lang)}
-              formatter={(value, name) => [
-                formatPrice(Number(value), lang),
-                name === "price"
-                  ? t("detail.current")
-                  : name === "claimed"
-                    ? t("chart.claimedOriginal")
-                    : t("chart.median"),
-              ]}
-            />
-            <Line
-              type="monotone"
-              dataKey="price"
-              name="price"
-              stroke={COLOR_PRICE}
-              strokeWidth={2.4}
-              dot={false}
-              activeDot={{ r: 5, strokeWidth: 0 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="claimed"
-              name="claimed"
-              stroke={COLOR_CLAIMED}
-              strokeWidth={1.8}
-              strokeDasharray="6 4"
-              dot={false}
-              connectNulls
-            />
-            <Line
-              type="monotone"
-              dataKey="median"
-              name="median"
-              stroke={COLOR_MEDIAN}
-              strokeWidth={1.8}
-              strokeDasharray="2 4"
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      ) : (
-        <div className="skeleton h-[340px] w-full" />
-      )}
+    <div className="space-y-4">
+      {ranges.length > 1 && <label className="ptr-control-label inline-grid">{t("ui.historyRange")}
+        <select className="ptr-field" value={days} onChange={(event) => {
+          setRange(ranges.find((option) => option === Number(event.target.value)) ?? 0);
+        }}>
+          {ranges.map((option) => <option value={option} key={option}>{t(rangeLabels[option])}</option>)}
+        </select>
+      </label>}
+      {visible.length > 1 && <figure aria-label={t("detail.history")}>
+        <figcaption className="ptr-controls ptr-muted text-xs mb-3">
+          {active.map((entry) => <span key={entry.key} className="inline-flex items-center gap-2">
+            <span className="w-5 border-t-2" style={{ borderColor: entry.color, borderTopStyle: "dash" in entry ? "dashed" : "solid" }} aria-hidden="true" />
+            {t(entry.label)}
+          </span>)}
+        </figcaption>
+        <div dir="ltr" className="ptr-chart">
+          <ResponsiveContainer width="100%" height={260} minWidth={0}>
+            <LineChart data={visible} margin={{ top: 10, right: 14, bottom: 5, left: 4 }} accessibilityLayer>
+              <CartesianGrid stroke="#dcded4" vertical={false} />
+              <XAxis dataKey="time" type="number" domain={["dataMin", "dataMax"]} scale="time"
+                tickFormatter={(value) => dayLabel(Number(value), lang)} tick={{ fill: "#52605a", fontSize: 11 }}
+                tickLine={false} minTickGap={35} />
+              <YAxis domain={[Math.max(0, minimum - pad), maximum + pad]} width={50}
+                tick={{ fill: "#52605a", fontSize: 11 }} tickLine={false} axisLine={false}
+                tickFormatter={(value) => new Intl.NumberFormat(lang === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
+                  notation: "compact", maximumFractionDigits: 1,
+                }).format(Number(value))} />
+              <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #dcded4", borderRadius: 8 }}
+                labelFormatter={(value) => dayLabel(Number(value), lang)}
+                formatter={(value) => formatPrice(Number(value), lang)} />
+              {active.map((entry) => <Line key={entry.key} type="linear" dataKey={entry.key} name={t(entry.label)}
+                stroke={entry.color} strokeDasharray={"dash" in entry ? entry.dash : undefined}
+                strokeWidth={entry.key === "price" ? 2.5 : 1.6} connectNulls={false}
+                dot={visible.length <= 4} isAnimationActive={false} />)}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </figure>}
+      <details open={visible.length === 1 || undefined}>
+        <summary className="ptr-link">{t("ui.recordedPrices")}</summary>
+        <table className="ptr-history-table">
+          <thead><tr><th scope="col">{t("ui.date")}</th>
+            {active.map((entry) => <th scope="col" key={entry.key}>{t(entry.label)}</th>)}</tr></thead>
+          <tbody>{visible.map((point, index) => <tr key={`${point.date}-${index}`}>
+            <th scope="row">{formatDate(point.date, lang)}</th>
+            {active.map((entry) => <td key={entry.key}><bdi>{formatPrice(point[entry.key], lang)}</bdi></td>)}
+          </tr>)}</tbody>
+        </table>
+      </details>
     </div>
   );
 }

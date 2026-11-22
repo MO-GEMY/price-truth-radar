@@ -153,7 +153,7 @@ export function ProductImage({
   return (
     <div
       className={`relative overflow-hidden ${
-        !isFailed && studio ? "studio-frame" : "bg-[#111827]"
+        !isFailed && studio ? "studio-frame" : "ptr-image-fallback"
       } ${className}`}
     >
       {/* Loading shimmer behind image until decoded */}
@@ -165,26 +165,27 @@ export function ProductImage({
           aria-hidden
         >
           <FallbackIcon
-            className={`size-8 ${studio ? "text-slate-300" : "text-slate-700"}`}
+            className="size-6 ptr-muted"
             strokeWidth={1.5}
           />
         </div>
       ) : null}
 
-      {/* Branded dark fallback when image URL is missing or fails to load */}
+      {/* Keep the same footprint for missing and failed images. */}
       {isFailed ? (
         <div
-          role="img"
-          aria-label={alt}
-          className={`flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0e1627] via-[#090f1c] to-[#050810] px-4 text-center ${
+          role={alt ? "img" : undefined}
+          aria-label={alt || undefined}
+          aria-hidden={alt ? undefined : true}
+          className={`ptr-image-fallback flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center ${
             dimmed ? "opacity-50 saturate-0" : ""
           }`}
         >
-          <span className="flex size-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400">
+          <span className="flex items-center justify-center">
             <FallbackIcon className="size-5" strokeWidth={1.6} />
           </span>
           {labelText ? (
-            <span className="max-w-full truncate text-[11px] font-medium text-slate-500">
+            <span className="max-w-full truncate text-[11px] font-medium">
               {labelText}
             </span>
           ) : null}

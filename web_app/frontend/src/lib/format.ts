@@ -53,6 +53,7 @@ export function formatDate(iso: string, lang: Lang): string {
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   }).format(date);
 }
 
@@ -65,6 +66,7 @@ export function formatDateTime(iso: string, lang: Lang): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Africa/Cairo",
   }).format(date);
 }
 
