@@ -14,21 +14,31 @@ WITH staging_history AS (
         in_stock,
         available_sizes_count,
         scraped_at,
-        2 AS source_priority
+        1 AS source_priority
     FROM {{ ref('stg_products') }}
 ),
 
+active_products AS (
+    SELECT DISTINCT product_sk
+    FROM staging_history
+),
+
+-- Scope SCD-2 snapshot backfill strictly to products that still exist in staging
+-- so purged/deleted bait or corrupted rows in `snp_product_history` never orphan
+-- in `fct_price_history` or override freshly re-scraped same-day staging rows.
 scd_snapshot_history AS (
     SELECT
-        product_sk::VARCHAR AS product_sk,
-        snapshot_date::DATE AS snapshot_date,
-        current_price::NUMERIC(12,2) AS price,
-        claimed_original_price::NUMERIC(12,2) AS claimed_original_price,
-        in_stock::BOOLEAN AS in_stock,
-        available_sizes_count::INTEGER AS available_sizes_count,
-        COALESCE(dbt_updated_at::TIMESTAMP, scraped_at::TIMESTAMP) AS scraped_at,
-        1 AS source_priority
-    FROM {{ ref('snp_product_history') }}
+        s.product_sk::VARCHAR AS product_sk,
+        s.snapshot_date::DATE AS snapshot_date,
+        s.current_price::NUMERIC(12,2) AS price,
+        s.claimed_original_price::NUMERIC(12,2) AS claimed_original_price,
+        s.in_stock::BOOLEAN AS in_stock,
+        s.available_sizes_count::INTEGER AS available_sizes_count,
+        COALESCE(s.dbt_updated_at::TIMESTAMP, s.scraped_at::TIMESTAMP) AS scraped_at,
+        2 AS source_priority
+    FROM {{ ref('snp_product_history') }} s
+    INNER JOIN active_products ap
+        ON s.product_sk = ap.product_sk
 ),
 
 combined AS (

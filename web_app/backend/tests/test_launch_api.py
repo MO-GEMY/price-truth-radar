@@ -518,6 +518,71 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(summary_live["delivered"], 1)
         self.assertEqual(triggered_ids, [42])
 
+    def test_bilingual_arabic_search_expands_to_english_and_fuzzy_fallback(self) -> None:
+        now = datetime(2026, 11, 22, 12, 0, 0, tzinfo=timezone.utc)
+        fridge_row = {
+            "product_sk": "sk_fridge_1",
+            "canonical_product_key": "samsung_fridge_450l",
+            "store_name": "btech",
+            "category": "home_appliances",
+            "sub_category": "refrigerators",
+            "brand": "Samsung",
+            "product_title": "Samsung 450L No Frost Refrigerator Silver",
+            "product_url": "https://btech.com/en/p/samsung-fridge-450",
+            "image_url": "https://cdn.example.com/fridge.jpg",
+            "attributes_json": {},
+            "current_price": 32500.0,
+            "claimed_original_price": 36000.0,
+            "rolling_60d_median": 34000.0,
+            "min_historical_price": 32500.0,
+            "max_historical_price": 36000.0,
+            "claimed_discount_pct": 9.7,
+            "real_discount_pct": 4.4,
+            "discount_verdict": "NORMAL_PRICE",
+            "scarcity_flag": False,
+            "in_stock": True,
+            "last_updated_at": now,
+        }
+
+        captured_params: list[dict[str, Any]] = []
+
+        def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
+            captured_params.append(params)
+            if "COUNT(*)" in sql:
+                return _FakeResult(scalar=1)
+            return _FakeResult(rows=[fridge_row])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        resp = client.get("/api/v1/products/search?q=تلاجة سامسونج")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["match_type"], "text_search")
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["items"][0]["product_sk"], "sk_fridge_1")
+        all_param_vals = " ".join(str(v) for p in captured_params for v in p.values())
+        self.assertIn("refrigerator", all_param_vals)
+        self.assertIn("samsung", all_param_vals)
+
+        # Typo query with 0 LIKE rows falls back to pg_trgm similarity
+        api_cache.clear()
+
+        def fuzzy_handler(sql: str, _params: dict[str, Any]) -> _FakeResult:
+            if "similarity(" in sql:
+                return _FakeResult(rows=[fridge_row])
+            if "COUNT(*)" in sql:
+                return _FakeResult(scalar=0)
+            return _FakeResult(rows=[])
+
+        fake_db2 = _FakeReadDB(fuzzy_handler)
+        app.dependency_overrides[get_db] = lambda: fake_db2
+        resp_fuzzy = client.get("/api/v1/products/search?q=samsng refrigrator")
+        self.assertEqual(resp_fuzzy.status_code, 200)
+        self.assertEqual(resp_fuzzy.json()["match_type"], "fuzzy_trgm")
+        self.assertEqual(len(resp_fuzzy.json()["items"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

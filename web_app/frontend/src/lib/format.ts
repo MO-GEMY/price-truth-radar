@@ -262,3 +262,44 @@ export function formatUnitPrice(
   }
   return `EGP ${formatted} / ${unit}`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Bilingual (AR/EN) search query normalization                        */
+/* ------------------------------------------------------------------ */
+
+/** Arabic diacritics (harakat) + tatweel — pure noise for search matching. */
+const AR_DIACRITICS_RE = /[\u064B-\u0652\u0670\u0640]/g;
+
+/**
+ * Light cleaning for the PRIMARY search attempt: trim, collapse internal
+ * whitespace, strip diacritics/tatweel. Letters are left untouched so the
+ * user's spelling matches store titles exactly (ILIKE substring semantics).
+ */
+export function cleanSearchQuery(raw: string): string {
+  return raw
+    .replace(AR_DIACRITICS_RE, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Aggressive Arabic normalization for the SECOND search attempt (only used
+ * when the primary query returns zero results). Unifies the letters Egyptian
+ * retailers spell inconsistently across stores:
+ * - alef variants (أ إ آ ٱ) → ا
+ * - alef maksura ى → ي
+ * - teh marbuta ة → ه
+ * - thaa ث → ت (تلاجة / ثلاجة are the same product informally)
+ */
+export function normalizeArabicAggressive(raw: string): string {
+  return cleanSearchQuery(raw)
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ث/g, "ت");
+}
+
+/** True when the query contains Arabic-script characters. */
+export function hasArabicChars(raw: string): boolean {
+  return /[\u0600-\u06FF]/.test(raw);
+}

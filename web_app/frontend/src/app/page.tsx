@@ -211,24 +211,40 @@ export default function HomePage() {
               <SearchBar externalTrigger={searchTrigger} />
             </div>
 
-            {/* Quick-Try Interactive Chips */}
+            {/* Quick-Try Interactive Chips — bilingual AR/EN examples */}
             <div className="mt-3.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
               <span className="text-[11px] font-semibold text-slate-500">
                 {t("search.quickTryLabel")}
               </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setSearchTrigger((prev) => ({
-                    query: "Samsung Galaxy",
-                    seq: (prev?.seq ?? 0) + 1,
-                  }))
-                }
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-slate-200 transition hover:border-teal-400/40 hover:bg-teal-400/10 hover:text-teal-200"
-              >
-                <Sparkles className="size-3 text-teal-400" />
-                {t("search.chipSamsung")}
-              </button>
+              {[
+                {
+                  key: "search.chipIphone" as const,
+                  query: "iPhone",
+                },
+                {
+                  key: "search.chipSharp" as const,
+                  query: lang === "ar" ? "تلاجة شارب" : "Sharp fridge",
+                },
+                {
+                  key: "search.chipWasher" as const,
+                  query: lang === "ar" ? "غسالة" : "Washing machine",
+                },
+              ].map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() =>
+                    setSearchTrigger((prev) => ({
+                      query: chip.query,
+                      seq: (prev?.seq ?? 0) + 1,
+                    }))
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-slate-200 transition hover:border-teal-400/40 hover:bg-teal-400/10 hover:text-teal-200"
+                >
+                  <Sparkles className="size-3 text-teal-400" />
+                  {t(chip.key)}
+                </button>
+              ))}
               <button
                 type="button"
                 onClick={() => {

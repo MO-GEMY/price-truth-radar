@@ -1,0 +1,1364 @@
+# =============================================================================
+# Price Truth Radar — Egyptian E-Commerce Stores Registry (120 Stores)
+# =============================================================================
+# Platforms: shopify | woocommerce | magento_graphql | custom
+# Region modes:
+#   - cloud      : Safe for GitHub Actions datacenter runners
+#   - local_only : Blocks datacenter IPs; runs locally via scripts/run_local_scrapers.ps1
+# Enabled flag:
+#   - All 30 live-verified stores are `enabled: true, verified: true`.
+#   - Additional starter stores default to `enabled: false, verified: false`
+#     so they can be probed and activated incrementally without breaking CI.
+# =============================================================================
+
+version: 1
+
+stores:
+  # ---------------------------------------------------------------------------
+  # A. LIVE-VERIFIED CORE ELECTRONICS & HOME APPLIANCES (15 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: btech
+    display_name: B.TECH
+    platform: custom
+    base_url: https://btech.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_1
+
+  - store_key: noon
+    display_name: Noon Egypt
+    platform: custom
+    base_url: https://www.noon.com/egypt-en
+    category: electronics
+    vertical: core
+    extra_verticals: [groceries]
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_1
+
+  - store_key: amazon_eg
+    display_name: Amazon Egypt
+    platform: custom
+    base_url: https://www.amazon.eg
+    category: electronics
+    vertical: core
+    extra_verticals: [groceries]
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_1
+
+  - store_key: raneen
+    display_name: Raneen
+    platform: custom
+    base_url: https://www.raneen.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_1
+
+  - store_key: rayashop
+    display_name: Raya Shop
+    platform: custom
+    base_url: https://www.rayashop.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_2
+
+  - store_key: compumarts
+    display_name: CompuMarts
+    platform: shopify
+    base_url: https://www.compumarts.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_2
+
+  - store_key: tradeline
+    display_name: TradeLine
+    platform: shopify
+    base_url: https://tradelinestores.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_2
+
+  - store_key: elaraby
+    display_name: El Araby Group
+    platform: magento_graphql
+    base_url: https://www.elarabygroup.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_2
+
+  - store_key: elbadr
+    display_name: El Badr Group
+    platform: custom
+    base_url: https://elbadrgroupeg.store
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_3
+
+  - store_key: compuscience
+    display_name: CompuScience
+    platform: custom
+    base_url: https://compuscience.com.eg
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_3
+
+  - store_key: cairosales
+    display_name: Cairo Sales
+    platform: custom
+    base_url: https://cairosales.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_3
+
+  - store_key: egyptlaptop
+    display_name: Egypt Laptop
+    platform: custom
+    base_url: https://egyptlaptop.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_3
+
+  - store_key: dubaiphone
+    display_name: Dubai Phone
+    platform: custom
+    base_url: https://dubaiphone.net
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: core_3
+
+  - store_key: 2b
+    display_name: 2B Egypt
+    platform: custom
+    base_url: https://2b.com.eg
+    category: electronics
+    vertical: core
+    region_mode: local_only
+    enabled: true
+    verified: true
+    batch: local_core
+
+  - store_key: sigma
+    display_name: Sigma Computer
+    platform: custom
+    base_url: https://www.sigma-computer.com
+    category: electronics
+    vertical: core
+    region_mode: local_only
+    enabled: true
+    verified: true
+    batch: local_core
+
+  # ---------------------------------------------------------------------------
+  # B. LIVE-VERIFIED GROCERIES & SUPERMARKETS (7 dedicated + amazon_eg/noon)
+  # ---------------------------------------------------------------------------
+  - store_key: spinneys
+    display_name: Spinneys Egypt
+    platform: magento_graphql
+    base_url: https://spinneys-egypt.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: groceries_1
+
+  - store_key: hyperone
+    display_name: HyperOne
+    platform: magento_graphql
+    base_url: https://www.hyperone.com.eg
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: groceries_1
+
+  - store_key: seoudi
+    display_name: Seoudi Supermarket
+    platform: magento_graphql
+    base_url: https://seoudisupermarket.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: groceries_1
+
+  - store_key: gourmet
+    display_name: Gourmet Egypt
+    platform: magento_graphql
+    base_url: https://gourmetegypt.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: groceries_2
+
+  - store_key: abu_auf
+    display_name: Abu Auf
+    platform: woocommerce
+    base_url: https://www.abuauf.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: groceries_2
+
+  - store_key: imtenan
+    display_name: Imtenan
+    platform: custom
+    base_url: https://imtenan.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: groceries_2
+
+  - store_key: metro_market
+    display_name: Metro Market
+    platform: custom
+    base_url: https://www.metro-markets.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: groceries_2
+
+  # ---------------------------------------------------------------------------
+  # C. LIVE-VERIFIED FASHION & FOOTWEAR (8 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: town_team
+    display_name: Town Team
+    platform: shopify
+    base_url: https://townteam.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_1
+
+  - store_key: dejavu
+    display_name: Dejavu Shoes
+    platform: shopify
+    base_url: https://dejavu.shoes
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_1
+
+  - store_key: dalydress
+    display_name: Daly Dress
+    platform: shopify
+    base_url: https://dalydress.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_1
+
+  - store_key: activ
+    display_name: Activ Abou Alaa
+    platform: shopify
+    base_url: https://activaboualaa.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_1
+
+  - store_key: carina
+    display_name: Carina Wear
+    platform: shopify
+    base_url: https://carinawear.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_2
+
+  - store_key: khotwh
+    display_name: Khotwh
+    platform: shopify
+    base_url: https://khotwh.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_2
+
+  - store_key: concrete
+    display_name: Concrete
+    platform: woocommerce
+    base_url: https://concrete.store
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_2
+
+  - store_key: mobaco
+    display_name: Mobaco Cottons
+    platform: magento_graphql
+    base_url: https://mobaco.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: true
+    verified: true
+    batch: fashion_2
+
+  # ---------------------------------------------------------------------------
+  # D. STARTER REGISTRY — ELECTRONICS & TECH (20 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: dream2000
+    display_name: Dream 2000
+    platform: magento_graphql
+    base_url: https://dream2000.com
+    category: electronics
+    vertical: core
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: select_eg
+    display_name: Select Mobility
+    platform: shopify
+    base_url: https://select.eg
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: switchplus
+    display_name: Switch Plus
+    platform: shopify
+    base_url: https://switchplus.com.eg
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: aman_stores
+    display_name: Aman Stores
+    platform: magento_graphql
+    base_url: https://www.amanstores.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: jumia
+    display_name: Jumia Egypt
+    platform: custom
+    base_url: https://www.jumia.com.eg
+    category: electronics
+    vertical: core
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: local_core
+
+  - store_key: xprs
+    display_name: XPRS Egypt
+    platform: shopify
+    base_url: https://xprsegypt.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: elnekhely
+    display_name: El Nekhely Technology
+    platform: woocommerce
+    base_url: https://elnekhelytechnology.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: maximum_hardware
+    display_name: Maximum Hardware
+    platform: custom
+    base_url: https://maximumhardware.store
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: baraka_computer
+    display_name: Baraka Computer
+    platform: woocommerce
+    base_url: https://barakacomputer.net
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: up_to_date_eg
+    display_name: Up To Date Store
+    platform: woocommerce
+    base_url: https://uptodate.store
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: games2egypt
+    display_name: Games 2 Egypt
+    platform: custom
+    base_url: https://www.games2egypt.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: egypt_gamestore
+    display_name: Egypt Game Store
+    platform: shopify
+    base_url: https://egyptgamestore.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: mi_egypt
+    display_name: Mi Store Egypt
+    platform: woocommerce
+    base_url: https://mistore-eg.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: samsung_eg
+    display_name: Samsung Egypt eStore
+    platform: custom
+    base_url: https://www.samsung.com/eg
+    category: electronics
+    vertical: core
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: huawei_eg
+    display_name: Huawei Egypt Store
+    platform: custom
+    base_url: https://consumer.huawei.com/eg
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: anker_eg
+    display_name: Anker Egypt
+    platform: shopify
+    base_url: https://ankeregypt.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: mobile_shop_eg
+    display_name: Mobile Shop Egypt
+    platform: magento_graphql
+    base_url: https://www.mobileshop.com.eg
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: alfrensia
+    display_name: Al Frensia Electronics
+    platform: woocommerce
+    base_url: https://alfrensia.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: delta_computer
+    display_name: Delta Computer Egypt
+    platform: woocommerce
+    base_url: https://deltacomputereg.com
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  - store_key: compufast
+    display_name: CompuFast Egypt
+    platform: woocommerce
+    base_url: https://compufast.com.eg
+    category: electronics
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_electronics
+
+  # ---------------------------------------------------------------------------
+  # E. STARTER REGISTRY — HOME APPLIANCES (15 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: fresh_eg
+    display_name: Fresh Electric Egypt
+    platform: magento_graphql
+    base_url: https://fresh.com.eg
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: zanussi_eg
+    display_name: Zanussi Egypt
+    platform: custom
+    base_url: https://www.zanussi.com.eg
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: beko_eg
+    display_name: Beko Egypt
+    platform: custom
+    base_url: https://www.beko.com/eg-en
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: unionaire_eg
+    display_name: Unionaire Egypt
+    platform: woocommerce
+    base_url: https://unionaire.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: kiriazi_eg
+    display_name: Kiriazi Egypt
+    platform: woocommerce
+    base_url: https://kiriazi.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: carrier_eg
+    display_name: Carrier Egypt
+    platform: woocommerce
+    base_url: https://carrieregypt.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: midea_eg
+    display_name: Midea Egypt
+    platform: woocommerce
+    base_url: https://mideaegypt.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: haier_eg
+    display_name: Haier Egypt
+    platform: custom
+    base_url: https://www.haier.com/eg
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: elghazawy
+    display_name: El Ghazawy Home
+    platform: woocommerce
+    base_url: https://elghazawy.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: hyper_techno
+    display_name: Hyper Techno
+    platform: woocommerce
+    base_url: https://hypertechno.net
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: shaker_group
+    display_name: Shaker Appliances
+    platform: shopify
+    base_url: https://shakerstore.com.eg
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: black_decker_eg
+    display_name: Black+Decker Egypt
+    platform: shopify
+    base_url: https://blackanddeckeregypt.com
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: kenwood_eg
+    display_name: Kenwood Egypt
+    platform: shopify
+    base_url: https://kenwoodworld.com/en-eg
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: ariston_eg
+    display_name: Ariston Egypt
+    platform: custom
+    base_url: https://www.ariston.com/en-eg
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  - store_key: white_whale_eg
+    display_name: White Whale Egypt
+    platform: woocommerce
+    base_url: https://whitewhale.com.eg
+    category: home_appliances
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_appliances
+
+  # ---------------------------------------------------------------------------
+  # F. STARTER REGISTRY — GROCERIES & SUPERMARKETS (15 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: carrefour_eg
+    display_name: Carrefour Egypt
+    platform: custom
+    base_url: https://www.carrefouregypt.com
+    category: groceries
+    vertical: groceries
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: kheir_zaman
+    display_name: Kheir Zaman
+    platform: custom
+    base_url: https://www.kheirzaman.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: oscar_grand
+    display_name: Oscar Grand Stores
+    platform: magento_graphql
+    base_url: https://oscarstores.com
+    category: groceries
+    vertical: groceries
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: fathalla_market
+    display_name: Fathalla Market
+    platform: custom
+    base_url: https://fathallamarket.com
+    category: groceries
+    vertical: groceries
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: breadfast
+    display_name: Breadfast
+    platform: custom
+    base_url: https://www.breadfast.com
+    category: groceries
+    vertical: groceries
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: goodsmart
+    display_name: GoodsMart
+    platform: custom
+    base_url: https://www.goodsmartegypt.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: healthy_and_tasty
+    display_name: Healthy & Tasty
+    platform: shopify
+    base_url: https://healthyandtasty.net
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: rdna_store
+    display_name: RDNA Organic Store
+    platform: shopify
+    base_url: https://rdnastore.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: fresh_farm_eg
+    display_name: Fresh Farm Egypt
+    platform: shopify
+    base_url: https://freshfarmeg.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: zahran_market
+    display_name: Zahran Market
+    platform: woocommerce
+    base_url: https://zahranmarket.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: bim_eg
+    display_name: BIM Egypt
+    platform: custom
+    base_url: https://www.bim.eg
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: kazyon
+    display_name: Kazyon Market
+    platform: custom
+    base_url: https://www.kazyon.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: rabbit_mart
+    display_name: Rabbit Mart
+    platform: custom
+    base_url: https://www.rabbitmart.com
+    category: groceries
+    vertical: groceries
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: al_douha
+    display_name: El Doha Foods
+    platform: shopify
+    base_url: https://eldohafoods.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  - store_key: mahmoud_el_far
+    display_name: Mahmoud El Far
+    platform: woocommerce
+    base_url: https://mahmoudelfar.com
+    category: groceries
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_groceries
+
+  # ---------------------------------------------------------------------------
+  # G. STARTER REGISTRY — PHARMACIES & PERSONAL CARE (12 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: el_ezaby
+    display_name: El Ezaby Pharmacy
+    platform: custom
+    base_url: https://elezabypharmacy.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: seif_pharmacies
+    display_name: Seif Pharmacies
+    platform: custom
+    base_url: https://www.seif-online.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: misr_pharmacies
+    display_name: Misr Pharmacies
+    platform: magento_graphql
+    base_url: https://misr-online.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: roshdy_pharmacies
+    display_name: Roshdy Pharmacies
+    platform: woocommerce
+    base_url: https://roshdypharmacies.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: delmar_attalla
+    display_name: Delmar & Attalla
+    platform: woocommerce
+    base_url: https://delmar-attalla.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: fouda_pharmacy
+    display_name: Fouda Pharmacy
+    platform: woocommerce
+    base_url: https://foudapharmacy.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: tarshouby
+    display_name: El Tarshouby Pharmacy
+    platform: woocommerce
+    base_url: https://eltarshouby.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: chefaa
+    display_name: Chefaa
+    platform: custom
+    base_url: https://chefaa.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: yodawy
+    display_name: Yodawy
+    platform: custom
+    base_url: https://www.yodawy.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: faces_eg
+    display_name: Faces Egypt
+    platform: custom
+    base_url: https://www.faces.eg
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: mazaya_eg
+    display_name: Mazaya Egypt
+    platform: magento_graphql
+    base_url: https://mazayastores.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  - store_key: soukare_eg
+    display_name: SouKare Egypt
+    platform: shopify
+    base_url: https://eg.soukare.com
+    category: pharmacy
+    vertical: groceries
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_pharmacy
+
+  # ---------------------------------------------------------------------------
+  # H. STARTER REGISTRY — FASHION & FOOTWEAR (16 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: lc_waikiki_eg
+    display_name: LC Waikiki Egypt
+    platform: custom
+    base_url: https://www.lcwaikiki.eg
+    category: fashion
+    vertical: fashion
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: defacto_eg
+    display_name: DeFacto Egypt
+    platform: custom
+    base_url: https://www.defacto.com/en-eg
+    category: fashion
+    vertical: fashion
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: ravin
+    display_name: Ravin Jeans
+    platform: custom
+    base_url: https://www.ravinjeans.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: tie_house
+    display_name: Tie House
+    platform: shopify
+    base_url: https://tiehouse.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: tomato_eg
+    display_name: Tomato Egypt
+    platform: shopify
+    base_url: https://tomato.com.eg
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: mitcha
+    display_name: Mitcha Egypt
+    platform: shopify
+    base_url: https://mitcha.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: brantu
+    display_name: Brantu
+    platform: shopify
+    base_url: https://brantu.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: max_fashion_eg
+    display_name: Max Fashion Egypt
+    platform: custom
+    base_url: https://www.maxfashion.com/eg/en
+    category: fashion
+    vertical: fashion
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: cottonil
+    display_name: Cottonil Egypt
+    platform: shopify
+    base_url: https://cottonil.com
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: dice_eg
+    display_name: Dice Underwear
+    platform: shopify
+    base_url: https://dice.com.eg
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: adidas_eg
+    display_name: Adidas Egypt
+    platform: custom
+    base_url: https://www.adidas.com.eg
+    category: fashion
+    vertical: fashion
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: skechers_eg
+    display_name: Skechers Egypt
+    platform: shopify
+    base_url: https://skechers.com.eg
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: aldo_eg
+    display_name: ALDO Egypt
+    platform: shopify
+    base_url: https://aldoshoes.com.eg
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: american_eagle_eg
+    display_name: American Eagle Egypt
+    platform: custom
+    base_url: https://www.americaneagle.com.eg
+    category: fashion
+    vertical: fashion
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: hm_eg
+    display_name: H&M Egypt
+    platform: custom
+    base_url: https://eg.hm.com
+    category: fashion
+    vertical: fashion
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  - store_key: or_kids
+    display_name: OR Kids Egypt
+    platform: shopify
+    base_url: https://orkids.com.eg
+    category: fashion
+    vertical: fashion
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_fashion
+
+  # ---------------------------------------------------------------------------
+  # I. STARTER REGISTRY — HOME & FURNITURE (12 stores)
+  # ---------------------------------------------------------------------------
+  - store_key: ikea_eg
+    display_name: IKEA Egypt
+    platform: custom
+    base_url: https://www.ikea.com/eg/en
+    category: home_furniture
+    vertical: core
+    region_mode: local_only
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: homzmart
+    display_name: Homzmart
+    platform: custom
+    base_url: https://homzmart.com/en
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: hub_furniture
+    display_name: Hub Furniture
+    platform: magento_graphql
+    base_url: https://hubfurniture.com.eg
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: kabbani
+    display_name: Kabbani Furniture
+    platform: shopify
+    base_url: https://kabbanifurniture.com
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: chichomz
+    display_name: Chic Homz
+    platform: shopify
+    base_url: https://chichomz.com
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: ariika
+    display_name: Ariika
+    platform: shopify
+    base_url: https://ariika.com
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: efreshli
+    display_name: Efreshli
+    platform: shopify
+    base_url: https://efreshli.com
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: in_and_out
+    display_name: In&Out Furniture
+    platform: woocommerce
+    base_url: https://inandoutfurniture.com
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: mobica
+    display_name: Mobica
+    platform: woocommerce
+    base_url: https://mobica.net
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: taki_eg
+    display_name: Taki Vita Mattresses
+    platform: shopify
+    base_url: https://takivita.com
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: linen_house_eg
+    display_name: Linen House Egypt
+    platform: shopify
+    base_url: https://linenhouse.com.eg
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home
+
+  - store_key: el_malek_furniture
+    display_name: El Malek Furniture
+    platform: woocommerce
+    base_url: https://elmalekfurniture.com
+    category: home_furniture
+    vertical: core
+    region_mode: cloud
+    enabled: false
+    verified: false
+    batch: expansion_home

@@ -23,6 +23,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from data_platform.ingestion.scrapers import (  # noqa: E402
+    DeltaStats,
     MatchSummary,
     PoliteHttpClient,
     RawProductSnapshot,
@@ -32,6 +33,8 @@ from data_platform.ingestion.scrapers import (  # noqa: E402
     assign_canonical_keys,
     fetch_latest_snapshots_from_neon,
     fetch_tracked_store_ids_from_neon,
+    get_batch_targets,
+    preview_delta_savings,
     update_canonical_keys_in_neon,
     upsert_snapshots_to_neon,
 )
@@ -47,6 +50,12 @@ def _build_parser() -> argparse.ArgumentParser:
         required=False,
         choices=store_choices,
         help="Store slug to scrape (or 'all' for every registered scraper supporting the vertical).",
+    )
+    parser.add_argument(
+        "--batch",
+        required=False,
+        default=None,
+        help="Registry batch name from stores_registry.yaml (e.g. 'core_1', 'groceries_1', 'fashion_1').",
     )
     parser.add_argument(
         "--vertical",
@@ -70,6 +79,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--match-db",
         action="store_true",
         help="Read latest snapshot_date rows across all stores from Neon, run cross-store matching, and update canonical_product_key.",
+    )
+    parser.add_argument(
+        "--delta",
+        dest="delta",
+        action="store_true",
+        default=True,
+        help="Enable Delta Snapshots (skip inserting unchanged rows, only touch last_seen_at; default: enabled).",
+    )
+    parser.add_argument(
+        "--no-delta",
+        dest="delta",
+        action="store_false",
+        help="Disable Delta Snapshots and upsert every scraped row unconditionally.",
+    )
+    parser.add_argument(
+        "--delta-preview",
+        action="store_true",
+        help="During --dry-run, query Neon read-only to report exact Delta Snapshot row-reduction savings.",
     )
     parser.add_argument(
         "--dry-run",
@@ -145,19 +172,35 @@ def _print_match_summary(summary: MatchSummary) -> None:
     print("\n" + "=" * 72)
     print(
         f"CROSS-STORE MATCHING | matched_groups={summary.matched_groups} "
-        f"| matched_products={summary.matched_products}"
+        f"| matched_products={summary.matched_products} "
+        f"| tiers=(T1:{summary.tier1_groups}, T2:{summary.tier2_groups}, "
+        f"T3:{summary.tier3_groups}, Grocery:{summary.grocery_groups})"
     )
     print("=" * 72)
     if not summary.group_details:
         print("  No cross-store matches detected in this batch.")
         return
 
-    for key, entries in summary.group_details.items():
+    for idx, (key, entries) in enumerate(summary.group_details.items()):
+        if idx >= 40:
+            print(f"  ... ({len(summary.group_details) - 40} more matched groups omitted)")
+            break
         stores_str = ", ".join(f"{store}={price:,.0f} EGP" for store, price, _ in entries)
         prices = [price for _, price, _ in entries]
         spread = max(prices) - min(prices)
         spread_pct = (spread / min(prices) * 100.0) if min(prices) > 0 else 0.0
         print(f"  * {key} (spread {spread:,.0f} EGP / +{spread_pct:.1f}%): {stores_str}")
+
+
+def _print_delta_preview(stats: DeltaStats) -> None:
+    print("\n" + "=" * 72)
+    print(
+        f"DELTA SNAPSHOT PREVIEW | scraped={stats.total_scraped} "
+        f"| would_insert={stats.inserted_or_changed} "
+        f"| skipped_unchanged={stats.skipped_unchanged} "
+        f"| storage_saved={stats.savings_pct:.1f}%"
+    )
+    print("=" * 72)
 
 
 def _run_match_db(dry_run: bool) -> int:
@@ -192,8 +235,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if not args.store and not args.match_db:
-        parser.error("Provide --store <slug|all> and/or --match-db")
+    if not args.store and not args.batch and not args.match_db:
+        parser.error("Provide --store <slug|all>, --batch <name>, and/or --match-db")
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be a positive integer")
 
@@ -202,40 +245,49 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    if args.match_db and not args.store:
+    if args.match_db and not args.store and not args.batch:
         return _run_match_db(dry_run=args.dry_run)
 
-    vertical: ScrapeVertical = args.vertical
-    if args.store == "all":
-        stores = [
-            slug
-            for slug in sorted(SCRAPER_REGISTRY.keys())
-            if vertical in SCRAPER_REGISTRY[slug].supported_verticals
-        ]
+    run_targets: list[tuple[str, ScrapeVertical]] = []
+    if args.batch:
+        batch_targets = get_batch_targets(args.batch, region_mode="cloud", enabled_only=True)
+        for slug, vert in batch_targets:
+            if slug in SCRAPER_REGISTRY and vert in SCRAPER_REGISTRY[slug].supported_verticals:
+                run_targets.append((slug, vert))
+        if not run_targets:
+            parser.error(f"Batch '{args.batch}' has no enabled cloud stores registered.")
     else:
-        if vertical not in SCRAPER_REGISTRY[args.store].supported_verticals:
-            supported = [
-                s
-                for s in sorted(SCRAPER_REGISTRY.keys())
-                if vertical in SCRAPER_REGISTRY[s].supported_verticals
+        vertical: ScrapeVertical = args.vertical
+        if args.store == "all":
+            run_targets = [
+                (slug, vertical)
+                for slug in sorted(SCRAPER_REGISTRY.keys())
+                if vertical in SCRAPER_REGISTRY[slug].supported_verticals
             ]
-            parser.error(
-                f"Store '{args.store}' does not support --vertical {vertical}. "
-                f"Supported stores: {', '.join(supported)}"
-            )
-        stores = [args.store]
+        else:
+            if vertical not in SCRAPER_REGISTRY[args.store].supported_verticals:
+                supported = [
+                    s
+                    for s in sorted(SCRAPER_REGISTRY.keys())
+                    if vertical in SCRAPER_REGISTRY[s].supported_verticals
+                ]
+                parser.error(
+                    f"Store '{args.store}' does not support --vertical {vertical}. "
+                    f"Supported stores: {', '.join(supported)}"
+                )
+            run_targets = [(args.store, vertical)]
 
     all_records: list[RawProductSnapshot] = []
-    per_store_meta: list[tuple[str, list[RawProductSnapshot], int, int, int, int, dict[str, int]]] = []
+    per_store_meta: list[tuple[str, ScrapeVertical, list[RawProductSnapshot], int, int, int, int, dict[str, int]]] = []
     scrape_mode: ScrapeMode = "discover" if args.mode == "discovery" else args.mode
 
     with PoliteHttpClient(min_delay_seconds=args.delay) as http_client:
-        for store_slug in stores:
+        for store_slug, target_vertical in run_targets:
             scraper_cls = SCRAPER_REGISTRY[store_slug]
             tracked_ids = (
                 fetch_tracked_store_ids_from_neon(
                     store_slug,
-                    category=vertical if vertical in ("groceries", "fashion") else None,
+                    category=target_vertical if target_vertical in ("groceries", "fashion") else None,
                 )
                 if scrape_mode == "daily"
                 else set()
@@ -243,28 +295,33 @@ def main(argv: list[str] | None = None) -> int:
             scraper = scraper_cls(
                 http_client,
                 mode=scrape_mode,
-                vertical=vertical,
+                vertical=target_vertical,
                 tracked_external_ids=tracked_ids,
             )
             effective_limit = (
-                scraper.get_target_limit(scrape_mode, vertical)
+                scraper.get_target_limit(scrape_mode, target_vertical)
                 if args.limit is None
                 else args.limit
             )
             logging.info(
                 "[%s] Starting scrape (vertical=%s, mode=%s, target_limit=%d, tracked_watchlist=%d)",
                 store_slug,
-                vertical,
+                target_vertical,
                 scrape_mode,
                 effective_limit,
                 len(tracked_ids),
             )
-            records = scraper.scrape(limit=effective_limit)
+            try:
+                records = scraper.scrape(limit=effective_limit)
+            except Exception as exc:
+                logging.error("[%s] Scraper failed (%s); continuing batch.", store_slug, exc)
+                records = []
             tracked_hits = sum(1 for r in records if r.external_id in tracked_ids) if tracked_ids else 0
             all_records.extend(records)
             per_store_meta.append(
                 (
                     store_slug,
+                    target_vertical,
                     records,
                     scraper.pages_fetched,
                     scraper.skipped_count,
@@ -278,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for (
         store_slug,
+        target_vertical,
         records,
         pages_fetched,
         skipped_count,
@@ -292,31 +350,39 @@ def main(argv: list[str] | None = None) -> int:
             skipped_count=skipped_count,
             dry_run=args.dry_run,
             scrape_mode=scrape_mode,
-            vertical=vertical,
+            vertical=target_vertical,
             tracked_hits=tracked_hits,
             tracked_total=tracked_total,
             category_counts=category_counts or None,
         )
 
-    if len(stores) > 1 or match_summary.matched_groups > 0:
+    if len(run_targets) > 1 or match_summary.matched_groups > 0:
         _print_match_summary(match_summary)
 
-    if len(stores) == 1 and len(all_records) == 0:
+    if len(run_targets) == 1 and len(all_records) == 0:
         logging.error(
             "[%s] Collected 0 valid records (mode=%s); failing run so silent blocks are surfaced.",
-            stores[0],
+            run_targets[0][0],
             scrape_mode,
         )
         return 2
 
     if args.dry_run:
+        if args.delta_preview or args.delta:
+            preview = preview_delta_savings(all_records)
+            if preview is not None:
+                _print_delta_preview(preview)
         if args.match_db:
             return _run_match_db(dry_run=True)
         print("\nDry-run complete. Zero writes made to Neon.")
         return 0
 
-    upserted = upsert_snapshots_to_neon(all_records)
-    print(f"\nUpserted {upserted} live rows into raw.raw_product_snapshots (existing rows preserved).")
+    upserted = upsert_snapshots_to_neon(all_records, delta_mode=args.delta)
+    mode_tag = "delta" if args.delta else "full"
+    print(
+        f"\nUpserted {upserted} live rows into raw.raw_product_snapshots "
+        f"(mode={mode_tag}, total_scraped={len(all_records)}, existing rows preserved)."
+    )
 
     if args.match_db:
         return _run_match_db(dry_run=False)

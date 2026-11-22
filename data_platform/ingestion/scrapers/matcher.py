@@ -10,12 +10,14 @@ prevent false accessory-vs-device matches).
 
 from __future__ import annotations
 
+import math
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Optional
 
 from .base import RawProductSnapshot, normalize_snake_slug
+from .bilingual import normalize_arabic, translate_arabic_retail_terms
 from .groceries import (
     compute_grocery_barcode_key,
     compute_grocery_candidate_key,
@@ -97,6 +99,50 @@ _BRAND_ALIASES: dict[str, str] = {
     "olympic": "olympic",
     "olympic electric": "olympic",
     "kieslect": "kieslect",
+    "la germania": "la_germania",
+    "la_germania": "la_germania",
+    # Bilingual Arabic brand aliases (normalized)
+    "سامسونج": "samsung",
+    "ابل": "apple",
+    "ايفون": "apple",
+    "ال جي": "lg",
+    "توشيبا": "toshiba",
+    "شارب": "sharp",
+    "تورنيدو": "tornado",
+    "فريش": "fresh",
+    "بوش": "bosch",
+    "بيكو": "beko",
+    "زانوسي": "zanussi",
+    "كاريير": "carrier",
+    "ميديا": "midea",
+    "يونيون اير": "unionaire",
+    "كريازي": "kiriazi",
+    "هوفير": "hoover",
+    "اريستون": "ariston",
+    "اندست": "indesit",
+    "وايت بوينت": "white_point",
+    "وايت ويل": "white_whale",
+    "لا جيرمانيا": "la_germania",
+    "كينوود": "kenwood",
+    "براون": "braun",
+    "فيليبس": "philips",
+    "تيفال": "tefal",
+    "مولينكس": "moulinex",
+    "هاير": "haier",
+    "شاومي": "xiaomi",
+    "ريدمي": "xiaomi",
+    "اوبو": "oppo",
+    "ريلمي": "realme",
+    "انفينكس": "infinix",
+    "تكنو": "tecno",
+    "هواوي": "huawei",
+    "هونر": "honor",
+    "لينوفو": "lenovo",
+    "ديل": "dell",
+    "اتش بي": "hp",
+    "اسوس": "asus",
+    "ايسر": "acer",
+    "سوني": "sony",
 }
 
 _STORE_SUFFIX_NOISE_RE = re.compile(
@@ -125,8 +171,9 @@ _PHONE_SPEC_NOISE_RE = re.compile(
 
 
 def _strip_marketplace_noise(title: str) -> str:
-    """Strip Amazon pipe suffixes, Noon/Jumia version tags, and invisible chars."""
-    cleaned = re.sub(r"[\u200b\u200c\u200d®™]", "", title)
+    """Strip Amazon pipe suffixes, Noon/Jumia version tags, normalize Arabic & translate retail terms."""
+    cleaned = translate_arabic_retail_terms(title)
+    cleaned = re.sub(r"[\u200b\u200c\u200d®™]", "", cleaned)
     cleaned = _STORE_SUFFIX_NOISE_RE.sub(" ", cleaned)
     # Remove any remaining trailing "| ..." marketplace marketing clauses after the core title
     if "|" in cleaned:
@@ -458,11 +505,28 @@ class MatchSummary:
     matched_groups: int
     matched_products: int
     group_details: dict[str, list[tuple[str, float, str]]]
+    tier1_groups: int = 0
+    tier2_groups: int = 0
+    tier3_groups: int = 0
+    grocery_groups: int = 0
 
 
-def _canonical_brand(brand: str) -> str:
-    cleaned = re.sub(r"\s+", " ", (brand or "").strip().lower())
-    return _BRAND_ALIASES.get(cleaned, normalize_snake_slug(cleaned, fallback="unknown", max_len=32))
+def _canonical_brand(brand: str, title: str = "") -> str:
+    cleaned = normalize_arabic(brand or "").strip().lower()
+    if cleaned in _BRAND_ALIASES:
+        return _BRAND_ALIASES[cleaned]
+    slug = normalize_snake_slug(cleaned, fallback="unknown", max_len=32)
+    if slug != "unknown" and slug in _BRAND_ALIASES:
+        return _BRAND_ALIASES[slug]
+    if slug != "unknown" and not re.search(r"[\u0600-\u06FF]", cleaned):
+        return slug
+    # Fallback: infer known brand from bilingual-normalized title (e.g. Arabic titles with brand="Unknown")
+    if title:
+        norm_title = translate_arabic_retail_terms(title).lower()
+        for alias, canon in _BRAND_ALIASES.items():
+            if not re.search(r"[\u0600-\u06FF]", alias) and re.search(rf"\b{re.escape(alias)}\b", norm_title):
+                return canon
+    return slug
 
 
 def _extract_ram_storage(record: RawProductSnapshot) -> tuple[Optional[int], Optional[int]]:
@@ -717,11 +781,12 @@ def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[s
         flags=re.I,
     )
 
-    codes_norm, first_raw = _collect_model_codes(cleaned, min_len=5, loose=True)
+    family = _family_of(record.sub_category)
+    min_code_len = 4 if family in _SIZE_EMBEDDED_FAMILIES else 5
+    codes_norm, first_raw = _collect_model_codes(cleaned, min_len=min_code_len, loose=True)
     if not codes_norm:
         return None
 
-    family = _family_of(record.sub_category)
     primary = codes_norm[0]
 
     # TVs inside home_appliances get the same size-embedded model treatment.
@@ -766,7 +831,7 @@ def compute_candidate_key(record: RawProductSnapshot) -> Optional[str]:
     if record.category not in ("electronics", "home_appliances"):
         return None
 
-    brand = _canonical_brand(record.brand)
+    brand = _canonical_brand(record.brand, record.product_title)
     if not brand or brand == "unknown":
         return None
 
@@ -781,42 +846,239 @@ def compute_candidate_key(record: RawProductSnapshot) -> Optional[str]:
     return _electronics_generic_fingerprint(record, brand)
 
 
+_COOKER_CM_RE = re.compile(r"\b(50|55|60|80|90|100)\s*cm\b", re.I)
+_COOKER_BURNERS_RE = re.compile(r"\b([3456])\s*(?:gas\s+)?burners?\b", re.I)
+_DISHWASHER_PLACES_RE = re.compile(r"\b(\d{1,2})\s*(?:place(?:s)?|person(?:s)?|setting(?:s)?)\b", re.I)
+_WATTS_RE = re.compile(r"\b(\d{3,4})\s*(?:w|watt|watts)\b", re.I)
+_FEET_RE = re.compile(r"\b(\d{1,2})\s*(?:ft|feet|foot)\b", re.I)
+
+_TIER2_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "the", "with", "and", "for", "from", "by", "in", "on", "of", "to", "a", "an",
+        "new", "original", "official", "warranty", "egypt", "version", "global", "local",
+        "middle", "east", "international", "free", "shipping", "gift", "offer", "deal",
+        "smart", "digital", "electric", "automatic", "full", "built", "builtin",
+        "inches", "inch", "cm", "mm", "kg", "kgs", "liter", "liters", "litre", "litres",
+        "watt", "watts", "hp", "btu", "gb", "tb", "ram", "rom", "ssd", "hdd",
+        "tv", "television", "led", "fridge", "refrigerator", "washer", "washing", "machine",
+        "cooker", "gas", "air", "conditioner", "split", "dishwasher", "microwave", "vacuum",
+        "laptop", "notebook", "smartphone", "mobile", "phone", "tablet", "monitor", "screen",
+        "stainless", "steel", "door", "doors", "burner", "burners", "programs", "settings",
+        "place", "places", "dual", "sim", "4g", "5g", "lte", "wifi", "bluetooth",
+        "inverter", "cooling", "heating", "cool", "heat", "only", "nofrost", "frost",
+        "defrost", "top", "front", "load", "oled", "qled", "uhd", "fhd", "hd", "4k", "8k",
+    }
+) | _COLOR_WORDS
+
+
+def _extract_spec_block(
+    record: RawProductSnapshot,
+    brand: str,
+    family: str,
+    norm_title: str,
+) -> Optional[str]:
+    """Extract a strict normalized spec signature for Tier-2 / Tier-3 blocking.
+
+    Guarantees mismatched storage/size/tonnage/capacity/width items can never
+    enter the same candidate block.
+    """
+    low = norm_title.lower()
+    ram_gb, storage_gb = _extract_ram_storage(record)
+
+    if family in ("smartphone", "tablet"):
+        if storage_gb is None:
+            return None
+        parts = [f"{storage_gb}gb"]
+        if ram_gb is not None:
+            parts.append(f"{ram_gb}ram")
+        return "_".join(parts)
+
+    if family in ("tv", "monitor"):
+        codes_norm, _ = _collect_model_codes(low, min_len=4)
+        size = _tv_monitor_size(low, codes_norm)
+        if size is None:
+            return None
+        panel = "oled" if "oled" in low else ("qled" if "qled" in low else ("nanocell" if "nanocell" in low else "led"))
+        res = "8k" if "8k" in low else ("4k" if ("4k" in low or "uhd" in low) else ("fhd" if ("fhd" in low or "1080" in low) else "hd"))
+        return f"{size}in_{panel}_{res}"
+
+    if family == "air_conditioner":
+        power = None
+        if hm := _HP_BTU_RE.search(low):
+            power = f"{hm.group(1)}hp"
+        elif bm := _BTU_RE.search(low):
+            power = f"{bm.group(1)}btu"
+        if not power:
+            return None
+        inv = "inv" if "inverter" in low else "std"
+        mode = "hc" if ("heat" in low or "ساخن" in record.product_title) else "cool"
+        return f"{power}_{inv}_{mode}"
+
+    if family == "washing_machine":
+        km = _CAPACITY_KG_RE.search(low)
+        if not km:
+            return None
+        load = "top" if "top" in low else ("front" if "front" in low else "std")
+        return f"{km.group(1)}kg_{load}"
+
+    if family == "dishwasher":
+        pm = _DISHWASHER_PLACES_RE.search(low)
+        if not pm:
+            return None
+        return f"{pm.group(1)}places"
+
+    if family == "refrigerator":
+        cap = None
+        if lm := _CAPACITY_L_RE.search(low):
+            liters = int(round(float(lm.group(1)) / 5.0) * 5)
+            cap = f"{liters}l"
+        elif fm := _FEET_RE.search(low):
+            cap = f"{fm.group(1)}ft"
+        if not cap:
+            return None
+        frost = "nofrost" if ("no frost" in low or "nofrost" in low) else "defrost"
+        return f"{cap}_{frost}"
+
+    if family == "cooker":
+        cm = _COOKER_CM_RE.search(low)
+        bm = _COOKER_BURNERS_RE.search(low)
+        if not cm and not bm:
+            return None
+        parts = []
+        if cm:
+            parts.append(f"{cm.group(1)}cm")
+        if bm:
+            parts.append(f"{bm.group(1)}b")
+        return "_".join(parts)
+
+    if family == "laptop":
+        cpu_tag = None
+        for pat, prefix in _CPU_PATTERNS:
+            m = pat.search(low)
+            if m:
+                cpu_tag = normalize_snake_slug(f"{prefix}{'_'.join(g.lower() for g in m.groups() if g)}", max_len=24)
+                break
+        if not cpu_tag or storage_gb is None:
+            return None
+        parts = [cpu_tag, f"{storage_gb}gb"]
+        if ram_gb is not None:
+            parts.append(f"{ram_gb}ram")
+        if gm := _GPU_RE.search(low):
+            parts.append(normalize_snake_slug(gm.group(1), max_len=16))
+        return "_".join(parts)
+
+    if family in ("microwave", "water_heater", "vacuum"):
+        if lm := _CAPACITY_L_RE.search(low):
+            return f"{int(round(float(lm.group(1))))}l"
+        if wm := _WATTS_RE.search(low):
+            return f"{wm.group(1)}w"
+        return None
+
+    return None
+
+
+def _core_tokens_for_matching(norm_title: str, brand: str) -> list[str]:
+    """Extract informative non-color, non-stopword alphanumeric tokens."""
+    brand_parts = set(brand.split("_"))
+    raw_tokens = re.findall(r"[a-z0-9]+", norm_title.lower())
+    out: list[str] = []
+    for tok in raw_tokens:
+        if tok in _TIER2_STOPWORDS or tok in brand_parts:
+            continue
+        if len(tok) < 2:
+            continue
+        if re.fullmatch(r"\d+(?:gb|tb|inch|in|cm|mm|kg|l|w|hp|hz|mp|mah|btu|ft)", tok):
+            continue
+        if tok not in out:
+            out.append(tok)
+    return out
+
+
+def _series_number_signature(tokens: list[str]) -> frozenset[str]:
+    """Critical numeric/alphanumeric series markers that must agree in Tier 2/3."""
+    sig: set[str] = set()
+    for tok in tokens:
+        if any(c.isdigit() for c in tok) and len(tok) >= 2:
+            sig.add(_normalize_model_code(tok))
+    return frozenset(sig)
+
+
+def _token_ngram_vector(tokens: list[str]) -> Counter[str]:
+    """Build lightweight local token + character 3-gram vector (zero external deps)."""
+    vec: Counter[str] = Counter()
+    for tok in tokens:
+        # Word tokens carry higher weight than character trigrams
+        vec[f"w:{tok}"] += 2.0
+        if len(tok) >= 3:
+            padded = f"^{tok}$"
+            for i in range(len(padded) - 2):
+                vec[f"g:{padded[i:i+3]}"] += 0.5
+    return vec
+
+
+def _cosine_similarity(v1: Counter[str], v2: Counter[str]) -> float:
+    if not v1 or not v2:
+        return 0.0
+    common = set(v1.keys()) & set(v2.keys())
+    if not common:
+        return 0.0
+    dot = sum(v1[k] * v2[k] for k in common)
+    n1 = math.sqrt(sum(val * val for val in v1.values()))
+    n2 = math.sqrt(sum(val * val for val in v2.values()))
+    if n1 <= 0.0 or n2 <= 0.0:
+        return 0.0
+    return dot / (n1 * n2)
+
+
 def assign_canonical_keys(
     records: list[RawProductSnapshot],
     *,
     max_price_ratio: float = 2.5,
+    tier3_similarity_threshold: float = 0.72,
+    tier3_max_price_ratio: float = 1.75,
 ) -> MatchSummary:
-    """Assign `canonical_product_key` in-place ONLY for multi-store matches (`>= 2` stores).
+    """Assign `canonical_product_key` in-place via a 3-tier hybrid matcher (`>= 2` stores).
 
-    For `category == "groceries"`, runs a strict 2-pass match:
-      Pass 1: Multi-store EAN/GTIN barcode match (`grocery_gtin_<digits>`).
-      Pass 2: Remaining unmatched groceries matched by strict
-              `brand + core_tokens + exact net_weight_g/net_volume_ml/pack_count`
-              so stores exposing EAN (e.g. HyperOne) still match stores without
-              EAN (e.g. Noon, Amazon.eg, Spinneys) when package sizes match exactly.
-
-    Applies a `max_price_ratio` sanity guard so mismatched accessory-vs-device
-    outliers are never linked together.
+    - Tier 1: Exact normalized model/MPN + brand match (now bilingual AR <-> EN)
+              plus 3-pass grocery matching (EAN -> size -> bilingual type).
+    - Tier 2: Spec-blocked structured match `(brand, family, spec_block, core_tokens)`
+              preventing mismatched storage/size/tonnage/capacity pairs.
+    - Tier 3: Lightweight local token/character-ngram vector cosine similarity
+              strictly within `(brand, family, spec_block)` with shared series
+              digit consistency and tight `tier3_max_price_ratio` cap.
     """
     for rec in records:
         rec.canonical_product_key = None
 
     buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     grocery_records: list[RawProductSnapshot] = []
+    core_records: list[RawProductSnapshot] = []
+
     for rec in records:
         if rec.category == "groceries":
             grocery_records.append(rec)
             continue
+        if rec.category in ("electronics", "home_appliances"):
+            core_records.append(rec)
         cand = compute_candidate_key(rec)
         if cand:
             buckets[cand].append(rec)
 
     matched_groups = 0
     matched_products = 0
+    tier1_groups = 0
+    tier2_groups = 0
+    tier3_groups = 0
+    grocery_groups = 0
     group_details: dict[str, list[tuple[str, float, str]]] = {}
 
-    def _commit_buckets(candidate_buckets: dict[str, list[RawProductSnapshot]]) -> set[int]:
-        nonlocal matched_groups, matched_products
+    def _commit_buckets(
+        candidate_buckets: dict[str, list[RawProductSnapshot]],
+        *,
+        price_ratio_cap: float = max_price_ratio,
+        tier_counter: str = "tier1",
+    ) -> set[int]:
+        nonlocal matched_groups, matched_products, tier1_groups, tier2_groups, tier3_groups, grocery_groups
         assigned_ids: set[int] = set()
         for key, group in sorted(candidate_buckets.items()):
             distinct_stores = {r.store_name for r in group}
@@ -825,7 +1087,7 @@ def assign_canonical_keys(
 
             prices = [float(r.current_price) for r in group]
             min_p, max_p = min(prices), max(prices)
-            if min_p <= 0 or (max_p / min_p) > max_price_ratio:
+            if min_p <= 0 or (max_p / min_p) > price_ratio_cap:
                 continue
 
             for rec in group:
@@ -834,24 +1096,131 @@ def assign_canonical_keys(
 
             matched_groups += 1
             matched_products += len(group)
+            if tier_counter == "tier1":
+                tier1_groups += 1
+            elif tier_counter == "tier2":
+                tier2_groups += 1
+            elif tier_counter == "tier3":
+                tier3_groups += 1
+            elif tier_counter == "grocery":
+                grocery_groups += 1
+
             group_details[key] = sorted(
                 [(r.store_name, float(r.current_price), r.product_title) for r in group],
                 key=lambda x: (x[1], x[0]),
             )
         return assigned_ids
 
-    # Core verticals (electronics, home_appliances)
-    _commit_buckets(buckets)
+    # ------------------------------------------------------------------
+    # TIER 1: Exact Model / MPN + Brand (core electronics & appliances)
+    # ------------------------------------------------------------------
+    matched_core_ids = _commit_buckets(buckets, tier_counter="tier1")
 
-    # Groceries Pass 1: Multi-store EAN/GTIN barcode matches
+    # ------------------------------------------------------------------
+    # TIER 2: Spec-Blocked Match (brand + family + strict spec_block + core tokens)
+    # ------------------------------------------------------------------
+    unmatched_core = [r for r in core_records if id(r) not in matched_core_ids]
+    spec_blocks: dict[tuple[str, str, str], list[tuple[RawProductSnapshot, list[str]]]] = defaultdict(list)
+    tier2_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+
+    for rec in unmatched_core:
+        brand = _canonical_brand(rec.brand, rec.product_title)
+        if not brand or brand == "unknown":
+            continue
+        family = _family_of(rec.sub_category)
+        norm_title = _strip_marketplace_noise(rec.product_title)
+        spec_sig = _extract_spec_block(rec, brand, family, norm_title)
+        if not spec_sig:
+            continue
+        core_toks = _core_tokens_for_matching(norm_title, brand)
+        if not core_toks:
+            continue
+        spec_blocks[(brand, family, spec_sig)].append((rec, core_toks))
+
+        # Tier-2 deterministic spec-blocked key (brand + family + spec + sorted top core tokens)
+        series_toks = sorted(t for t in core_toks if any(c.isdigit() for c in t))[:3]
+        word_toks = [t for t in core_toks if not any(c.isdigit() for c in t)][:2]
+        key_tokens = series_toks + word_toks if series_toks else core_toks[:3]
+        if key_tokens:
+            t2_key = normalize_snake_slug(
+                f"t2_{brand}_{family}_{spec_sig}_{'_'.join(sorted(key_tokens))}",
+                max_len=160,
+            )
+            tier2_buckets[t2_key].append(rec)
+
+    matched_t2_ids = _commit_buckets(
+        tier2_buckets,
+        price_ratio_cap=min(max_price_ratio, 2.2),
+        tier_counter="tier2",
+    )
+    matched_core_ids |= matched_t2_ids
+
+    # ------------------------------------------------------------------
+    # TIER 3: Lightweight Local Semantic / Token-Vector Similarity inside strict spec blocks
+    # ------------------------------------------------------------------
+    tier3_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    effective_t3_ratio = min(max_price_ratio, tier3_max_price_ratio)
+
+    for (brand, family, spec_sig), entries in sorted(spec_blocks.items()):
+        remaining = [(rec, toks) for rec, toks in entries if id(rec) not in matched_core_ids]
+        if len(remaining) < 2 or len({r.store_name for r, _ in remaining}) < 2:
+            continue
+
+        vectors = [_token_ngram_vector(toks) for _, toks in remaining]
+        series_sigs = [_series_number_signature(toks) for _, toks in remaining]
+        used = [False] * len(remaining)
+
+        for i in range(len(remaining)):
+            if used[i]:
+                continue
+            rec_i, toks_i = remaining[i]
+            cluster = [rec_i]
+            cluster_stores = {rec_i.store_name}
+            used[i] = True
+
+            for j in range(i + 1, len(remaining)):
+                if used[j]:
+                    continue
+                rec_j, _ = remaining[j]
+                if rec_j.store_name in cluster_stores:
+                    continue
+                # Strict series number consistency (e.g. A17 != A16, S24 != S23)
+                if series_sigs[i] and series_sigs[j] and not (series_sigs[i] & series_sigs[j]):
+                    continue
+                sim = _cosine_similarity(vectors[i], vectors[j])
+                if sim < tier3_similarity_threshold:
+                    continue
+                pi, pj = float(rec_i.current_price), float(rec_j.current_price)
+                if min(pi, pj) <= 0 or (max(pi, pj) / min(pi, pj)) > effective_t3_ratio:
+                    continue
+                cluster.append(rec_j)
+                cluster_stores.add(rec_j.store_name)
+                used[j] = True
+
+            if len(cluster_stores) >= 2:
+                anchor = "_".join(toks_i[:3]) or "sim"
+                t3_key = normalize_snake_slug(
+                    f"t3_{brand}_{family}_{spec_sig}_{anchor}",
+                    max_len=160,
+                )
+                tier3_buckets[t3_key].extend(cluster)
+
+    matched_core_ids |= _commit_buckets(
+        tier3_buckets,
+        price_ratio_cap=effective_t3_ratio,
+        tier_counter="tier3",
+    )
+
+    # ------------------------------------------------------------------
+    # Groceries 3-Pass Matcher (Barcode -> Exact Size -> Bilingual Type)
+    # ------------------------------------------------------------------
     barcode_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     for rec in grocery_records:
         bkey = compute_grocery_barcode_key(rec)
         if bkey:
             barcode_buckets[bkey].append(rec)
-    matched_grocery_ids = _commit_buckets(barcode_buckets)
+    matched_grocery_ids = _commit_buckets(barcode_buckets, tier_counter="grocery")
 
-    # Groceries Pass 2: Strict brand + core tokens + exact package size/pack_count
     size_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     for rec in grocery_records:
         if id(rec) in matched_grocery_ids:
@@ -859,13 +1228,8 @@ def assign_canonical_keys(
         skey = compute_grocery_size_key(rec)
         if skey:
             size_buckets[skey].append(rec)
-    matched_grocery_ids |= _commit_buckets(size_buckets)
+    matched_grocery_ids |= _commit_buckets(size_buckets, tier_counter="grocery")
 
-    # Groceries Pass 3: Bilingual AR <-> EN type matching. Arabic and English
-    # titles of the SAME product rarely share core tokens ("سمن بقرى" vs
-    # "Fern Ghee"), so this pass matches on canonical brand + bilingual type
-    # noun + exact package size + scent/flavor words. Strictness preserved:
-    # brand, type, size, pack count and flavors must all agree.
     type_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     for rec in grocery_records:
         if id(rec) in matched_grocery_ids:
@@ -873,10 +1237,14 @@ def assign_canonical_keys(
         tkey = compute_grocery_type_key(rec)
         if tkey:
             type_buckets[tkey].append(rec)
-    _commit_buckets(type_buckets)
+    _commit_buckets(type_buckets, tier_counter="grocery")
 
     return MatchSummary(
         matched_groups=matched_groups,
         matched_products=matched_products,
         group_details=group_details,
+        tier1_groups=tier1_groups,
+        tier2_groups=tier2_groups,
+        tier3_groups=tier3_groups,
+        grocery_groups=grocery_groups,
     )

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Link2, ScanSearch, Search, SearchX, X } from "lucide-react";
+import { ArrowLeftRight, Link2, ScanSearch, Search, SearchX, X } from "lucide-react";
 import type { SearchResponse } from "@/types/contract";
 import { fetchSearch } from "@/lib/api";
 import { useLanguage } from "@/lib/i18n";
-import { formatPrice } from "@/lib/format";
+import { formatNumber, formatPrice, cleanSearchQuery, normalizeArabicAggressive, hasArabicChars } from "@/lib/format";
+import { useCompareSummary } from "@/lib/useCompareSummary";
 import { FEATURED_LINK_STORES, STORE_META, storeDisplayName } from "@/lib/stores";
 import { ProductImage } from "./ProductImage";
 import { VerdictBadge } from "./VerdictBadge";
@@ -40,6 +41,8 @@ export function SearchBar({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const { summary: compareSummary } = useCompareSummary();
+  const storesByKey = compareSummary?.storesByKey;
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResponse | null>(null);
@@ -61,10 +64,33 @@ export function SearchBar({
     setOpen(true);
     setWasUrl(url !== null);
     try {
+      // Primary attempt: lightly cleaned query (spaces + diacritics), letters
+      // kept exactly as typed so ILIKE matches store titles verbatim.
+      const q = url ? undefined : cleanSearchQuery(trimmed);
       const { data } = await fetchSearch(
-        url ? { url, limit: 6 } : { q: trimmed, limit: 6 },
+        url ? { url, limit: 6 } : { q, limit: 6 },
         controller.signal,
       );
+
+      // Bilingual recall fallback: when the primary Arabic query finds nothing,
+      // retry once with aggressively normalized letters (أإآ→ا، ى→ي، ة→ه، ث→ت)
+      // — Egyptian stores spell the same product differently across listings.
+      const needsArabicRetry =
+        !url && data.total === 0 && hasArabicChars(trimmed);
+
+      if (needsArabicRetry && !controller.signal.aborted) {
+        const retry = await fetchSearch(
+          { q: normalizeArabicAggressive(trimmed), limit: 6 },
+          controller.signal,
+        ).catch(() => null);
+        if (retry && !controller.signal.aborted) {
+          setResults(retry.data);
+          setNotFound(retry.data.total === 0);
+          setLoading(false);
+          return;
+        }
+      }
+
       setResults(data);
       setNotFound(data.total === 0 || data.match_type === "url_not_found");
     } catch {
@@ -230,7 +256,11 @@ export function SearchBar({
                 )}
               </p>
               <ul className="divide-y divide-white/[0.05]">
-                {results.items.map((item) => (
+                {results.items.map((item) => {
+                  const matchStores = item.canonical_product_key
+                    ? storesByKey?.[item.canonical_product_key]
+                    : undefined;
+                  return (
                   <li key={item.product_sk}>
                     <button
                       type="button"
@@ -257,6 +287,12 @@ export function SearchBar({
                           <span className="num text-xs font-bold text-white">
                             {formatPrice(item.current_price, lang)}
                           </span>
+                          {matchStores && matchStores >= 2 ? (
+                            <span className="num inline-flex items-center gap-1 rounded-full border border-emerald-400/35 bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                              <ArrowLeftRight className="size-3 shrink-0" />
+                              {formatNumber(matchStores, lang)}
+                            </span>
+                          ) : null}
                         </span>
                       </span>
                       <span className="hidden shrink-0 sm:inline-flex">
@@ -264,7 +300,8 @@ export function SearchBar({
                       </span>
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </>
           )}

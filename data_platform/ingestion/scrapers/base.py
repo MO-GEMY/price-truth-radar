@@ -21,6 +21,7 @@ import random
 import re
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
@@ -862,8 +863,12 @@ CREATE TABLE IF NOT EXISTS raw.raw_product_snapshots (
     in_stock                BOOLEAN      NOT NULL,
     snapshot_date           DATE         NOT NULL,
     scraped_at              TIMESTAMP    NOT NULL,
+    last_seen_at            TIMESTAMPTZ  DEFAULT NOW(),
     PRIMARY KEY (store_name, external_id, snapshot_date)
 );
+
+ALTER TABLE raw.raw_product_snapshots
+    ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_raw_snapshots_date
     ON raw.raw_product_snapshots (snapshot_date);
@@ -885,7 +890,8 @@ INSERT INTO raw.raw_product_snapshots (
     claimed_original_price,
     in_stock,
     snapshot_date,
-    scraped_at
+    scraped_at,
+    last_seen_at
 ) VALUES %s
 ON CONFLICT (store_name, external_id, snapshot_date) DO UPDATE SET
     canonical_product_key  = EXCLUDED.canonical_product_key,
@@ -899,14 +905,136 @@ ON CONFLICT (store_name, external_id, snapshot_date) DO UPDATE SET
     current_price          = EXCLUDED.current_price,
     claimed_original_price = EXCLUDED.claimed_original_price,
     in_stock               = EXCLUDED.in_stock,
-    scraped_at             = EXCLUDED.scraped_at;
+    scraped_at             = EXCLUDED.scraped_at,
+    last_seen_at           = EXCLUDED.last_seen_at;
 """
+
+TOUCH_LAST_SEEN_SQL = """
+UPDATE raw.raw_product_snapshots AS t
+SET last_seen_at = v.last_seen_at
+FROM (VALUES %s) AS v(store_name, external_id, snapshot_date, last_seen_at)
+WHERE t.store_name = v.store_name
+  AND t.external_id = v.external_id
+  AND t.snapshot_date = v.snapshot_date;
+"""
+
+
+@dataclass
+class DeltaStats:
+    total_scraped: int
+    inserted_or_changed: int
+    skipped_unchanged: int
+    touched_last_seen: int
+
+    @property
+    def savings_pct(self) -> float:
+        if self.total_scraped <= 0:
+            return 0.0
+        return round((self.skipped_unchanged / self.total_scraped) * 100.0, 1)
+
+
+def _normalize_price_for_diff(val: Any) -> Optional[Decimal]:
+    if val is None:
+        return None
+    return Decimal(str(val)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def compute_delta_snapshots(
+    snapshots: list[RawProductSnapshot],
+    existing_latest: dict[tuple[str, str], tuple[Decimal, Optional[Decimal], bool, str, date]],
+) -> tuple[list[RawProductSnapshot], list[tuple[str, str, date, datetime]], DeltaStats]:
+    """Split incoming snapshots into changed/new rows vs unchanged rows (touch `last_seen_at` only).
+
+    A new row is inserted ONLY when `current_price`, `claimed_original_price`,
+    `in_stock`, or `product_title` changed relative to the latest stored snapshot
+    for `(store_name, external_id)` — typically eliminating 80-90% of redundant
+    daily Neon storage growth.
+    """
+    changed: list[RawProductSnapshot] = []
+    touch_rows: list[tuple[str, str, date, datetime]] = []
+
+    for snap in snapshots:
+        key = (snap.store_name, snap.external_id)
+        prev = existing_latest.get(key)
+        if prev is None:
+            changed.append(snap)
+            continue
+
+        prev_price, prev_claimed, prev_stock, prev_title, prev_date = prev
+        same_price = _normalize_price_for_diff(prev_price) == _normalize_price_for_diff(snap.current_price)
+        same_claimed = _normalize_price_for_diff(prev_claimed) == _normalize_price_for_diff(snap.claimed_original_price)
+        same_stock = bool(prev_stock) == bool(snap.in_stock)
+        same_title = (prev_title or "").strip() == (snap.product_title or "").strip()
+
+        if same_price and same_claimed and same_stock and same_title:
+            touch_rows.append((snap.store_name, snap.external_id, prev_date, snap.scraped_at))
+        else:
+            changed.append(snap)
+
+    stats = DeltaStats(
+        total_scraped=len(snapshots),
+        inserted_or_changed=len(changed),
+        skipped_unchanged=len(touch_rows),
+        touched_last_seen=len(touch_rows),
+    )
+    return changed, touch_rows, stats
+
+
+def _fetch_existing_latest_for_stores(
+    cur: Any,
+    stores: list[str],
+) -> dict[tuple[str, str], tuple[Decimal, Optional[Decimal], bool, str, date]]:
+    if not stores:
+        return {}
+    cur.execute(
+        """
+        SELECT DISTINCT ON (store_name, external_id)
+            store_name,
+            external_id,
+            current_price,
+            claimed_original_price,
+            in_stock,
+            product_title,
+            snapshot_date
+        FROM raw.raw_product_snapshots
+        WHERE store_name = ANY(%s)
+        ORDER BY store_name, external_id, snapshot_date DESC, scraped_at DESC;
+        """,
+        (stores,),
+    )
+    out: dict[tuple[str, str], tuple[Decimal, Optional[Decimal], bool, str, date]] = {}
+    for r in cur.fetchall():
+        out[(str(r[0]), str(r[1]))] = (r[2], r[3], bool(r[4]), str(r[5] or ""), r[6])
+    return out
+
+
+def preview_delta_savings(snapshots: list[RawProductSnapshot]) -> Optional[DeltaStats]:
+    """Read-only preview of Delta Snapshot Neon storage savings (zero DB writes)."""
+    if not snapshots:
+        return DeltaStats(0, 0, 0, 0)
+    db_url = os.getenv("DATABASE_URL_READONLY") or os.getenv("DATABASE_URL_ADMIN")
+    if not db_url:
+        return None
+    stores = sorted({s.store_name for s in snapshots})
+    try:
+        conn = psycopg2.connect(db_url)
+        try:
+            with conn.cursor() as cur:
+                existing = _fetch_existing_latest_for_stores(cur, stores)
+        finally:
+            conn.close()
+        _, _, stats = compute_delta_snapshots(snapshots, existing)
+        return stats
+    except Exception as exc:
+        logger.warning("Could not preview delta savings from Neon (%s).", exc)
+        return None
 
 
 def upsert_snapshots_to_neon(
     snapshots: list[RawProductSnapshot],
     *,
     max_attempts: int = 5,
+    delta_mode: bool = False,
 ) -> int:
     """Non-destructively upsert scraped snapshots into `raw.raw_product_snapshots`.
 
@@ -914,6 +1042,11 @@ def upsert_snapshots_to_neon(
     advisory lock, and exponential-backoff retries on transient deadlock /
     serialization errors (SQLSTATE 40P01 / 40001) so parallel CI matrix jobs
     can commit safely without lock collisions.
+
+    When `delta_mode=True`, skips inserting unchanged daily duplicate rows
+    (comparing `current_price`, `claimed_original_price`, `in_stock`, and
+    `product_title` against the latest stored snapshot) and only updates
+    `last_seen_at` on unchanged rows to save 80-90% Neon storage.
     """
     if not snapshots:
         return 0
@@ -922,12 +1055,10 @@ def upsert_snapshots_to_neon(
     if not db_url:
         raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
 
-    # Sort deterministically by ON CONFLICT (store_name, external_id, snapshot_date)
-    # to guarantee consistent row lock acquisition order.
-    rows = sorted(
-        (s.to_db_tuple() for s in snapshots),
-        key=lambda r: (r[0], r[1], r[13]),
-    )
+    def _to_upsert_tuple(s: RawProductSnapshot) -> tuple[Any, ...]:
+        base_tuple = s.to_db_tuple()
+        return (*base_tuple, s.scraped_at)
+
     conn = psycopg2.connect(db_url)
     try:
         for attempt in range(1, max_attempts + 1):
@@ -937,7 +1068,33 @@ def upsert_snapshots_to_neon(
                         "SELECT pg_advisory_xact_lock(hashtext('raw_product_snapshots_upsert'))"
                     )
                     cur.execute(DDL_SQL)
-                    execute_values(cur, UPSERT_SQL, rows, page_size=500)
+
+                    target_snapshots = snapshots
+                    touch_rows: list[tuple[str, str, date, datetime]] = []
+                    if delta_mode:
+                        stores = sorted({s.store_name for s in snapshots})
+                        existing = _fetch_existing_latest_for_stores(cur, stores)
+                        target_snapshots, touch_rows, dstats = compute_delta_snapshots(
+                            snapshots, existing
+                        )
+                        logger.info(
+                            "[delta] total=%d inserted/changed=%d skipped_unchanged=%d (storage_saved=%.1f%%)",
+                            dstats.total_scraped,
+                            dstats.inserted_or_changed,
+                            dstats.skipped_unchanged,
+                            dstats.savings_pct,
+                        )
+
+                    # Sort deterministically by ON CONFLICT (store_name, external_id, snapshot_date)
+                    rows = sorted(
+                        (_to_upsert_tuple(s) for s in target_snapshots),
+                        key=lambda r: (r[0], r[1], r[13]),
+                    )
+                    if rows:
+                        execute_values(cur, UPSERT_SQL, rows, page_size=500)
+                    if touch_rows:
+                        touch_rows.sort(key=lambda r: (r[0], r[1], r[2]))
+                        execute_values(cur, TOUCH_LAST_SEEN_SQL, touch_rows, page_size=500)
                 conn.commit()
                 return len(rows)
             except psycopg2.Error as exc:
@@ -955,20 +1112,20 @@ def upsert_snapshots_to_neon(
                     getattr(exc, "pgcode", None),
                     attempt,
                     max_attempts,
-                    len(rows),
+                    len(snapshots),
                     sleep_for,
                 )
                 time.sleep(sleep_for)
     finally:
         conn.close()
 
-    return len(rows)
+    return len(snapshots)
 
 
 def fetch_latest_snapshots_from_neon(
     target_date: Optional[date] = None,
 ) -> tuple[Optional[date], list[RawProductSnapshot]]:
-    """Load all rows from `raw.raw_product_snapshots` for `target_date` (or latest date)."""
+    """Load latest snapshot per `(store_name, external_id)` from Neon (Delta-Snapshot safe)."""
     db_url = os.getenv("DATABASE_URL_ADMIN")
     if not db_url:
         raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
@@ -981,60 +1138,89 @@ def fetch_latest_snapshots_from_neon(
                 row = cur.fetchone()
                 if not row or row[0] is None:
                     return None, []
-                target_date = row[0]
-
-            cur.execute(
-                """
-                SELECT
-                    store_name,
-                    external_id,
-                    canonical_product_key,
-                    category,
-                    sub_category,
-                    brand,
-                    product_title,
-                    product_url,
-                    image_url,
-                    attributes_json,
-                    current_price,
-                    claimed_original_price,
-                    in_stock,
-                    snapshot_date,
-                    scraped_at
-                FROM raw.raw_product_snapshots
-                WHERE snapshot_date = %s
-                ORDER BY store_name, external_id;
-                """,
-                (target_date,),
-            )
+                latest_date = row[0]
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (store_name, external_id)
+                        store_name,
+                        external_id,
+                        canonical_product_key,
+                        category,
+                        sub_category,
+                        brand,
+                        product_title,
+                        product_url,
+                        image_url,
+                        attributes_json,
+                        current_price,
+                        claimed_original_price,
+                        in_stock,
+                        snapshot_date,
+                        scraped_at
+                    FROM raw.raw_product_snapshots
+                    ORDER BY store_name, external_id, snapshot_date DESC, scraped_at DESC;
+                    """
+                )
+                target_date = latest_date
+            else:
+                cur.execute(
+                    """
+                    SELECT
+                        store_name,
+                        external_id,
+                        canonical_product_key,
+                        category,
+                        sub_category,
+                        brand,
+                        product_title,
+                        product_url,
+                        image_url,
+                        attributes_json,
+                        current_price,
+                        claimed_original_price,
+                        in_stock,
+                        snapshot_date,
+                        scraped_at
+                    FROM raw.raw_product_snapshots
+                    WHERE snapshot_date = %s
+                    ORDER BY store_name, external_id;
+                    """,
+                    (target_date,),
+                )
             fetched = cur.fetchall()
     finally:
         conn.close()
 
     snapshots: list[RawProductSnapshot] = []
+    skipped_legacy = 0
     for r in fetched:
         attrs = r[9] if isinstance(r[9], dict) else (json.loads(r[9]) if r[9] else {})
-        snapshots.append(
-            RawProductSnapshot.model_validate(
-                {
-                    "store_name": r[0],
-                    "external_id": r[1],
-                    "canonical_product_key": r[2],
-                    "category": r[3],
-                    "sub_category": r[4],
-                    "brand": r[5],
-                    "product_title": r[6],
-                    "product_url": r[7],
-                    "image_url": r[8],
-                    "attributes_json": attrs,
-                    "current_price": r[10],
-                    "claimed_original_price": r[11],
-                    "in_stock": r[12],
-                    "snapshot_date": r[13],
-                    "scraped_at": r[14],
-                }
+        try:
+            snapshots.append(
+                RawProductSnapshot.model_validate(
+                    {
+                        "store_name": r[0],
+                        "external_id": r[1],
+                        "canonical_product_key": r[2],
+                        "category": r[3],
+                        "sub_category": r[4],
+                        "brand": r[5],
+                        "product_title": r[6],
+                        "product_url": r[7],
+                        "image_url": r[8],
+                        "attributes_json": attrs,
+                        "current_price": r[10],
+                        "claimed_original_price": r[11],
+                        "in_stock": r[12],
+                        "snapshot_date": r[13],
+                        "scraped_at": r[14],
+                    }
+                )
             )
-        )
+        except Exception:
+            skipped_legacy += 1
+    if skipped_legacy:
+        logger.warning("Skipped %d legacy invalid rows when loading Neon snapshots.", skipped_legacy)
     return target_date, snapshots
 
 

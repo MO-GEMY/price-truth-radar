@@ -1,0 +1,159 @@
+name: Daily Stores Batch Matrix (Registry-Driven)
+
+on:
+  schedule:
+    # Off-peak daily batch run at 00:53 UTC (02:53 AM Cairo EET / 03:53 AM EEST)
+    - cron: '53 0 * * *'
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: "Optional batch name filter (e.g. 'core_1', 'groceries_1', 'fashion_1'; blank = all active cloud batches)"
+        required: false
+        default: ""
+        type: string
+      mode:
+        description: "Scrape mode"
+        required: false
+        default: "daily"
+        type: choice
+        options:
+          - daily
+          - discovery
+      delta_mode:
+        description: "Enable Delta Snapshots (skip unchanged rows to save 80-90% Neon storage)"
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: "Dry-run with Delta storage savings preview (no Neon writes)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  plan-batches:
+    name: Discover Cloud Batches from stores_registry.yaml
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      batches: ${{ steps.plan.outputs.batches }}
+      has_batches: ${{ steps.plan.outputs.has_batches }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Build cloud batch list
+        id: plan
+        env:
+          BATCH_FILTER: ${{ github.event.inputs.batch || '' }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import yaml
+
+          reg = yaml.safe_load(Path("data_platform/ingestion/stores_registry.yaml").read_text(encoding="utf-8"))
+          stores = reg.get("stores") or []
+          batches = sorted({
+              str(s["batch"]).strip()
+              for s in stores
+              if s.get("enabled") and s.get("region_mode") == "cloud" and s.get("batch")
+          })
+          raw_filter = os.environ.get("BATCH_FILTER", "").strip()
+          if raw_filter:
+              allowed = {b.strip() for b in raw_filter.split(",") if b.strip()}
+              batches = [b for b in batches if b in allowed]
+
+          print(f"Active cloud batches ({len(batches)}): {batches}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"batches={json.dumps(batches)}\n")
+              fh.write(f"has_batches={'true' if batches else 'false'}\n")
+          PY
+
+  scrape-batch:
+    name: Scrape Batch (${{ matrix.batch }})
+    runs-on: ubuntu-latest
+    needs: plan-batches
+    if: needs.plan-batches.outputs.has_batches == 'true'
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        batch: ${{ fromJson(needs.plan-batches.outputs.batches) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run batch scrapers (${{ matrix.batch }})
+        continue-on-error: true
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+          DATABASE_URL_READONLY: ${{ secrets.DATABASE_URL_READONLY }}
+          MODE_INPUT: ${{ github.event.inputs.mode || 'daily' }}
+          DELTA_INPUT: ${{ github.event.inputs.delta_mode || 'true' }}
+          DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          EXTRA_ARGS=""
+          if [ "$DELTA_INPUT" = "false" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --no-delta"
+          else
+            EXTRA_ARGS="$EXTRA_ARGS --delta"
+          fi
+          if [ "$DRY_RUN_INPUT" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --dry-run --delta-preview"
+          fi
+          python data_platform/ingestion/scrapers/run_scrapers.py \
+            --batch "${{ matrix.batch }}" \
+            --mode "$MODE_INPUT" \
+            $EXTRA_ARGS
+
+  match-and-dbt:
+    name: Hybrid Match & Run dbt
+    runs-on: ubuntu-latest
+    needs: [plan-batches, scrape-batch]
+    if: always() && needs.plan-batches.outputs.has_batches == 'true' && github.event.inputs.dry_run != 'true'
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run DB-level 3-tier hybrid cross-store matching
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --match-db
+
+      - name: Run dbt snapshot, models, and data tests
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: |
+          python data_platform/run_dbt.py snapshot
+          python data_platform/run_dbt.py run
+          python data_platform/run_dbt.py test

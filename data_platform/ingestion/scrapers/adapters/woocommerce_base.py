@@ -189,6 +189,58 @@ class WooCommerceBaseScraper(BaseScraper):
             }
         )
 
+    def _parse_wp_rest_item(
+        self,
+        item: dict[str, Any],
+        snapshot_date: Any,
+        scraped_at: datetime,
+    ) -> Optional[RawProductSnapshot]:
+        """Fallback parser for `/wp-json/wp/v2/product` when Store API is disabled."""
+        pid = item.get("id")
+        permalink = str(item.get("link") or "").strip()
+        title_obj = item.get("title")
+        raw_title = title_obj.get("rendered") if isinstance(title_obj, dict) else str(title_obj or "")
+        title = re.sub(r"\s+", " ", html_lib.unescape(str(raw_title or ""))).strip()
+        if not pid or not permalink.startswith("http") or len(title) < 3:
+            return None
+
+        content_obj = item.get("content")
+        excerpt_obj = item.get("excerpt")
+        text_blob = " ".join(
+            [
+                str(content_obj.get("rendered") or "") if isinstance(content_obj, dict) else "",
+                str(excerpt_obj.get("rendered") or "") if isinstance(excerpt_obj, dict) else "",
+            ]
+        )
+        m = re.search(r"(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)\s*(?:EGP|LE|ج\.م)", text_blob, re.I)
+        if not m:
+            return None
+        from ..base import parse_egp_price
+
+        current_price = parse_egp_price(m.group(1))
+        if current_price is None:
+            return None
+
+        return self.validate_record(
+            {
+                "store_name": self.store_name,
+                "external_id": str(pid)[:120],
+                "canonical_product_key": None,
+                "category": self.category,
+                "sub_category": "apparel" if self.category == "fashion" else "other",
+                "brand": self.default_brand or (title.split(" ", 1)[0][:100] if title else "Unknown"),
+                "product_title": title,
+                "product_url": permalink,
+                "image_url": None,
+                "attributes_json": {f"{self.store_name}_source": "wp_v2_fallback"},
+                "current_price": current_price,
+                "claimed_original_price": None,
+                "in_stock": True,
+                "snapshot_date": snapshot_date,
+                "scraped_at": scraped_at,
+            }
+        )
+
     def _run_fetch(self, fetcher: Any, target_limit: int) -> list[RawProductSnapshot]:
         snapshot_date = datetime.now(timezone.utc).date()
         scraped_at = utc_now_naive()
@@ -198,15 +250,21 @@ class WooCommerceBaseScraper(BaseScraper):
         endpoint = f"{self.base_url.rstrip('/')}{self.api_path}"
         req_per_page = min(self.per_page, max(10, target_limit))
         max_pages = max(1, math.ceil(target_limit / req_per_page) + 2)
+        use_wp_fallback = False
 
         for page in range(1, max_pages + 1):
             if len(collected) >= target_limit:
                 break
-            logger.info("[%s] Fetching WooCommerce Store API page %d (%s)", self.store_name, page, endpoint)
+            active_endpoint = (
+                f"{self.base_url.rstrip('/')}/wp-json/wp/v2/product"
+                if use_wp_fallback
+                else endpoint
+            )
+            logger.info("[%s] Fetching WooCommerce API page %d (%s)", self.store_name, page, active_endpoint)
             try:
                 if self.use_impersonation:
                     resp = fetcher.get(
-                        endpoint,
+                        active_endpoint,
                         params={"per_page": req_per_page, "page": page},
                         min_delay_seconds=effective_delay,
                         timeout=self.request_timeout,
@@ -214,7 +272,7 @@ class WooCommerceBaseScraper(BaseScraper):
                     )
                 else:
                     resp = fetcher.get(
-                        endpoint,
+                        active_endpoint,
                         params={"per_page": req_per_page, "page": page},
                         min_delay_seconds=effective_delay,
                         timeout=self.request_timeout,
@@ -224,8 +282,23 @@ class WooCommerceBaseScraper(BaseScraper):
                 logger.warning("[%s] WAF/throttle block on page %d (%s); exiting gracefully.", self.store_name, page, exc)
                 break
             except Exception as exc:
-                logger.warning("[%s] WooCommerce error on page %d: %s", self.store_name, page, exc)
-                break
+                if page == 1 and not use_wp_fallback:
+                    logger.info("[%s] Store API unavailable (%s); trying /wp-json/wp/v2/product fallback.", self.store_name, exc)
+                    use_wp_fallback = True
+                    try:
+                        resp = fetcher.get(
+                            f"{self.base_url.rstrip('/')}/wp-json/wp/v2/product",
+                            params={"per_page": req_per_page, "page": 1},
+                            min_delay_seconds=effective_delay,
+                            timeout=self.request_timeout,
+                        )
+                        payload = resp.json()
+                    except Exception as fb_exc:
+                        logger.warning("[%s] WooCommerce fallback also failed: %s", self.store_name, fb_exc)
+                        break
+                else:
+                    logger.warning("[%s] WooCommerce error on page %d: %s", self.store_name, page, exc)
+                    break
 
             self.pages_fetched += 1
             if not isinstance(payload, list) or not payload:
@@ -235,7 +308,11 @@ class WooCommerceBaseScraper(BaseScraper):
             for raw in payload:
                 if not isinstance(raw, dict):
                     continue
-                rec = self._parse_item(raw, snapshot_date, scraped_at)
+                rec = (
+                    self._parse_wp_rest_item(raw, snapshot_date, scraped_at)
+                    if use_wp_fallback
+                    else self._parse_item(raw, snapshot_date, scraped_at)
+                )
                 if rec is not None and rec.external_id not in seen_ids:
                     page_records.append(rec)
 

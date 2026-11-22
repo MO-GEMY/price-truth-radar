@@ -172,5 +172,6 @@ SELECT
     scarcity_flag::BOOLEAN AS scarcity_flag,
     in_stock::BOOLEAN AS in_stock,
     last_updated_at::TIMESTAMP AS last_updated_at,
-    unit_price_egp::NUMERIC(12,2) AS unit_price_egp
+    unit_price_egp::NUMERIC(12,2) AS unit_price_egp,
+    {{ bilingual_search_document('product_title', 'brand', 'category', 'sub_category', 'store_name', 'canonical_product_key') }}::TEXT AS search_document
 FROM metrics

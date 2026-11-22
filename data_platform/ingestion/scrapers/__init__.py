@@ -11,15 +11,18 @@ from .amazon_eg import AmazonEgScraper
 from .base import (
     BaseScraper,
     Category,
+    DeltaStats,
     ImpersonatedHttpClient,
     PoliteHttpClient,
     RawProductSnapshot,
     ScrapeMode,
     ScrapeVertical,
     ThrottledResponseError,
+    compute_delta_snapshots,
     fetch_latest_snapshots_from_neon,
     fetch_tracked_store_ids_from_neon,
     parse_egp_price,
+    preview_delta_savings,
     update_canonical_keys_in_neon,
     upsert_snapshots_to_neon,
 )
@@ -58,6 +61,13 @@ from .platform_stores import (
 )
 from .raneen import RaneenScraper
 from .rayashop import RayaShopScraper
+from .registry_loader import (
+    StoreRegistryEntry,
+    get_batch_targets,
+    get_registry_scraper_classes,
+    list_active_batches,
+    load_stores_registry,
+)
 from .seoudi import SeoudiScraper
 from .shopify import DalydressScraper, DejavuScraper, ShopifyScraper, TownTeamScraper
 from .sigma import SigmaScraper
@@ -80,6 +90,9 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     TwoBScraper.store_name: TwoBScraper,
     **{cls.store_name: cls for cls in PLATFORM_SCRAPER_CLASSES},
 }
+
+# Dynamically register any enabled platform stores declared in `stores_registry.yaml`
+SCRAPER_REGISTRY.update(get_registry_scraper_classes(SCRAPER_REGISTRY))
 
 __all__ = [
     "AbuAufScraper",
