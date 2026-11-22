@@ -40,6 +40,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Continue"
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 
 $FallbackStores = @("egyptlaptop", "dubaiphone", "elaraby", "dalydress")
 $FashionOnlyStores = @("town_team", "dejavu", "dalydress", "activ", "carina", "khotwh", "concrete", "mobaco")

@@ -125,7 +125,16 @@ export function KpiBar({
             </span>
           </div>
           <p className="num mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            {t("kpi.storesValue", { count: formatNumber(storesCount, lang) })}
+            {t(
+              lang === "ar"
+                ? storesCount >= 3 && storesCount <= 10
+                  ? "kpi.storesValue"
+                  : "kpi.storesValueSingular"
+                : storesCount === 1
+                  ? "kpi.storesValueSingular"
+                  : "kpi.storesValue",
+              { count: formatNumber(storesCount, lang) },
+            )}
           </p>
           <p className="mt-1.5 text-[11px] text-slate-500">{t("kpi.storesHint")}</p>
         </div>
