@@ -43,15 +43,67 @@ _SIZE_OPTION_NAMES = {"size", "sizes", "shoe size", "uk", "eu", "us", "المق�
 _EAN_RE = re.compile(r"^\d{8}(?:\d{4,6})?$")
 
 _FASHION_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("sneaker", "trainer", "running", "loafers", "loafer", "boot", "sandal", "slipper", "mule", "heel", "flat", "shoe", "footwear"), "footwear"),
-    (("bag", "handbag", "backpack", "tote", "crossbody", "clutch", "wallet", "belt", "cap", "hat", "scarf", "sock", "tie", "cravat", "accessory", "accessories"), "accessories"),
+    (("sunglass", "eyewear", "glasses", "optical", "نظارة", "نظاره", "عدس"), "eyewear"),
+    (("watch", "ring", "bracelet", "necklace", "earring", "pendant", "jewelry", "jewellery", "ساعة", "خاتم"), "watches_jewelry"),
+    (("sneaker", "trainer", "running", "loafers", "loafer", "boot", "sandal", "slipper", "mule", "heel", "flat", "clog", "shoe", "footwear"), "footwear"),
+    (("bag", "handbag", "backpack", "tote", "crossbody", "clutch", "wallet", "duffle", "luggage", "belt", "cap", "hat", "scarf", "sock", "tie", "cravat", "accessory", "accessories"), "accessories"),
     (("dress", "abaya", "kaftan", "jumpsuit", "skirt", "gown"), "dresses"),
     (("jacket", "coat", "blazer", "vest", "gilet", "trench", "puffer", "bomber", "suit", "overcoat"), "jackets"),
-    (("hoodie", "sweatshirt", "pullover", "cardigan", "sweater", "knit", "turtleneck"), "knitwear"),
+    (("hoodie", "sweatshirt", "pullover", "cardigan", "sweater", "knit", "turtleneck", "crewneck"), "knitwear"),
     (("jean", "denim", "trouser", "pant", "chino", "jogger", "short", "legging", "cargo", "sweatpant"), "pants"),
     (("polo",), "polos"),
     (("t-shirt", "tshirt", "tee"), "tees"),
     (("shirt", "blouse", "top", "tunic", "chemise"), "shirts"),
+)
+
+_BEAUTY_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("perfume", "parfum", "eau de", "cologne", "fragrance", "body mist", "body splash", "oud", "musk", "عطر", "برفيوم"), "perfumes"),
+    (("shampoo", "conditioner", "hair", "scalp", "henna", "keratin", "curl", "شعر", "شامبو"), "haircare"),
+    (("lipstick", "lip glaze", "lip gloss", "mascara", "blush", "foundation", "concealer", "eyeliner", "powder", "makeup", "palette", "مكياج"), "makeup"),
+    (("sunscreen", "sunblock", "spf", "sun shield", "واقي شمس"), "sunscreen"),
+    (("cleanser", "face wash", "serum", "moisturizer", "toner", "retinol", "acne", "cream", "gel", "mask", "scrub", "skin", "غسول", "بشرة", "بشره"), "skincare"),
+    (("body wash", "body butter", "lotion", "deodorant", "soap", "shower", "body care", "جسم"), "body_care"),
+)
+
+_HOME_FURNITURE_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("mattress", "مرتبة", "مرتبه", "سوست"), "mattresses"),
+    (("sheet", "pillow", "duvet", "bedspread", "comforter", "towel", "linen", "bedding", "ملاية", "ملايه", "مخدة", "لحاف", "فوط"), "bedding_linens"),
+    (("cookware", "pot", "pan", "frying", "granite", "stainless", "kitchen", "kettle", "حلة", "طقم حلل", "مقلاة", "طاسة"), "cookware"),
+    (("sofa", "couch", "sectional", "l-shape", "كنبة", "انتريه", "ركنة"), "sofas"),
+    (("bed", "bedroom", "wardrobe", "سرير", "غرفة نوم", "نوم", "دولاب"), "beds"),
+    (("table", "desk", "dining", "coffee table", "ترابيزة", "مكتب", "سفرة"), "tables"),
+    (("chair", "stool", "bean bag", "pouf", "كرسي", "بين باج"), "chairs"),
+    (("lamp", "light", "chandelier", "اضاءة", "إضاءة", "نجفة"), "lighting"),
+    (("rug", "carpet", "curtain", "cushion", "mirror", "vase", "decor", "سجادة", "ستارة"), "home_decor"),
+)
+
+_HEALTH_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("protein", "whey", "creatine", "bcaa", "pre-workout", "preworkout", "mass gainer", "amino", "بروتين", "كرياتين"), "sports_nutrition"),
+    (("vitamin", "magnesium", "zinc", "omega", "ashwagandha", "collagen", "probiotic", "multivitamin", "iron", "calcium", "فيتامين"), "vitamins"),
+    (("supplement", "capsule", "tablet", "bundle", "fat burner", "مكمل"), "supplements"),
+    (("pharmacy", "medical", "cream", "gel", "wash", "drop", "spray", "صيدلية"), "pharmacy"),
+)
+
+_SPORTS_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("treadmill", "bike", "elliptical", "dumbbell", "barbell", "weight", "bench", "pull up", "kettlebell", "gym", "مشاية", "عجلة", "دامبل"), "fitness_equipment"),
+    (("boxing", "punching", "mma", "gloves", "ملاكمة"), "combat_sports"),
+    (("shoe", "sneaker", "running", "cleat", "boot", "حذاء"), "sports_shoes"),
+    (("short", "shirt", "jersey", "legging", "hoodie", "sock", "tracksuit", "top", "tight", "jacket"), "sportswear"),
+)
+
+_PET_CARE_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("litter", "رمل"), "cat_litter"),
+    (("cat", "kitten", "feline", "قطط", "قط"), "cat_food"),
+    (("dog", "puppy", "canine", "كلاب", "كلب"), "dog_food"),
+    (("treat", "snack", "biscuit", "مكافآت"), "pet_treats"),
+    (("shampoo", "brush", "groom", "collar", "leash", "bowl", "bed", "toy", "carrier"), "pet_accessories"),
+)
+
+_BABY_KIDS_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("puzzle", "toy", "lego", "doll", "game", "plush", "rc", "car", "لعبة", "العاب", "ألعاب"), "toys"),
+    (("stroller", "car seat", "crib", "cot", "high chair", "walker", "swaddle", "blanket", "عربية اطفال"), "baby_gear"),
+    (("desk", "bed", "bunk", "room", "furniture", "kids bundle"), "kids_furniture"),
+    (("romper", "onesie", "dress", "shirt", "pants", "jacket", "shoe", "outfit", "cotton"), "kids_clothing"),
 )
 
 _ELECTRONICS_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
@@ -154,11 +206,21 @@ class ShopifyBaseScraper(BaseScraper):
         if cat == "groceries":
             return refine_grocery_sub_category(f"{title} {product_type}", default_sub or "canned_sauces")
         hay = f"{product_type} {title}".lower()
-        if cat == "fashion":
-            for kws, mapped in _FASHION_SUBCAT_KEYWORDS:
+        table_map: dict[str, tuple[tuple[tuple[tuple[str, ...], str], ...], str]] = {
+            "fashion": (_FASHION_SUBCAT_KEYWORDS, "apparel"),
+            "beauty": (_BEAUTY_SUBCAT_KEYWORDS, "beauty"),
+            "home_furniture": (_HOME_FURNITURE_SUBCAT_KEYWORDS, "furniture"),
+            "health": (_HEALTH_SUBCAT_KEYWORDS, "wellness"),
+            "sports": (_SPORTS_SUBCAT_KEYWORDS, "sports_gear"),
+            "pet_care": (_PET_CARE_SUBCAT_KEYWORDS, "pet_supplies"),
+            "baby_kids": (_BABY_KIDS_SUBCAT_KEYWORDS, "kids"),
+        }
+        if cat in table_map:
+            rules, fallback = table_map[cat]
+            for kws, mapped in rules:
                 if any(k in hay for k in kws):
                     return mapped
-            return default_sub or (normalize_snake_slug(product_type, fallback="apparel", max_len=60) if product_type else "apparel")
+            return default_sub or (normalize_snake_slug(product_type, fallback=fallback, max_len=60) if product_type else fallback)
         for kws, mapped in _ELECTRONICS_SUBCAT_KEYWORDS:
             if any(k in hay for k in kws):
                 return mapped
@@ -182,12 +244,15 @@ class ShopifyBaseScraper(BaseScraper):
         if not variants:
             return None
 
-        avail_prices: list[Decimal] = []
-        all_prices: list[Decimal] = []
-        compare_prices: list[Decimal] = []
+        # Strict single-variant pairing: pick ONE representative variant (prefer the first
+        # in-stock variant with a valid EGP price; fallback to the first valid variant if all
+        # are OOS) and extract BOTH current_price AND compare_at_price from THAT SAME variant.
+        # Never mix min(price) across variants with max(compare_at_price) from a larger variant.
+        selected_variant: Optional[dict[str, Any]] = None
+        selected_price: Optional[Decimal] = None
+        fallback_variant: Optional[dict[str, Any]] = None
+        fallback_price: Optional[Decimal] = None
         any_available = False
-        first_sku = ""
-        first_barcode = ""
 
         for v in variants:
             if not isinstance(v, dict):
@@ -195,27 +260,48 @@ class ShopifyBaseScraper(BaseScraper):
             p = parse_egp_price(v.get("price"))
             if p is None:
                 continue
-            all_prices.append(p)
-            if bool(v.get("available")):
+            is_avail = bool(v.get("available"))
+            if is_avail:
                 any_available = True
-                avail_prices.append(p)
-            cp = parse_egp_price(v.get("compare_at_price"))
-            if cp is not None and cp > p:
-                compare_prices.append(cp)
-            if not first_sku and v.get("sku"):
-                first_sku = str(v["sku"]).strip()
-            if not first_barcode and v.get("barcode"):
-                cand_bc = re.sub(r"\D", "", str(v["barcode"]).strip())
-                if _EAN_RE.match(cand_bc):
-                    first_barcode = cand_bc
+                if selected_variant is None:
+                    selected_variant = v
+                    selected_price = p
+            if fallback_variant is None:
+                fallback_variant = v
+                fallback_price = p
 
-        if not all_prices:
+        if selected_variant is None:
+            selected_variant = fallback_variant
+            selected_price = fallback_price
+
+        if selected_variant is None or selected_price is None:
             return None
 
-        current_price = min(avail_prices) if avail_prices else min(all_prices)
+        current_price = selected_price
+        raw_compare = parse_egp_price(selected_variant.get("compare_at_price"))
         claimed_original = (
-            max(compare_prices) if (compare_prices and max(compare_prices) > current_price) else None
+            raw_compare
+            if (raw_compare is not None and raw_compare > current_price)
+            else None
         )
+
+        first_sku = str(selected_variant.get("sku") or "").strip()
+        first_barcode = ""
+        raw_bc = str(selected_variant.get("barcode") or "").strip()
+        if raw_bc:
+            cand_bc = re.sub(r"\D", "", raw_bc)
+            if _EAN_RE.match(cand_bc):
+                first_barcode = cand_bc
+        if not first_sku or not first_barcode:
+            for v in variants:
+                if not isinstance(v, dict):
+                    continue
+                if not first_sku and v.get("sku"):
+                    first_sku = str(v["sku"]).strip()
+                if not first_barcode and v.get("barcode"):
+                    cand_bc = re.sub(r"\D", "", str(v["barcode"]).strip())
+                    if _EAN_RE.match(cand_bc):
+                        first_barcode = cand_bc
 
         image_url: Optional[str] = None
         images = raw.get("images")

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, BellRing, ExternalLink } from "lucide-react";
 import type { ProductDetailResponse } from "@/types/contract";
 import { ApiError, fetchProductDetail, type ApiResult } from "@/lib/api";
-import { productHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
+import { categoryLabelKey, productHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
 import { formatDateTime, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { isStaleObservation, observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
@@ -89,6 +89,9 @@ export function ProductReceipt({ productSk, initial }: {
         <div className="min-w-0">
           <div className="ptr-controls text-sm ptr-muted">
             <StoreBadge name={product.store_name} size="sm" />
+            {categoryLabelKey(product.category) && (
+              <span className="ptr-badge">{t(categoryLabelKey(product.category)!)}</span>
+            )}
             <span>{formatSubCategory(product.sub_category, lang)}</span>
           </div>
           <h1><bdi>{product.product_title}</bdi></h1>

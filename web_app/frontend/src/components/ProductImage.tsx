@@ -4,26 +4,37 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Baby,
+  BedDouble,
   Coffee,
   CookingPot,
   CupSoda,
   Droplets,
+  Dumbbell,
   Fan,
   Footprints,
   Gamepad2,
+  Glasses,
   Headphones,
+  HeartPulse,
   Home,
   Laptop,
   Microwave,
   Monitor,
   Milk,
   PackageOpen,
+  PawPrint,
+  Pill,
+  Puzzle,
   Refrigerator,
   ShoppingBasket,
   Shirt,
   Smartphone,
+  Sofa,
+  Sparkles,
   SprayCan,
   Tv,
+  Watch,
   Wheat,
   Wind,
   type LucideIcon,
@@ -60,6 +71,8 @@ const SUBCATEGORY_ICON: Record<string, LucideIcon> = {
   sneakers: Footprints,
   shoes: Footprints,
   footwear: Footprints,
+  eyewear: Glasses,
+  watches_jewelry: Watch,
   oils_ghee: Droplets,
   rice_pasta: Wheat,
   dairy_cheese: Milk,
@@ -67,6 +80,55 @@ const SUBCATEGORY_ICON: Record<string, LucideIcon> = {
   canned_sauces: CookingPot,
   beverages: CupSoda,
   detergents: SprayCan,
+  perfumes: Sparkles,
+  skincare: Sparkles,
+  haircare: Sparkles,
+  makeup: Sparkles,
+  sunscreen: Sparkles,
+  body_care: Sparkles,
+  beauty: Sparkles,
+  mattresses: BedDouble,
+  bedding_linens: BedDouble,
+  beds: BedDouble,
+  cookware: CookingPot,
+  kitchenware: CookingPot,
+  sofas: Sofa,
+  furniture: Sofa,
+  tables: Sofa,
+  chairs: Sofa,
+  sports_nutrition: Pill,
+  vitamins: Pill,
+  supplements: Pill,
+  pharmacy: HeartPulse,
+  wellness: HeartPulse,
+  fitness_equipment: Dumbbell,
+  combat_sports: Dumbbell,
+  sports_gear: Dumbbell,
+  sportswear: Dumbbell,
+  cat_food: PawPrint,
+  dog_food: PawPrint,
+  cat_litter: PawPrint,
+  pet_treats: PawPrint,
+  pet_accessories: PawPrint,
+  pet_supplies: PawPrint,
+  toys: Puzzle,
+  baby_gear: Baby,
+  kids_furniture: Baby,
+  kids_clothing: Baby,
+  kids: Baby,
+};
+
+const CATEGORY_ICON: Record<Category, LucideIcon> = {
+  electronics: Laptop,
+  home_appliances: Home,
+  home_furniture: Sofa,
+  fashion: Shirt,
+  beauty: Sparkles,
+  groceries: ShoppingBasket,
+  health: HeartPulse,
+  sports: Dumbbell,
+  pet_care: PawPrint,
+  baby_kids: Baby,
 };
 
 function isUsableImageUrl(url: string | null | undefined): url is string {
@@ -132,13 +194,7 @@ export function ProductImage({
 
   const FallbackIcon =
     (subCategory ? SUBCATEGORY_ICON[subCategory.toLowerCase()] : undefined) ??
-    (category === "electronics"
-      ? Laptop
-      : category === "home_appliances"
-        ? Home
-        : category === "groceries"
-          ? ShoppingBasket
-          : Shirt) ??
+    CATEGORY_ICON[category] ??
     PackageOpen;
 
   const isFailed = status === "error" || !validUrl;

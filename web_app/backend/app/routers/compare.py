@@ -10,7 +10,7 @@ from sqlalchemy.engine import Connection
 
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
-from app.schemas import CompareResponse, CrossStoreMatchItem
+from app.schemas import CategoryFilter, CompareResponse, CrossStoreMatchItem
 
 router = APIRouter(tags=["compare"])
 
@@ -19,7 +19,7 @@ router = APIRouter(tags=["compare"])
 @router.get("/api/compare", response_model=CompareResponse, include_in_schema=True)
 def get_cross_store_comparison(
     response: Response,
-    category: Literal["all", "electronics", "fashion", "home_appliances", "groceries"] = Query(default="all"),
+    category: CategoryFilter = Query(default="all"),
     min_spread_pct: float = Query(default=0.0, ge=0.0),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=50),

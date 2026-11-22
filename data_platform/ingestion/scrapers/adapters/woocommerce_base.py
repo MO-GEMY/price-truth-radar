@@ -81,6 +81,122 @@ def _parse_wc_minor_price(raw_val: Any, minor_unit: int) -> Optional[Decimal]:
     return val
 
 
+def _extract_wc_paired_prices(item: dict[str, Any]) -> tuple[Optional[Decimal], Optional[Decimal]]:
+    """Extract (current_price, claimed_original_price) without cross-variant mixing.
+
+    For WooCommerce variable products whose `price_range` spans multiple price tiers
+    (`max_amount > min_amount`), WooCommerce's top-level `prices.price` and
+    `prices.regular_price` can come from different variations (e.g. smallest pack vs.
+    largest pack). In that case, prefer an embedded single-variation price object if
+    present; otherwise set `claimed_original_price = None`.
+    """
+    prices = item.get("prices") if isinstance(item.get("prices"), dict) else {}
+    raw_minor = prices.get("currency_minor_unit")
+    minor_unit = int(raw_minor) if raw_minor is not None else 2
+
+    # If a Store API response embeds per-variation price dicts, pair strictly from ONE variation
+    variations = item.get("variations")
+    if isinstance(variations, list):
+        priced_vars = [
+            v for v in variations
+            if isinstance(v, dict) and isinstance(v.get("prices"), dict) and v["prices"].get("price") is not None
+        ]
+        if priced_vars:
+            chosen = next(
+                (v for v in priced_vars if v.get("is_in_stock", True) is not False),
+                priced_vars[0],
+            )
+            vp = chosen["prices"]
+            v_minor = int(vp["currency_minor_unit"]) if vp.get("currency_minor_unit") is not None else minor_unit
+            cur = _parse_wc_minor_price(vp.get("price"), v_minor)
+            if cur is None:
+                return None, None
+            reg = _parse_wc_minor_price(vp.get("regular_price"), v_minor)
+            on_sale = chosen.get("on_sale")
+            claimed = reg if (reg is not None and reg > cur and on_sale is not False) else None
+            return cur, claimed
+
+    current_price = _parse_wc_minor_price(prices.get("price"), minor_unit)
+    if current_price is None:
+        return None, None
+
+    regular_price = _parse_wc_minor_price(prices.get("regular_price"), minor_unit)
+    sale_price = _parse_wc_minor_price(prices.get("sale_price"), minor_unit)
+
+    price_range = prices.get("price_range")
+    has_price_range_spread = False
+    if isinstance(price_range, dict):
+        min_amt = _parse_wc_minor_price(price_range.get("min_amount"), minor_unit)
+        max_amt = _parse_wc_minor_price(price_range.get("max_amount"), minor_unit)
+        if min_amt is not None and max_amt is not None and max_amt > min_amt:
+            has_price_range_spread = True
+
+    item_type = str(item.get("type") or "").strip().lower()
+    on_sale = item.get("on_sale")
+
+    # Never mix cross-variant price ranges into a strikethrough discount
+    if has_price_range_spread:
+        return current_price, None
+
+    if on_sale is False:
+        return current_price, None
+
+    if item_type == "variable" and sale_price is not None and sale_price != current_price:
+        return current_price, None
+
+    claimed_original = (
+        regular_price
+        if (regular_price is not None and regular_price > current_price)
+        else None
+    )
+    return current_price, claimed_original
+
+
+def _infer_wc_sub_category(cat: Category, title: str, cat_names: list[str]) -> str:
+    if cat == "groceries":
+        return refine_grocery_sub_category(f"{title} {' '.join(cat_names)}", "canned_sauces")
+    if cat == "fashion":
+        return _infer_fashion_sub_category(title, cat_names)
+    low = f"{title} {' '.join(cat_names)}".lower()
+    if cat == "pet_care":
+        if any(k in low for k in ("litter", "رمل")):
+            return "cat_litter"
+        if any(k in low for k in ("cat", "kitten", "قطط", "قط")):
+            return "cat_food"
+        if any(k in low for k in ("dog", "puppy", "كلاب", "كلب")):
+            return "dog_food"
+        return "pet_supplies"
+    if cat == "beauty":
+        if any(k in low for k in ("perfume", "parfum", "fragrance", "oud", "عطر")):
+            return "perfumes"
+        if any(k in low for k in ("hair", "shampoo", "conditioner", "شعر")):
+            return "haircare"
+        if any(k in low for k in ("makeup", "lipstick", "blush", "mascara")):
+            return "makeup"
+        return "skincare"
+    if cat == "home_furniture":
+        if any(k in low for k in ("mattress", "مرتبة", "مرتبه", "سوست")):
+            return "mattresses"
+        if any(k in low for k in ("pot", "pan", "cookware", "granite", "stainless", "حلة")):
+            return "cookware"
+        if any(k in low for k in ("sheet", "pillow", "duvet", "linen", "bedding")):
+            return "bedding_linens"
+        return normalize_snake_slug(cat_names[0], fallback="furniture", max_len=60) if cat_names else "furniture"
+    if cat == "health":
+        if any(k in low for k in ("protein", "whey", "creatine", "bcaa", "pre-workout")):
+            return "sports_nutrition"
+        if any(k in low for k in ("vitamin", "omega", "magnesium", "probiotic", "zinc")):
+            return "vitamins"
+        return "supplements"
+    if cat == "baby_kids":
+        if any(k in low for k in ("puzzle", "toy", "game", "lego", "doll", "لعبة")):
+            return "toys"
+        return "kids"
+    if cat == "sports":
+        return "sports_gear"
+    return normalize_snake_slug(cat_names[0], fallback="other", max_len=60) if cat_names else "other"
+
+
 class WooCommerceBaseScraper(BaseScraper):
     """Config-driven WooCommerce Store API (`/wp-json/wc/store/v1/products`) scraper."""
 
@@ -113,16 +229,9 @@ class WooCommerceBaseScraper(BaseScraper):
         if not pid or not permalink.startswith("http") or len(title) < 3:
             return None
 
-        prices = item.get("prices") if isinstance(item.get("prices"), dict) else {}
-        raw_minor = prices.get("currency_minor_unit")
-        minor_unit = int(raw_minor) if raw_minor is not None else 2
-        current_price = _parse_wc_minor_price(prices.get("price"), minor_unit)
+        current_price, claimed_original = _extract_wc_paired_prices(item)
         if current_price is None:
             return None
-        regular_price = _parse_wc_minor_price(prices.get("regular_price"), minor_unit)
-        claimed_original = (
-            regular_price if (regular_price is not None and regular_price > current_price) else None
-        )
 
         image_url: Optional[str] = None
         images = item.get("images")
@@ -150,13 +259,9 @@ class WooCommerceBaseScraper(BaseScraper):
         cat = self.category
         if cat == "groceries":
             brand = self.default_brand if self.override_brand and self.default_brand else extract_grocery_brand(title, raw_brand or self.default_brand)
-            sub_category = refine_grocery_sub_category(f"{title} {' '.join(cat_names)}", "canned_sauces")
-        elif cat == "fashion":
-            brand = (self.default_brand if self.override_brand else None) or raw_brand or self.default_brand or (title.split(" ", 1)[0][:100] if title else "Unknown")
-            sub_category = _infer_fashion_sub_category(title, cat_names)
         else:
             brand = (self.default_brand if self.override_brand else None) or raw_brand or self.default_brand or (title.split(" ", 1)[0][:100] if title else "Unknown")
-            sub_category = normalize_snake_slug(cat_names[0], fallback="other", max_len=60) if cat_names else "other"
+        sub_category = _infer_wc_sub_category(cat, title, cat_names)
 
         attrs: dict[str, Any] = {}
         if cat_names:

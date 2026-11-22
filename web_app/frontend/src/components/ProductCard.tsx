@@ -5,8 +5,8 @@ import Link from "next/link";
 import { ArrowUpRight, BellRing } from "lucide-react";
 import type { Product } from "@/types/contract";
 import type { DataSource } from "@/lib/api";
-import { productHref } from "@/lib/browse-state";
-import { formatPackSize, formatPctPlain, formatPrice, formatUnitPrice } from "@/lib/format";
+import { categoryLabelKey, productHref } from "@/lib/browse-state";
+import { formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { PriceAlertModal } from "./PriceAlertModal";
 import { ProductImage } from "./ProductImage";
@@ -19,6 +19,10 @@ export function ProductCard({ product, from, source }: { product: Product; from:
   const live = source === "api";
   const unit = formatUnitPrice(product, lang);
   const pack = formatPackSize(product.attributes_json);
+  const catKey = categoryLabelKey(product.category);
+  const subLabel = product.sub_category && product.sub_category !== "other"
+    ? formatSubCategory(product.sub_category, lang)
+    : null;
   const delta = product.real_discount_pct;
   const evidence = product.rolling_60d_median <= 0 ? null : Math.abs(delta) < 0.05
     ? t(product.min_historical_price === product.max_historical_price ? "ui.limitedEvidence" : "ui.same")
@@ -35,6 +39,8 @@ export function ProductCard({ product, from, source }: { product: Product; from:
             <h3 className="ptr-result-title"><bdi>{product.product_title}</bdi></h3>
             <div className="ptr-controls text-xs ptr-muted">
               <StoreBadge name={product.store_name} size="sm" />
+              {catKey && <span className="ptr-badge">{t(catKey)}</span>}
+              {subLabel && <span>{subLabel}</span>}
               {pack && <bdi>{pack}</bdi>}
             </div>
           </div>

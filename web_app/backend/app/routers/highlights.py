@@ -12,7 +12,7 @@ from sqlalchemy.engine import Connection
 
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
-from app.schemas import HighlightVerdict, RadarHighlightItem, RadarHighlightsResponse
+from app.schemas import CategoryFilter, HighlightVerdict, RadarHighlightItem, RadarHighlightsResponse
 
 router = APIRouter(tags=["highlights"])
 
@@ -149,9 +149,7 @@ def _row_to_highlight(row: dict[str, Any], *, bucket: Literal["scandal", "deal"]
 def get_radar_highlights(
     response: Response,
     limit: int = Query(default=24, ge=1, le=60),
-    category: Literal["all", "electronics", "fashion", "home_appliances", "groceries"] = Query(
-        default="all"
-    ),
+    category: CategoryFilter = Query(default="all"),
     db: Connection = Depends(get_db),
 ) -> RadarHighlightsResponse:
     set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
