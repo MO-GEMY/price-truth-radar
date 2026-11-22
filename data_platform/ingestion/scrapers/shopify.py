@@ -83,6 +83,7 @@ class ShopifyScraper(BaseScraper):
     default_brand: str = "Unknown"
     override_brand: bool = False
     default_limit: int = 250
+    discover_limit: int = 1000
     min_delay_seconds: float = 1.0
     per_page: int = 100
 

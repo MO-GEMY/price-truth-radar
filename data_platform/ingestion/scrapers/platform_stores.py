@@ -140,6 +140,7 @@ class ElArabyScraper(MagentoGraphQLBaseScraper):
     use_post = True
     store_header = "en"
     default_limit = 200
+    discover_limit = 1000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     search_queries: tuple[tuple[str, Category, str], ...] = (
         ("tvs", "home_appliances", "tornado"),
@@ -234,7 +235,9 @@ class SSRCardScraper(BaseScraper):
     override_brand: bool = False
     category_urls: tuple[tuple[str, Category, str], ...] = ()
     default_limit: int = 180
+    discover_limit: int = 900
     groceries_limit: int = 180
+    discover_groceries_limit: int = 800
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds: float = 1.5
     request_timeout: float = 25.0
@@ -251,7 +254,7 @@ class SSRCardScraper(BaseScraper):
             if target_limit <= 10
             else max(5, math.ceil(target_limit / max(1, len(self.category_urls))))
         )
-        max_pages = 3 if target_limit > 30 else 1
+        max_pages = 8 if self.mode == "discover" else (3 if target_limit > 30 else 1)
         blocked = False
 
         for default_sub, cat_name, cat_url in self.category_urls:
@@ -581,6 +584,7 @@ class DubaiPhoneScraper(BaseScraper):
     category: Category = "electronics"
     base_url = "https://dubaiphone.net"
     default_limit = 180
+    discover_limit = 600
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds = 3.0
     request_timeout = 25.0
@@ -642,6 +646,9 @@ class DubaiPhoneScraper(BaseScraper):
             else max(5, math.ceil(target_limit / len(self.category_urls)))
         )
 
+        max_pages = 4 if self.mode == "discover" else 1
+        blocked = False
+
         with ImpersonatedHttpClient(
             impersonate="chrome",
             timeout=self.request_timeout or 25.0,
@@ -651,92 +658,101 @@ class DubaiPhoneScraper(BaseScraper):
             jitter_range=(0.5, 1.5),
         ) as client:
             for default_sub, cat_name, cat_url in self.category_urls:
-                if len(collected) >= target_limit:
+                if len(collected) >= target_limit or blocked:
                     break
                 cat_collected = 0
-                logger.info("[dubaiphone] Fetching %s/%s (%s)", cat_name, default_sub, cat_url)
-                try:
-                    resp = client.get(
-                        cat_url,
-                        min_delay_seconds=effective_delay,
-                        timeout=self.request_timeout,
-                        check_throttle=True,
-                        min_html_bytes=4096,
-                    )
-                except ThrottledResponseError as exc:
-                    logger.warning(
-                        "[dubaiphone] Rate-limit/WAF block on %s (%s); keeping %d collected items and exiting gracefully.",
-                        cat_url,
-                        exc,
-                        len(collected),
-                    )
-                    break
-                except Exception as exc:
-                    logger.warning("[dubaiphone] Error fetching %s: %s", cat_url, exc)
-                    continue
-                self.pages_fetched += 1
-
-                raw_items = self._extract_rsc_products(resp.text)
-                page_records: list[RawProductSnapshot] = []
-                for raw in raw_items:
-                    slug = str(raw.get("slug") or "").strip()
-                    title = re.sub(r"\s+", " ", str(raw.get("name") or raw.get("title") or "")).strip()
-                    if not slug or len(title) < 4:
-                        continue
-                    sp_obj = raw.get("selling_price")
-                    pr_obj = raw.get("price")
-                    curr_val = sp_obj.get("amount") if isinstance(sp_obj, dict) else sp_obj
-                    reg_val = pr_obj.get("amount") if isinstance(pr_obj, dict) else pr_obj
-                    current_price = parse_egp_price(curr_val)
-                    if current_price is None:
-                        continue
-                    reg_price = parse_egp_price(reg_val)
-                    claimed_original = reg_price if (reg_price is not None and reg_price > current_price) else None
-
-                    img_raw = raw.get("base_image") or raw.get("thumbnail") or raw.get("image")
-                    img_url = img_raw.get("path") if isinstance(img_raw, dict) else (str(img_raw) if isinstance(img_raw, str) else None)
-                    if img_url and not img_url.startswith("http"):
-                        img_url = urljoin(self.base_url, img_url)
-
-                    ext_id = str(raw.get("id") or slug)[:120]
-                    if ext_id in seen_ids:
-                        continue
-
-                    sub_cat = _refine_sub_category(default_sub, cat_name, title)
-                    attrs: dict[str, Any] = _extract_specs(title, sub_cat)
-                    attrs.pop("two_b_category", None)
-                    attrs["dubaiphone_category"] = sub_cat
-
-                    rec = self.validate_record(
-                        {
-                            "store_name": self.store_name,
-                            "external_id": ext_id,
-                            "canonical_product_key": None,
-                            "category": cat_name,
-                            "sub_category": sub_cat,
-                            "brand": _normalize_brand(None, f"{title} {slug.replace('-', ' ')}"),
-                            "product_title": title,
-                            "product_url": f"{self.base_url}/product/{slug}",
-                            "image_url": img_url,
-                            "attributes_json": attrs,
-                            "current_price": current_price,
-                            "claimed_original_price": claimed_original,
-                            "in_stock": bool(raw.get("in_stock", True)),
-                            "snapshot_date": snapshot_date,
-                            "scraped_at": scraped_at,
-                        }
-                    )
-                    if rec is not None:
-                        page_records.append(rec)
-
-                page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
-                for rec in page_records:
-                    if rec.external_id in seen_ids:
-                        continue
-                    seen_ids.add(rec.external_id)
-                    collected.append(rec)
-                    cat_collected += 1
+                for page in range(1, max_pages + 1):
                     if len(collected) >= target_limit or cat_collected >= per_cat_cap:
+                        break
+                    logger.info("[dubaiphone] Fetching %s/%s page %d (%s)", cat_name, default_sub, page, cat_url)
+                    try:
+                        resp = client.get(
+                            cat_url,
+                            params={"page": page} if page > 1 else None,
+                            min_delay_seconds=effective_delay,
+                            timeout=self.request_timeout,
+                            check_throttle=True,
+                            min_html_bytes=4096,
+                        )
+                    except ThrottledResponseError as exc:
+                        logger.warning(
+                            "[dubaiphone] Rate-limit/WAF block on %s (%s); keeping %d collected items and exiting gracefully.",
+                            cat_url,
+                            exc,
+                            len(collected),
+                        )
+                        blocked = True
+                        break
+                    except Exception as exc:
+                        logger.warning("[dubaiphone] Error fetching %s page %d: %s", cat_url, page, exc)
+                        break
+                    self.pages_fetched += 1
+
+                    raw_items = self._extract_rsc_products(resp.text)
+                    page_records: list[RawProductSnapshot] = []
+                    for raw in raw_items:
+                        slug = str(raw.get("slug") or "").strip()
+                        title = re.sub(r"\s+", " ", str(raw.get("name") or raw.get("title") or "")).strip()
+                        if not slug or len(title) < 4:
+                            continue
+                        sp_obj = raw.get("selling_price")
+                        pr_obj = raw.get("price")
+                        curr_val = sp_obj.get("amount") if isinstance(sp_obj, dict) else sp_obj
+                        reg_val = pr_obj.get("amount") if isinstance(pr_obj, dict) else pr_obj
+                        current_price = parse_egp_price(curr_val)
+                        if current_price is None:
+                            continue
+                        reg_price = parse_egp_price(reg_val)
+                        claimed_original = reg_price if (reg_price is not None and reg_price > current_price) else None
+
+                        img_raw = raw.get("base_image") or raw.get("thumbnail") or raw.get("image")
+                        img_url = img_raw.get("path") if isinstance(img_raw, dict) else (str(img_raw) if isinstance(img_raw, str) else None)
+                        if img_url and not img_url.startswith("http"):
+                            img_url = urljoin(self.base_url, img_url)
+
+                        ext_id = str(raw.get("id") or slug)[:120]
+                        if ext_id in seen_ids:
+                            continue
+
+                        sub_cat = _refine_sub_category(default_sub, cat_name, title)
+                        attrs: dict[str, Any] = _extract_specs(title, sub_cat)
+                        attrs.pop("two_b_category", None)
+                        attrs["dubaiphone_category"] = sub_cat
+
+                        rec = self.validate_record(
+                            {
+                                "store_name": self.store_name,
+                                "external_id": ext_id,
+                                "canonical_product_key": None,
+                                "category": cat_name,
+                                "sub_category": sub_cat,
+                                "brand": _normalize_brand(None, f"{title} {slug.replace('-', ' ')}"),
+                                "product_title": title,
+                                "product_url": f"{self.base_url}/product/{slug}",
+                                "image_url": img_url,
+                                "attributes_json": attrs,
+                                "current_price": current_price,
+                                "claimed_original_price": claimed_original,
+                                "in_stock": bool(raw.get("in_stock", True)),
+                                "snapshot_date": snapshot_date,
+                                "scraped_at": scraped_at,
+                            }
+                        )
+                        if rec is not None:
+                            page_records.append(rec)
+
+                    page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
+                    added = 0
+                    for rec in page_records:
+                        if rec.external_id in seen_ids:
+                            continue
+                        seen_ids.add(rec.external_id)
+                        collected.append(rec)
+                        cat_collected += 1
+                        added += 1
+                        if len(collected) >= target_limit or cat_collected >= per_cat_cap:
+                            break
+                    if added == 0:
                         break
                 self.category_counts[f"{cat_name}/{default_sub}"] = cat_collected
 

@@ -81,8 +81,9 @@ class MagentoGraphQLBaseScraper(BaseScraper):
     search_queries: tuple[tuple[str, Category, str], ...] = ()  # (sub_category, category, query)
     exclude_category_terms: tuple[str, ...] = ()
     default_limit: int = 200
-    discover_limit: int = 320
+    discover_limit: int = 900
     groceries_limit: int = 250
+    discover_groceries_limit: int = 900
     supported_verticals: tuple[ScrapeVertical, ...] = ("groceries",)
     min_delay_seconds: float = 1.5
     request_timeout: float = 25.0
@@ -212,7 +213,7 @@ class MagentoGraphQLBaseScraper(BaseScraper):
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         queries = self.search_queries or ((self.category, self.category, "a"),)
         per_query_cap = max(2, math.ceil(target_limit / len(queries)))
-        max_pages = 2 if target_limit <= 100 else 3
+        max_pages = 8 if self.mode == "discover" else (2 if target_limit <= 100 else 3)
         blocked = False
 
         extra_headers = {"Accept": "application/json, text/plain, */*"}

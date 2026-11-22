@@ -215,7 +215,7 @@ class SigmaScraper(BaseScraper):
     base_url = "https://www.sigma-computer.com"
     catalog_path = "/en/search"
     default_limit = 400
-    discover_limit = 700
+    discover_limit = 1200
     min_delay_seconds = 1.5
     request_timeout = 30.0
     per_page = 16

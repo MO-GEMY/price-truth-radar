@@ -20,6 +20,7 @@ from .groceries import (
     compute_grocery_barcode_key,
     compute_grocery_candidate_key,
     compute_grocery_size_key,
+    compute_grocery_type_key,
 )
 
 # Brands normalized to canonical lowercase slugs
@@ -142,6 +143,8 @@ _PHONE_NOISE_RE = re.compile(
     r"global\s+version|local\s+version|middle\s+east\s+version|international\s+version|official\s+warranty|local\s+warranty|international\s+warranty|warranty|egypt|"
     r"android|ios|smartphone|mobile\s+phone|cell\s*phone|mobile|phone|tablet|ram|rom|storage|internal|memory|"
     r"display|screen|amoled|super\s+amoled|oled|lcd|ips|fhd\+?|hd\+?|camera|battery|ois|ip\d{2}|official\s+store|"
+    r"os\s+upgrades|os\s+upgrade|upgrades|upgrade|"
+    r"\d{1,3}\s*x\b|"
     r"new|sealed|original|edition|unlocked|with|free|gift"
     r")\b",
     re.I,
@@ -250,6 +253,11 @@ _COLOR_WORDS: frozenset[str] = frozenset(
         "midnightblack",
         "phantomblack",
         "obsidianblack",
+        "large",
+        "small",
+        "medium",
+        "xl",
+        "xxl",
     }
 )
 
@@ -281,7 +289,168 @@ _LAPTOP_CHASSIS_RE = re.compile(
     re.I,
 )
 _GENERIC_MODEL_CODE_RE = re.compile(r"\b([a-z]{1,4}[-]?\d{2,5}[a-z0-9-]{0,6})\b", re.I)
+# Loose pattern for appliance part numbers that mix letters+digits from the
+# first character (M1SEFT-12CRN8F-Q8, KHEFT12N, 7MD68A, 50C350RP) — the strict
+# regex above requires 2+ digits immediately after the letters and misses these.
+_LOOSE_MODEL_CODE_RE = re.compile(r"\b([a-z]{0,6}[-]?\d{1,6}[a-z0-9-]{0,18})\b", re.I)
 _SCREEN_INCH_RE = re.compile(r"\b(\d{2}(?:\.\d)?)\s*(?:\"|-?\s*inch)\b", re.I)
+
+# ---------------------------------------------------------------------------
+# Store taxonomies disagree constantly (the same Logitech mouse is `gaming` at
+# 2B and `peripherals` at Sigma; an AIO cooler is `cooling` at one store and
+# `monitors` at another). Embedding the raw sub_category in the match key
+# therefore splits identical products across stores. We instead collapse
+# sub_category slugs into canonical *families* and rely on brand + model code
+# + strict variant guards for precision.
+# ---------------------------------------------------------------------------
+_SUBCATEGORY_FAMILY: dict[str, str] = {
+    # Electronics families
+    "smartphones": "smartphone",
+    "mobiles": "smartphone",
+    "mobile_phones": "smartphone",
+    "phones": "smartphone",
+    "tablets": "tablet",
+    "laptops": "laptop",
+    "notebooks": "laptop",
+    "monitors": "monitor",
+    "tvs": "tv",
+    "smart_tvs": "tv",
+    "headphones": "audio",
+    "earphones": "audio",
+    "earbuds": "audio",
+    "speakers": "audio",
+    "soundbars": "audio",
+    "audio": "audio",
+    "gaming": "gaming_peripherals",
+    "peripherals": "gaming_peripherals",
+    "mouse": "gaming_peripherals",
+    "mice": "gaming_peripherals",
+    "keyboards": "gaming_peripherals",
+    "mousepads": "gaming_peripherals",
+    "cooling": "cooling",
+    "gpus": "gpu",
+    "graphics_cards": "gpu",
+    "cpus": "cpu",
+    "processors": "cpu",
+    "motherboards": "motherboard",
+    "psus": "psu",
+    "power_supplies": "psu",
+    "cases": "pc_case",
+    "storage": "storage",
+    "memory": "storage",
+    "ram": "storage",
+    "printers": "printer",
+    "printer": "printer",
+    "scanners": "printer",
+    "cameras": "camera",
+    "networking": "networking",
+    "routers": "networking",
+    "gaming_consoles": "console",
+    "consoles": "console",
+    "accessories": "accessories",
+    "cables": "accessories",
+    "chargers": "accessories",
+    "wearables": "wearable",
+    "smart_watches": "wearable",
+    # Home-appliance families
+    "air_conditioners": "air_conditioner",
+    "split_air_conditioners": "air_conditioner",
+    "washing_machines": "washing_machine",
+    "dishwashers": "dishwasher",
+    "refrigerators": "refrigerator",
+    "freezers": "refrigerator",
+    "cookers": "cooker",
+    "ovens": "cooker",
+    "microwaves": "microwave",
+    "vacuums": "vacuum",
+    "water_heaters": "water_heater",
+    "kitchen_appliances": "small_kitchen",
+    "blenders": "small_kitchen",
+    "mixers": "small_kitchen",
+    "toasters": "small_kitchen",
+    "large_appliances": "large_appliance",
+    "small_appliances": "small_appliance",
+    "home_appliances": "home_appliance",
+}
+
+# Families whose model numbers embed the screen size (e.g. Toshiba `50C350RP`,
+# LG `65NU830B6LA`) — the size digits must be stripped before comparison and
+# re-attached as an explicit inch guard.
+_SIZE_EMBEDDED_FAMILIES = {"tv", "monitor"}
+
+# Families that get explicit capacity/power guards so a 1.5 HP AC never merges
+# with a 2.25 HP unit, and an 8 kg washer never merges with a 6 kg one.
+_HP_BTU_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*(?:hp|horsepower|h\.p\.|حصان)\b", re.I)
+_BTU_RE = re.compile(r"\b(\d{4,6})\s*btu\b", re.I)
+_CAPACITY_KG_RE = re.compile(r"\b(\d{1,2}(?:\.\d)?)\s*(?:kg|kgs|كجم|كيلو)\b", re.I)
+_CAPACITY_L_RE = re.compile(r"\b(\d{1,3}(?:\.\d)?)\s*(?:liter|liters|litre|litres|l|لتر)\b", re.I)
+
+
+def _normalize_model_code(raw_code: str) -> str:
+    """Strip separators from a manufacturer model code and canonicalize digits.
+
+    `M1SEFT-12CRN8F-Q8` and `M1SEFT12CRN8FQ8` must compare equal; and within
+    digit-heavy part numbers, `MOSEFT` and `M0SEFT` (letter-O vs zero) are the
+    same code on Egyptian retail sites.
+    """
+    code = re.sub(r"[^a-zA-Z0-9]", "", raw_code).lower()
+    digits = sum(c.isdigit() for c in code)
+    if digits >= 2:
+        code = code.replace("o", "0").replace("O", "0")
+    return code
+
+
+def _family_of(sub_category: str) -> str:
+    sub = sub_category.strip().lower()
+    return _SUBCATEGORY_FAMILY.get(sub, normalize_snake_slug(sub, fallback="other", max_len=40))
+
+
+def _tv_monitor_size(title: str, codes_norm: list[str]) -> Optional[int]:
+    """Screen size in inches: explicit `NN Inch` token, else digits embedded at
+    the start of a model code (`50C350RP`, `65NU830B6LA`)."""
+    m = _SCREEN_INCH_RE.search(title)
+    if m:
+        size = int(float(m.group(1)))
+        if 15 <= size <= 110:
+            return size
+    for code in codes_norm:
+        m = re.match(r"(\d{2})([a-z]{2,})", code)
+        if m:
+            size = int(m.group(1))
+            if 15 <= size <= 110:
+                return size
+    return None
+
+
+def _strip_leading_size(code_norm: str, size: Optional[int]) -> str:
+    """Remove the screen-size digits embedded at the front of a TV model code."""
+    if size is not None and code_norm.startswith(str(size)):
+        return code_norm[len(str(size)):]
+    return code_norm
+
+
+def _variant_token_after(cleaned_title: str, code_raw: str) -> Optional[str]:
+    """Product-line word directly after the model code (G502 **HERO** vs
+    G502 **X** Plus). Only ALL-CAPS or canonical product-line words count —
+    lowercase marketing/spec words ("LaserJet", "Wireless", "Black") are
+    ignored so printer/tv titles don't drift."""
+    idx = cleaned_title.lower().find(code_raw.lower())
+    if idx == -1:
+        return None
+    tail = cleaned_title[idx + len(code_raw):]
+    line_words = {"pro", "max", "plus", "x", "ultra", "hero", "lite", "note",
+                  "mini", "se", "fe", "ti", "neo", "gt"}
+    for tok in re.split(r"[^A-Za-z0-9]+", tail):
+        if not tok:
+            continue
+        if any(c.isdigit() for c in tok):  # part numbers (7MD68A) aren't variants
+            continue
+        if tok.isupper() and len(tok) >= 1:
+            return tok.lower()
+        if tok.lower() in line_words:
+            return tok.lower()
+        return None  # first non-qualifying word ends the variant window
+    return None
 
 
 @dataclass
@@ -445,47 +614,98 @@ def _laptop_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]
     return normalize_snake_slug("_".join(parts), max_len=160)
 
 
+def _collect_model_codes(cleaned_title: str, min_len: int, loose: bool = False) -> tuple[list[str], Optional[str]]:
+    """Normalized model codes in title order + the raw text of the first one.
+
+    Normalization strips separators (`LS24CG552`, `LS24-CG-552` and
+    `ls24cg552` compare equal) and canonicalizes letter-O vs zero inside
+    digit-heavy part numbers (`MOSEFT` == `M0SEFT`). `loose=True` adds the
+    appliance-grade pattern that captures codes like `M1SEFT…`/`7MD68A`
+    whose letter run contains a single digit.
+    """
+    codes_norm: list[str] = []
+    first_raw: Optional[str] = None
+    patterns = [_GENERIC_MODEL_CODE_RE, _LOOSE_MODEL_CODE_RE] if loose else [_GENERIC_MODEL_CODE_RE]
+    seen_spans: set[tuple[int, int]] = set()
+    for pattern in patterns:
+        for m in pattern.finditer(cleaned_title):
+            span = (m.start(), m.end())
+            if any(s <= span[0] < e or s < span[1] <= e for s, e in seen_spans):
+                continue
+            raw = m.group(1)
+            norm = _normalize_model_code(raw)
+            if len(norm) < min_len:
+                continue
+            if not (any(c.isalpha() for c in norm) and any(c.isdigit() for c in norm)):
+                continue
+            if re.fullmatch(r"\d+(?:inch|in|ml|g|kg|w|hz|mm|cm)", norm):
+                continue  # size/unit artifact ("55-inch" -> "55inch"), not a model code
+            seen_spans.add(span)
+            if norm not in codes_norm:
+                codes_norm.append(norm)
+            if first_raw is None:
+                first_raw = raw
+    return codes_norm, first_raw
+
+
 def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]:
-    """Model-code based fingerprint for monitors, headphones, storage, peripherals, TVs."""
+    """Model-code based fingerprint for monitors, TVs, headphones, storage,
+    peripherals, printers — with store-taxonomy families and strict guards."""
     title = _strip_marketplace_noise(record.product_title)
     # Remove specs/units that look like alphanumeric codes (e.g. 240hz, 512gb, 1tb, 1ms, 60w, usb3)
     cleaned = re.sub(
-        r"\b\d+(?:\.\d+)?\s*(?:gb|tb|mb|mhz|ghz|hz|ms|mm|cm|inch|w|v|mah|dpi|fps|bit|gen\d?|usb\d?)\b",
+        r"\b\d+(?:\.\d+)?[\s\-]*(?:gb|tb|mb|mhz|ghz|hz|ms|mm|cm|inch|w|v|mah|dpi|fps|bit|gen\d?|usb\d?)\b",
         " ",
         title,
         flags=re.I,
     )
     cleaned = re.sub(r"\b(?:ddr[345]|pcie|sata|nvme|fhd|qhd|uhd|4k|8k|rgb|argb|pwm|atx|matx|ips|va|oled|qled|usb\d?)\b", " ", cleaned, flags=re.I)
 
-    codes = [
-        m.group(1).lower()
-        for m in _GENERIC_MODEL_CODE_RE.finditer(cleaned)
-        if any(c.isalpha() for c in m.group(1)) and any(c.isdigit() for c in m.group(1)) and len(m.group(1)) >= 4
-    ]
-    if not codes:
+    codes_norm, first_raw = _collect_model_codes(cleaned, min_len=4)
+    if not codes_norm:
         return None
 
-    # Prefer longer, more specific model codes (e.g., g55c, ls27cg552, 990pro, g102, wh1000xm5)
-    primary_code = normalize_snake_slug(codes[0], max_len=40)
-    if not primary_code:
-        return None
+    primary = codes_norm[0]
+    family = _family_of(record.sub_category)
 
-    parts = [brand, record.sub_category, primary_code]
+    # NOTE: the store-specific `sub_category` slug is deliberately NOT part of
+    # the key — stores file identical products under different taxonomies
+    # (Logitech mouse = `gaming` at 2B but `peripherals` at Sigma; an AIO
+    # cooler = `cooling` vs `monitors`). Brand + model code + variant + guards
+    # carry the precision instead. The family only drives guard selection.
+    parts = [brand, primary]
+
+    # Disambiguate product-line variants sharing a code (Logitech G502 HERO vs
+    # G502 X Plus) — only when the title carries a SINGLE model code; multi-code
+    # titles (indoor + outdoor AC units) are matched on their primary code.
+    if len(codes_norm) == 1:
+        variant = _variant_token_after(cleaned, first_raw) if first_raw else None
+        if variant and len(variant) <= 24:
+            parts.append(variant)
+
+    # Strict size guard for screens (a 50-inch TV is never a 55-inch TV).
+    # Applied only when a size is actually present — titles without one are
+    # matched on brand + model code alone.
+    if family in _SIZE_EMBEDDED_FAMILIES:
+        size = _tv_monitor_size(title, codes_norm)
+        if size is not None:
+            parts = [brand, family, _strip_leading_size(primary, size)]
+            parts.append(f"{size}in")
+
+    # Storage capacity stays a strict guard for storage devices.
     _, storage_gb = _extract_ram_storage(record)
-    if record.sub_category == "storage" and storage_gb is not None:
+    if family == "storage" and storage_gb is not None:
         parts.append(f"{storage_gb}gb")
-    elif record.sub_category in ("monitors", "tvs"):
-        if sm := _SCREEN_INCH_RE.search(title):
-            parts.append(f"{sm.group(1).split('.')[0]}in")
 
     return normalize_snake_slug("_".join(parts), max_len=160)
 
 
 def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[str]:
-    """Model-code fingerprint for home appliances (TVs, ACs, fridges, washers, kitchen)."""
+    """Model-code fingerprint for home appliances (ACs, TVs, fridges, washers,
+    cookers) with strict capacity/HP/BTU/screen-size variant guards."""
     title = _strip_marketplace_noise(record.product_title)
     cleaned = re.sub(
-        r"\b\d+(?:\.\d+)?\s*(?:hp|btu|kg|kgs|liter|liters|litre|litres|l|w|watt|watts|cm|mm|inch|hz|bar|ml|rpm|v|kw)\b",
+        r"\b\d+(?:\.\d+)?[\s\-]*(?:hp|btu|kg|kgs|liter|liters|litre|litres|l|w|watt|watts|cm|mm|inch|hz|bar|ml|rpm|v|kw)\b",
         " ",
         title,
         flags=re.I,
@@ -496,26 +716,45 @@ def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[s
         cleaned,
         flags=re.I,
     )
-    codes = [
-        m.group(1).lower()
-        for m in _GENERIC_MODEL_CODE_RE.finditer(cleaned)
-        if any(c.isalpha() for c in m.group(1))
-        and any(c.isdigit() for c in m.group(1))
-        and len(m.group(1)) >= 5
-    ]
-    if not codes:
+
+    codes_norm, first_raw = _collect_model_codes(cleaned, min_len=5, loose=True)
+    if not codes_norm:
         return None
 
-    # Pick the longest / most specific manufacturer model code (e.g. gr-rt624we, zdf26004xa, ut50sel2)
-    best_code = max(codes, key=len)
-    code_slug = normalize_snake_slug(best_code, max_len=40)
-    if not code_slug:
-        return None
+    family = _family_of(record.sub_category)
+    primary = codes_norm[0]
 
-    parts = [brand, record.sub_category, code_slug]
-    if record.sub_category == "tvs":
-        if sm := _SCREEN_INCH_RE.search(title):
-            parts.append(f"{sm.group(1).split('.')[0]}in")
+    # TVs inside home_appliances get the same size-embedded model treatment.
+    size: Optional[int] = None
+    if family in _SIZE_EMBEDDED_FAMILIES:
+        size = _tv_monitor_size(title, codes_norm)
+        if size is not None:
+            primary = _strip_leading_size(primary, size)
+
+    parts = [brand, family, primary]
+    if size is not None:
+        parts.append(f"{size}in")
+
+    # Variant token (product-line word right after the code) — single-code
+    # titles only, same rationale as the electronics path.
+    if len(codes_norm) == 1:
+        variant = _variant_token_after(cleaned, first_raw) if first_raw else None
+        if variant and len(variant) <= 24 and variant not in {p.split("_")[-1] for p in parts}:
+            parts.append(variant)
+
+    # Strict capacity / power guards — 1.5 HP vs 2.25 HP and 8 kg vs 6 kg are
+    # different SKUs, never the same canonical product.
+    if family == "air_conditioner":
+        if hm := _HP_BTU_RE.search(title):
+            parts.append(f"{hm.group(1)}hp")
+        elif bm := _BTU_RE.search(title):
+            parts.append(f"{bm.group(1)}btu")
+    elif family in ("washing_machine", "refrigerator", "dishwasher"):
+        if km := _CAPACITY_KG_RE.search(title):
+            parts.append(f"{km.group(1)}kg")
+        elif lm := _CAPACITY_L_RE.search(title):
+            parts.append(f"{lm.group(1)}L")
+
     return normalize_snake_slug("_".join(parts), max_len=160)
 
 
@@ -620,7 +859,21 @@ def assign_canonical_keys(
         skey = compute_grocery_size_key(rec)
         if skey:
             size_buckets[skey].append(rec)
-    _commit_buckets(size_buckets)
+    matched_grocery_ids |= _commit_buckets(size_buckets)
+
+    # Groceries Pass 3: Bilingual AR <-> EN type matching. Arabic and English
+    # titles of the SAME product rarely share core tokens ("سمن بقرى" vs
+    # "Fern Ghee"), so this pass matches on canonical brand + bilingual type
+    # noun + exact package size + scent/flavor words. Strictness preserved:
+    # brand, type, size, pack count and flavors must all agree.
+    type_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    for rec in grocery_records:
+        if id(rec) in matched_grocery_ids:
+            continue
+        tkey = compute_grocery_type_key(rec)
+        if tkey:
+            type_buckets[tkey].append(rec)
+    _commit_buckets(type_buckets)
 
     return MatchSummary(
         matched_groups=matched_groups,

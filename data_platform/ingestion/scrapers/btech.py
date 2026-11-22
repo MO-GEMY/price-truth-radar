@@ -258,6 +258,7 @@ class BTechScraper(BaseScraper):
     category: Category = "electronics"
     base_url = "https://btech.com"
     default_limit = 400
+    discover_limit = 700
     min_delay_seconds = 2.5
 
     def _build_record(

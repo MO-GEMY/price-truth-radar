@@ -49,7 +49,7 @@ class RaneenScraper(BaseScraper):
     category: Category = "home_appliances"
     base_url = "https://www.raneen.com"
     default_limit = 200
-    discover_limit = 320
+    discover_limit = 900
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds = 1.5
     request_timeout = 30.0
@@ -67,7 +67,7 @@ class RaneenScraper(BaseScraper):
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(2, math.ceil(target_limit / len(RANEEN_CATEGORIES)))
-        max_pages = 3 if target_limit > 40 else 1
+        max_pages = 8 if self.mode == "discover" else (3 if target_limit > 40 else 1)
 
         for default_sub, cat_name, cat_url in RANEEN_CATEGORIES:
             if len(collected) >= target_limit:

@@ -44,6 +44,7 @@ class SeoudiScraper(MagentoGraphQLBaseScraper):
     search_queries = SEOUDI_GROCERY_QUERIES
     default_limit = 200
     groceries_limit = 200
+    discover_groceries_limit = 1000
     supported_verticals: tuple[ScrapeVertical, ...] = ("groceries",)
     min_delay_seconds = 1.5
     request_timeout = 25.0

@@ -56,9 +56,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mode",
-        choices=["daily", "discover"],
+        choices=["daily", "discover", "discovery"],
         default="daily",
-        help="Scrape mode: 'daily' (balanced refresh prioritizing tracked SKUs) or 'discover' (deeper catalog sweep with higher limits).",
+        help="Scrape mode: 'daily' (balanced refresh prioritizing tracked SKUs) or 'discover'/'discovery' (deeper catalog sweep with higher limits).",
     )
     parser.add_argument(
         "--limit",
@@ -227,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
 
     all_records: list[RawProductSnapshot] = []
     per_store_meta: list[tuple[str, list[RawProductSnapshot], int, int, int, int, dict[str, int]]] = []
-    scrape_mode: ScrapeMode = args.mode
+    scrape_mode: ScrapeMode = "discover" if args.mode == "discovery" else args.mode
 
     with PoliteHttpClient(min_delay_seconds=args.delay) as http_client:
         for store_slug in stores:

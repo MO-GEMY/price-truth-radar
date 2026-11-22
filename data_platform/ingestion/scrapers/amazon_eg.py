@@ -216,8 +216,9 @@ class AmazonEgScraper(BaseScraper):
     category: Category = "electronics"
     base_url = "https://www.amazon.eg"
     default_limit = 250
-    discover_limit = 450
+    discover_limit = 900
     groceries_limit = 300
+    discover_groceries_limit = 800
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 4.0
     request_timeout = 30.0
@@ -245,7 +246,11 @@ class AmazonEgScraper(BaseScraper):
             if is_groceries
             else max(3, math.ceil(target_limit / len(queries)))
         )
-        max_pages = 2 if is_groceries else (4 if self.mode == "discover" else (2 if target_limit <= 120 else 3))
+        max_pages = (
+            (5 if self.mode == "discover" else 2)
+            if is_groceries
+            else (6 if self.mode == "discover" else (2 if target_limit <= 120 else 3))
+        )
         throttled = False
 
         with ImpersonatedHttpClient(

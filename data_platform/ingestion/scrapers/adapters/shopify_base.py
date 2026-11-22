@@ -141,8 +141,9 @@ class ShopifyBaseScraper(BaseScraper):
     default_brand: str = ""
     override_brand: bool = False
     default_limit: int = 180
-    discover_limit: int = 300
+    discover_limit: int = 950
     groceries_limit: int = 180
+    discover_groceries_limit: int = 750
     supported_verticals: tuple[ScrapeVertical, ...] = ("fashion",)
     collection_handles: tuple[tuple[str, Category, str], ...] = ()  # (sub_category, category, handle)
     min_delay_seconds: float = 1.2

@@ -411,8 +411,9 @@ class NoonScraper(BaseScraper):
     category: Category = "electronics"
     base_url = "https://www.noon.com"
     default_limit = 300
-    discover_limit = 550
+    discover_limit = 1100
     groceries_limit = 300
+    discover_groceries_limit = 850
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 3.0
     request_timeout = 30.0
@@ -434,7 +435,11 @@ class NoonScraper(BaseScraper):
             if is_groceries
             else max(5, math.ceil(target_limit / len(seeds)))
         )
-        max_pages = 3 if is_groceries else (8 if self.mode == "discover" else 5)
+        max_pages = (
+            (6 if self.mode == "discover" else 3)
+            if is_groceries
+            else (12 if self.mode == "discover" else 5)
+        )
         throttled = False
 
         with ImpersonatedHttpClient(

@@ -163,6 +163,55 @@ _GROCERY_BRAND_PATTERNS: tuple[tuple[str, str], ...] = (
     ("نيدو", "Nido"),
     ("red bull", "Red Bull"),
     ("lipton", "Lipton"),
+    # --- Wave 3 dictionary expansion (observed unmatched AR/EN pairs) ---
+    ("labanita", "Labanita"),
+    ("لبانتا", "Labanita"),
+    ("لابنتا", "Labanita"),
+    ("rotana", "Rotana"),
+    ("روتانا", "Rotana"),
+    ("rich bake", "Rich Bake"),
+    ("ريتش بيك", "Rich Bake"),
+    ("loacker", "Loacker"),
+    ("لوكر", "Loacker"),
+    ("tilda", "Tilda"),
+    ("تيلدا", "Tilda"),
+    ("avanti", "Avanti"),
+    ("أفانتي", "Avanti"),
+    ("wunder", "Wunder"),
+    ("وندر", "Wunder"),
+    ("sheraton", "Sheraton"),
+    ("شيراتون", "Sheraton"),
+    ("el nile", "El Nile"),
+    ("النيل", "El Nile"),
+    ("brunch", "Brunch"),
+    ("برانش", "Brunch"),
+    ("add me", "Add Me"),
+    ("add-me", "Add Me"),
+    ("اد مي", "Add Me"),
+    ("hla ", "Hla"),
+    ("هلا ", "Hla"),
+    ("risovi", "Risovi"),
+    ("ريسوفي", "Risovi"),
+    ("misty", "Misty"),
+    ("ميستي", "Misty"),
+    ("pasta zara", "Pasta Zara"),
+    ("زارا", "Pasta Zara"),
+    ("fresco", "Fresco"),
+    ("فرِسκο", "Fresco"),
+    ("فرسكو", "Fresco"),
+    ("faragello", "Faragello"),
+    ("فراجيلو", "Faragello"),
+    ("kaha", "Kaha"),
+    ("كها", "Kaha"),
+    ("rayeb", "Rayeb"),
+    ("ريابي", "Rayeb"),
+    ("primo", "Primo"),
+    ("بريمو", "Primo"),
+    ("san simone", "San Simone"),
+    ("كتكوت", "Kotkot"),
+    ("kotkot", "Kotkot"),
+    ("fine tissues", "Fine"),
+    ("فين تيشو", "Fine"),
 )
 
 # Multi-pack pattern like `6x1L`, `12 x 330 ml`, `6 × 1 لتر`
@@ -414,13 +463,29 @@ def extract_grocery_brand(title: str, raw_brand: Optional[str] = None) -> str:
                 return canonical
 
     candidate = (raw_brand or "").strip()
-    if candidate and candidate.lower() not in {"generic", "other", "none", "null", "brand", "unbranded"}:
+    if (
+        candidate
+        and candidate.lower() not in {"generic", "other", "none", "null", "brand", "unbranded", "el", "al"}
+    ):
         if candidate.isupper() and len(candidate) > 3:
             return candidate.title()
         return candidate[:100]
 
-    first_token = title.strip().split(" ", 1)[0] if title.strip() else ""
-    cleaned = re.sub(r"[^A-Za-z0-9\u0600-\u06FF.\-+']", "", first_token)
+    # Fallback: leading title tokens. Arabic definite article ("El/Al" + name)
+    # needs two tokens — "El Masa" and "El Matbakh" must stay different brands.
+    tokens = title.strip().split(" ", 2) if title.strip() else []
+    first_token = re.sub(r"[^A-Za-z0-9\u0600-\u06FF.\-+']", "", tokens[0]) if tokens else ""
+    if first_token and first_token[:1].isalpha() and first_token.lower() in {"el", "al", "el-", "al-"}:
+        second = re.sub(r"[^A-Za-z0-9\u0600-\u06FF.\-+']", "", tokens[1]) if len(tokens) > 1 else ""
+        if second:
+            candidate = f"{first_token} {second}".strip()
+        else:
+            candidate = first_token
+    elif first_token:
+        candidate = first_token
+    else:
+        return "Unknown"
+    cleaned = candidate
     if cleaned:
         return cleaned.title() if cleaned.isupper() and len(cleaned) > 3 else cleaned[:100]
     return "Unknown"
@@ -513,3 +578,207 @@ def compute_grocery_candidate_key(record: RawProductSnapshot) -> Optional[str]:
          NEVER matches products lacking verified weight/volume or differing in package size/pack_count.
     """
     return compute_grocery_barcode_key(record) or compute_grocery_size_key(record)
+
+
+# ---------------------------------------------------------------------------
+# Pass-3 type matching: bilingual AR <-> EN product-type nouns so an Arabic
+# title ("سمن بقرى 1400 جرام") matches its English counterpart ("Fern Ghee
+# 1400g") at another store that carries no barcode. STRICT by design: the key
+# requires canonical brand + product-type noun + exact package size, and
+# scent/flavor words (Lavender vs Regular, Guava vs Mango) become part of the
+# key whenever present — different flavors never merge.
+# ---------------------------------------------------------------------------
+
+# Canonical English type nouns, keyed by bilingual spellings.
+_GROCERY_TYPE_AR: tuple[tuple[str, str], ...] = (
+    ("حليب", "milk"),
+    ("لبن رايب", "yogurt"),
+    ("لبن", "yogurt"),
+    ("زبادي", "yogurt"),
+    ("جبنة", "cheese"),
+    ("جبن", "cheese"),
+    ("الجبن", "cheese"),
+    ("زبدة", "butter"),
+    ("قشطة", "cream"),
+    ("كريمة", "cream"),
+    ("عصير", "juice"),
+    ("مياه", "water"),
+    ("ماء", "water"),
+    ("شاي", "tea"),
+    ("قهوة", "coffee"),
+    ("نسكافيه", "coffee"),
+    ("زيت", "oil"),
+    ("سمنة", "ghee"),
+    ("سمن", "ghee"),
+    ("سكر", "sugar"),
+    ("ملح", "salt"),
+    ("أرز", "rice"),
+    ("ارز", "rice"),
+    ("مكرونة", "pasta"),
+    ("معكرونة", "pasta"),
+    ("دقيق", "flour"),
+    ("عدس", "lentils"),
+    ("فول", "beans"),
+    ("فاصوليا", "beans"),
+    ("تونة", "tuna"),
+    ("كاتشب", "ketchup"),
+    ("صلصة", "sauce"),
+    ("معجون", "paste"),
+    ("عسل", "honey"),
+    ("طحينة", "tahini"),
+    ("مسحوق", "detergent"),
+    ("منظف", "detergent"),
+    ("صابون", "soap"),
+    ("شامبو", "shampoo"),
+    ("مناديل", "tissues"),
+    ("بسكويت", "biscuits"),
+    ("شوكولاتة", "chocolate"),
+    ("شيبسي", "chips"),
+    ("مرقة", "bouillon"),
+    ("بيض", "eggs"),
+)
+
+# English type nouns recognized in EN titles (canonical word -> itself).
+_GROCERY_TYPE_EN: frozenset[str] = frozenset(
+    {
+        "milk", "cheese", "butter", "yogurt", "yoghurt", "cream", "juice", "water",
+        "tea", "coffee", "oil", "ghee", "sugar", "salt", "rice", "pasta", "spaghetti",
+        "penne", "macaroni", "flour", "lentils", "beans", "tuna", "ketchup",
+        "mayonnaise", "mayo", "sauce", "paste", "honey", "tahini", "detergent",
+        "soap", "shampoo", "tissues", "biscuits", "cookies", "chocolate", "chips",
+        "bouillon", "eggs", "cornflakes", "oats", "vinegar",
+    }
+)
+
+# Scent / flavor words: when present in a title they become part of the match
+# key so Lavender-vs-Regular and Guava-vs-Mango variants never collide. Arabic
+# spellings map to the English canonical token so AR and EN titles share keys.
+# Pasta shapes, tuna cuts and detergent scents are variants too — they join the
+# key for the same reason.
+_FLAVOR_WORDS: frozenset[str] = frozenset(
+    {
+        "lavender", "vanilla", "mint", "apple", "guava", "mango", "orange", "grape",
+        "strawberry", "banana", "pineapple", "berries", "peach", "pear", "lemon",
+        "flowers", "floral", "breeze", "tropical", "rose", "jasmine", "regular",
+        "sesame", "chocolate", "plain", "lavendar",
+        "chili", "spicy", "tomato", "cocktail", "vermicelli", "rings", "penne",
+        "fusilli", "spaghetti", "macaroni", "elbow", "rigate", "spirali",
+        "farfalle", "shredded", "chunks", "chunk", "flakes", "beyti", "skimmed",
+        "lactose", "fat", "express", "smoked", "pickle", "olive",
+        "bukhoor", "downy", "light", "medium", "dark", "green", "black",
+        "charcoal", "snowy", "crystal_clean", "vegan", "white", "yellow",
+    }
+)
+
+# English flavor spelling variants -> canonical token.
+_EN_FLAVOR_SYNONYMS: dict[str, str] = {
+    "xpress": "express",
+    "chilli": "chili",
+}
+
+_AR_FLAVOR_TO_EN: dict[str, str] = {
+    "لافندر": "lavender",
+    "باللافندر": "lavender",
+    "فانيلا": "vanilla",
+    "نعنع": "mint",
+    "تفاح": "apple",
+    "مانجو": "mango",
+    "برتقال": "orange",
+    "عنب": "grape",
+    "فراولة": "strawberry",
+    "موز": "banana",
+    "ليمون": "lemon",
+    "خوخ": "peach",
+    "كمثرى": "pear",
+    "جزر": "carrot",
+    "روز": "rose",
+    "ياسمين": "jasmine",
+    "زهر": "orange_blossom",
+}
+
+
+def _strip_arabic_prefix(token: str) -> str:
+    """Strip the definite article 'ال' so 'الجبن' and 'جبن' compare equal."""
+    if token.startswith("ال") and len(token) > 4:
+        return token[2:]
+    return token
+
+
+def compute_grocery_type_key(record: RawProductSnapshot) -> Optional[str]:
+    """
+    Pass-3 strict key: `groc_type_<brand>_<type_noun>_<flavor?>_<exact size>`.
+
+    Requires canonical brand + a recognized bilingual product-type noun +
+    exact net weight/volume + pack count. Scent/flavor words join the key when
+    present, so 'Persil Gel Lavender 2.65L' and 'Persil Gel Regular 3.9L' never
+    merge, while 'Fern سمن بقرى 1400g' and 'Fern Ghee 1400g' do.
+    """
+    attrs = record.attributes_json or {}
+    brand_slug = normalize_snake_slug(
+        extract_grocery_brand(record.product_title, record.brand),
+        fallback="unknown",
+        max_len=32,
+    )
+    if not brand_slug or brand_slug == "unknown":
+        return None
+
+    parsed = parse_grocery_packaging(record.product_title)
+    weight_g = attrs.get("net_weight_g") if isinstance(attrs.get("net_weight_g"), int) else parsed.get("net_weight_g")
+    volume_ml = attrs.get("net_volume_ml") if isinstance(attrs.get("net_volume_ml"), int) else parsed.get("net_volume_ml")
+    pack_count = attrs.get("pack_count") if isinstance(attrs.get("pack_count"), int) else parsed.get("pack_count", 1)
+    if weight_g is None and volume_ml is None:
+        return None
+
+    size_parts: list[str] = []
+    if weight_g is not None:
+        size_parts.append(f"w{int(weight_g)}g")
+    if volume_ml is not None:
+        size_parts.append(f"v{int(volume_ml)}ml")
+    size_parts.append(f"x{int(pack_count or 1)}")
+    size_sig = "_".join(size_parts)
+
+    text = record.product_title.translate(_ARABIC_DIGITS_MAP)
+    text = _MULTIPACK_UNIT_RE.sub(" ", text)
+    text = _SINGLE_UNIT_RE.sub(" ", text)
+    text = _PACK_COUNT_RE.sub(" ", text)
+    # Drop promo bundle tails ("+ Knorr Mix 70G") — bundles are store-specific
+    # promos, and their freebie contents must not influence the key.
+    text = re.sub(r"\s*\+.*$", " ", text)
+
+    # 1. Bilingual type noun (first Arabic match wins, then English tokens).
+    type_noun: Optional[str] = None
+    low = text.lower()
+    for needle, canonical in _GROCERY_TYPE_AR:
+        if needle in low:
+            type_noun = canonical
+            break
+    flavors: list[str] = []
+
+    tokens = re.findall(r"[A-Za-z\u0600-\u06FF]+", text)
+    for tok in tokens:
+        low_tok = _strip_arabic_prefix(tok.lower())
+        if type_noun is None and low_tok in _GROCERY_TYPE_EN:
+            type_noun = low_tok
+        flavor_en = _AR_FLAVOR_TO_EN.get(tok) or _AR_FLAVOR_TO_EN.get(low_tok)
+        if flavor_en:
+            if flavor_en not in flavors:
+                flavors.append(flavor_en)
+        else:
+            low_flavor = _EN_FLAVOR_SYNONYMS.get(low_tok) or (
+                tok.lower() if tok.lower() in _FLAVOR_WORDS else None
+            )
+            if low_flavor:
+                canon_flavor = _EN_FLAVOR_SYNONYMS.get(low_flavor, low_flavor)
+                if canon_flavor not in flavors:
+                    flavors.append(canon_flavor)
+
+    if not type_noun:
+        return None
+
+    # Order-insensitive: "shredded express" and "express shredded" are the same
+    # product described differently across stores.
+    flavor_slug = f"_fl_{('_'.join(sorted(flavors[:2])))}" if flavors else ""
+    return normalize_snake_slug(
+        f"groc_type_{brand_slug}_{type_noun}{flavor_slug}_{size_sig}",
+        max_len=160,
+    )

@@ -92,8 +92,9 @@ class WooCommerceBaseScraper(BaseScraper):
     override_brand: bool = False
     use_impersonation: bool = False
     default_limit: int = 180
-    discover_limit: int = 300
+    discover_limit: int = 800
     groceries_limit: int = 180
+    discover_groceries_limit: int = 750
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds: float = 1.5
     request_timeout: float = 25.0

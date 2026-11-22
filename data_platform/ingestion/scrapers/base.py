@@ -660,6 +660,7 @@ class BaseScraper(ABC):
     default_limit: int = 300
     discover_limit: int = 0
     groceries_limit: int = 300
+    discover_groceries_limit: int = 0
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds: float = 1.0
     request_timeout: Optional[float] = None
@@ -690,11 +691,15 @@ class BaseScraper(ABC):
         effective_vertical = vertical or self.vertical
         if effective_vertical == "groceries":
             base_cap = self.groceries_limit
-            return min(350, int(round(base_cap * 1.15))) if effective_mode == "discover" else base_cap
+            if effective_mode == "discover":
+                if self.discover_groceries_limit > 0:
+                    return self.discover_groceries_limit
+                return min(1000, max(base_cap + 300, int(round(base_cap * 2.5))))
+            return base_cap
         if effective_mode == "discover":
             if self.discover_limit > 0:
                 return self.discover_limit
-            return max(self.default_limit + 100, int(round(self.default_limit * 1.75)))
+            return min(1200, max(self.default_limit + 200, int(round(self.default_limit * 3.0))))
         return self.default_limit
 
     def prioritize_tracked(
