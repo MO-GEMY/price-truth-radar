@@ -548,9 +548,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
 
         def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
             captured_params.append(params)
-            if "COUNT(*)" in sql:
-                return _FakeResult(scalar=1)
-            return _FakeResult(rows=[fridge_row])
+            self.assertIn("p.search_document", sql)
+            return _FakeResult(rows=[{**fridge_row, "search_total": 7}])
 
         fake_db = _FakeReadDB(handler)
         app.dependency_overrides[get_db] = lambda: fake_db
@@ -560,20 +559,18 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertEqual(body["match_type"], "text_search")
-        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["total"], 7)
         self.assertEqual(body["items"][0]["product_sk"], "sk_fridge_1")
         all_param_vals = " ".join(str(v) for p in captured_params for v in p.values())
         self.assertIn("refrigerator", all_param_vals)
         self.assertIn("samsung", all_param_vals)
 
-        # Typo query with 0 LIKE rows falls back to pg_trgm similarity
+        # A typo in more than one term falls back to bounded word similarity.
         api_cache.clear()
 
         def fuzzy_handler(sql: str, _params: dict[str, Any]) -> _FakeResult:
-            if "similarity(" in sql:
-                return _FakeResult(rows=[fridge_row])
-            if "COUNT(*)" in sql:
-                return _FakeResult(scalar=0)
+            if "strict_word_similarity(" in sql:
+                return _FakeResult(rows=[{**fridge_row, "search_total": 1}])
             return _FakeResult(rows=[])
 
         fake_db2 = _FakeReadDB(fuzzy_handler)
