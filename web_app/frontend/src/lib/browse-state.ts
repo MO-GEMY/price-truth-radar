@@ -9,15 +9,43 @@ const changeEvent = "ptr:browse-state";
 export const categoryLabels = {
   all: "filters.catAll",
   electronics: "filters.catElectronics",
-  fashion: "filters.catFashion",
   home_appliances: "filters.catHomeAppliances",
+  home_furniture: "filters.catHomeFurniture",
+  fashion: "filters.catFashion",
+  beauty: "filters.catBeauty",
   groceries: "filters.catGroceries",
+  health: "filters.catHealth",
+  sports: "filters.catSports",
+  pet_care: "filters.catPetCare",
+  baby_kids: "filters.catBabyKids",
 } as const satisfies Record<FeedCategoryFilter, TranslationKey>;
 
 export const categories = Object.keys(categoryLabels) as FeedCategoryFilter[];
 
 export function parseCategory(value: string | null): FeedCategoryFilter {
   return categories.find((category) => category === value) ?? "all";
+}
+
+export function categoryLabelKey(category: string | null | undefined): TranslationKey | null {
+  if (!category || category === "all") return null;
+  const parsed = categories.find((c) => c === category);
+  return parsed ? categoryLabels[parsed] : null;
+}
+
+/**
+ * Filter visible category pills to categories that actually have >0 products
+ * (always keeping "all" and the currently selected category). When counts have
+ * not loaded yet or are empty, falls back to the full canonical list.
+ */
+export function visibleCategories(
+  counts: Record<string, number> | null | undefined,
+  selected: FeedCategoryFilter = "all",
+): FeedCategoryFilter[] {
+  if (!counts) return categories;
+  const populated = categories.filter(
+    (cat) => cat !== "all" && ((counts[cat] ?? 0) > 0 || cat === selected),
+  );
+  return populated.length > 0 ? ["all", ...populated] : categories;
 }
 
 export function parsePage(value: string | null): number {

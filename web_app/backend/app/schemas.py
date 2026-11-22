@@ -8,7 +8,44 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
-Category = Literal["electronics", "fashion", "home_appliances", "groceries"]
+CANONICAL_CATEGORIES: tuple[str, ...] = (
+    "electronics",
+    "home_appliances",
+    "home_furniture",
+    "fashion",
+    "beauty",
+    "groceries",
+    "health",
+    "sports",
+    "pet_care",
+    "baby_kids",
+)
+
+Category = Literal[
+    "electronics",
+    "home_appliances",
+    "home_furniture",
+    "fashion",
+    "beauty",
+    "groceries",
+    "health",
+    "sports",
+    "pet_care",
+    "baby_kids",
+]
+CategoryFilter = Literal[
+    "all",
+    "electronics",
+    "home_appliances",
+    "home_furniture",
+    "fashion",
+    "beauty",
+    "groceries",
+    "health",
+    "sports",
+    "pet_care",
+    "baby_kids",
+]
 UnitPriceUnit = Literal["kg", "L"]
 
 
@@ -62,11 +99,25 @@ class OverviewStatsResponse(BaseModel):
     presale_hikes_today: int
     avg_fake_inflation_pct: float
     last_pipeline_run_at: Optional[datetime]
-    available_stores: list[str] = []
+    available_stores: list[str] = Field(default_factory=list)
+    category_counts: dict[str, int] = Field(default_factory=dict)
 
     @field_serializer("last_pipeline_run_at")
     def serialize_last_run(self, v: Optional[datetime]) -> Optional[str]:
         return _format_utc_z(v)
+
+
+class CategoryFacetItem(BaseModel):
+    slug: Category
+    label_en: str
+    label_ar: str
+    product_count: int
+    compare_count: int = 0
+
+
+class CategoriesResponse(BaseModel):
+    items: list[CategoryFacetItem]
+    total_products: int
 
 
 class ProductVerdictItem(BaseModel):

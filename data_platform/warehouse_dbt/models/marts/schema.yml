@@ -17,7 +17,17 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['electronics', 'fashion', 'home_appliances', 'groceries']
+                values:
+                  - 'electronics'
+                  - 'home_appliances'
+                  - 'home_furniture'
+                  - 'fashion'
+                  - 'beauty'
+                  - 'groceries'
+                  - 'health'
+                  - 'sports'
+                  - 'pet_care'
+                  - 'baby_kids'
       - name: sub_category
         tests:
           - not_null
@@ -107,7 +117,17 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['electronics', 'fashion', 'home_appliances', 'groceries']
+                values:
+                  - 'electronics'
+                  - 'home_appliances'
+                  - 'home_furniture'
+                  - 'fashion'
+                  - 'beauty'
+                  - 'groceries'
+                  - 'health'
+                  - 'sports'
+                  - 'pet_care'
+                  - 'baby_kids'
       - name: brand
         tests:
           - not_null

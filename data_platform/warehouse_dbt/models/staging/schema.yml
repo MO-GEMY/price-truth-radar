@@ -16,7 +16,17 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ['electronics', 'fashion', 'home_appliances', 'groceries']
+                values:
+                  - 'electronics'
+                  - 'home_appliances'
+                  - 'home_furniture'
+                  - 'fashion'
+                  - 'beauty'
+                  - 'groceries'
+                  - 'health'
+                  - 'sports'
+                  - 'pet_care'
+                  - 'baby_kids'
       - name: current_price
         tests:
           - not_null

@@ -262,7 +262,7 @@ class TestStage2And3RegistryDeltaAndMatrix(unittest.TestCase):
         self.assertIsNotNone(sh_cls)
         assert sh_cls is not None
         self.assertTrue(issubclass(sh_cls, ShopifyBaseScraper))
-        self.assertEqual(sh_cls.category, "home_appliances")
+        self.assertEqual(sh_cls.category, "home_furniture")
 
         wc_cls = build_platform_scraper_class(
             StoreRegistryEntry(
@@ -278,7 +278,7 @@ class TestStage2And3RegistryDeltaAndMatrix(unittest.TestCase):
         self.assertIsNotNone(wc_cls)
         assert wc_cls is not None
         self.assertTrue(issubclass(wc_cls, WooCommerceBaseScraper))
-        self.assertEqual(wc_cls.category, "groceries")
+        self.assertEqual(wc_cls.category, "health")
 
     def test_daily_stores_matrix_workflow_yaml_valid(self) -> None:
         wf_path = REPO_ROOT / ".github" / "workflows" / "daily-stores-matrix.yml"

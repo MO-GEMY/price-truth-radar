@@ -11,7 +11,7 @@ from sqlalchemy.engine import Connection
 
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
-from app.schemas import DiscountVerdict, ProductVerdictItem, RadarFeedResponse
+from app.schemas import CategoryFilter, DiscountVerdict, ProductVerdictItem, RadarFeedResponse
 
 router = APIRouter(prefix="/api/v1/radar", tags=["radar"])
 
@@ -50,7 +50,7 @@ PRODUCT_SELECT_COLS = """
 @router.get("/feed", response_model=RadarFeedResponse)
 def get_radar_feed(
     response: Response,
-    category: Literal["all", "electronics", "fashion", "home_appliances", "groceries"] = Query(default="all"),
+    category: CategoryFilter = Query(default="all"),
     verdict: Optional[DiscountVerdict] = Query(default=None),
     store: Optional[str] = Query(default=None),
     sort: Literal[

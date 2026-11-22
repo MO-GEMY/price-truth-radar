@@ -9,6 +9,10 @@ from decimal import Decimal
 from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
+from data_platform.ingestion.scrapers.adapters import (
+    ShopifyBaseScraper,
+    WooCommerceBaseScraper,
+)
 from data_platform.ingestion.scrapers.base import (
     RawProductSnapshot,
     is_installment_text,
@@ -168,6 +172,153 @@ class TestInstallmentAndPriceFloorGuards(unittest.TestCase):
                 )
             )
             self.assertEqual(rec.current_price, price)
+
+    def test_shopify_multi_variant_strict_single_variant_pairing(self) -> None:
+        scraper = ShopifyBaseScraper(http_client=None)  # type: ignore[arg-type]
+        scraper.store_name = "happet"
+        scraper.category = "pet_care"
+        scraper.base_url = "https://happet.net"
+
+        # 300gm at 130 EGP (compare_at_price: null) + 15kg at 4000 EGP (compare_at_price: 4450)
+        # MUST NOT mix 130 EGP with 4450 EGP!
+        rec = scraper._parse_product(
+            {
+                "id": 99001,
+                "handle": "leonardo-fish-cat-dry-food",
+                "title": "Leonardo Fish Cat Dry Food",
+                "vendor": "Leonardo",
+                "product_type": "Dry Cat Food",
+                "images": [{"src": "https://happet.net/leonardo.jpg"}],
+                "variants": [
+                    {"id": 1, "title": "300gm", "price": "130.00", "compare_at_price": None, "available": True, "sku": "LEO-300"},
+                    {"id": 2, "title": "2kg", "price": "780.00", "compare_at_price": "850.00", "available": True, "sku": "LEO-2K"},
+                    {"id": 3, "title": "15kg", "price": "4000.00", "compare_at_price": "4450.00", "available": True, "sku": "LEO-15K"},
+                ],
+            },
+            "pet_care",
+            None,
+            date(2026, 11, 23),
+            datetime(2026, 11, 23, 1, 0, 0),
+        )
+        self.assertIsNotNone(rec)
+        assert rec is not None
+        self.assertEqual(rec.category, "pet_care")
+        self.assertEqual(rec.sub_category, "cat_food")
+        self.assertEqual(rec.current_price, Decimal("130.00"))
+        self.assertIsNone(rec.claimed_original_price)
+        self.assertTrue(rec.in_stock)
+
+        # First variant OOS -> picks FIRST IN-STOCK variant (2kg: 780 / 850), NOT 15kg (4450)
+        rec_oos_first = scraper._parse_product(
+            {
+                "id": 99002,
+                "handle": "leonardo-fish-cat-dry-food-2",
+                "title": "Leonardo Fish Cat Dry Food",
+                "vendor": "Leonardo",
+                "product_type": "Dry Cat Food",
+                "images": [{"src": "https://happet.net/leonardo.jpg"}],
+                "variants": [
+                    {"id": 1, "title": "300gm", "price": "130.00", "compare_at_price": None, "available": False},
+                    {"id": 2, "title": "2kg", "price": "780.00", "compare_at_price": "850.00", "available": True},
+                    {"id": 3, "title": "15kg", "price": "4000.00", "compare_at_price": "4450.00", "available": True},
+                ],
+            },
+            "pet_care",
+            None,
+            date(2026, 11, 23),
+            datetime(2026, 11, 23, 1, 0, 0),
+        )
+        self.assertIsNotNone(rec_oos_first)
+        assert rec_oos_first is not None
+        self.assertEqual(rec_oos_first.current_price, Decimal("780.00"))
+        self.assertEqual(rec_oos_first.claimed_original_price, Decimal("850.00"))
+        self.assertTrue(rec_oos_first.in_stock)
+
+        # All variants OOS -> falls back to first valid variant, paired strictly with its own compare_at_price
+        rec_all_oos = scraper._parse_product(
+            {
+                "id": 99003,
+                "handle": "leonardo-all-oos",
+                "title": "Leonardo Cat Food",
+                "vendor": "Leonardo",
+                "product_type": "Cat Food",
+                "images": [{"src": "https://happet.net/leonardo.jpg"}],
+                "variants": [
+                    {"id": 1, "title": "300gm", "price": "130.00", "compare_at_price": "120.00", "available": False},
+                    {"id": 2, "title": "15kg", "price": "4000.00", "compare_at_price": "4450.00", "available": False},
+                ],
+            },
+            "pet_care",
+            None,
+            date(2026, 11, 23),
+            datetime(2026, 11, 23, 1, 0, 0),
+        )
+        self.assertIsNotNone(rec_all_oos)
+        assert rec_all_oos is not None
+        self.assertEqual(rec_all_oos.current_price, Decimal("130.00"))
+        self.assertIsNone(rec_all_oos.claimed_original_price)
+        self.assertFalse(rec_all_oos.in_stock)
+
+    def test_woocommerce_variable_price_range_does_not_mix_variants(self) -> None:
+        wc = WooCommerceBaseScraper(http_client=None)  # type: ignore[arg-type]
+        wc.store_name = "egysupps"
+        wc.category = "health"
+        wc.base_url = "https://egysupps.com"
+
+        # Variable product spanning 130 EGP .. 4450 EGP MUST NOT emit claimed_original_price=4450
+        rec_spread = wc._parse_item(
+            {
+                "id": 5001,
+                "type": "variable",
+                "name": "Whey Protein Gold Standard",
+                "permalink": "https://egysupps.com/product/whey-gold",
+                "on_sale": True,
+                "prices": {
+                    "price": "13000",
+                    "regular_price": "445000",
+                    "sale_price": "13000",
+                    "currency_minor_unit": 2,
+                    "price_range": {"min_amount": "13000", "max_amount": "445000"},
+                },
+                "images": [{"src": "https://egysupps.com/whey.jpg"}],
+                "categories": [{"name": "Protein"}],
+                "is_in_stock": True,
+            },
+            date(2026, 11, 23),
+            datetime(2026, 11, 23, 1, 0, 0),
+        )
+        self.assertIsNotNone(rec_spread)
+        assert rec_spread is not None
+        self.assertEqual(rec_spread.category, "health")
+        self.assertEqual(rec_spread.current_price, Decimal("130.00"))
+        self.assertIsNone(rec_spread.claimed_original_price)
+
+        # Uniform-price variable product (e.g. sizes S/M/L all on sale 500 -> 650) keeps valid discount
+        rec_uniform = wc._parse_item(
+            {
+                "id": 5002,
+                "type": "variable",
+                "name": "Multivitamin Pack",
+                "permalink": "https://egysupps.com/product/multi",
+                "on_sale": True,
+                "prices": {
+                    "price": "50000",
+                    "regular_price": "65000",
+                    "sale_price": "50000",
+                    "currency_minor_unit": 2,
+                    "price_range": {"min_amount": "50000", "max_amount": "50000"},
+                },
+                "images": [{"src": "https://egysupps.com/multi.jpg"}],
+                "categories": [{"name": "Vitamins"}],
+                "is_in_stock": True,
+            },
+            date(2026, 11, 23),
+            datetime(2026, 11, 23, 1, 0, 0),
+        )
+        self.assertIsNotNone(rec_uniform)
+        assert rec_uniform is not None
+        self.assertEqual(rec_uniform.current_price, Decimal("500.00"))
+        self.assertEqual(rec_uniform.claimed_original_price, Decimal("650.00"))
 
 
 if __name__ == "__main__":

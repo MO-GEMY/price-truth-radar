@@ -10,6 +10,7 @@
  */
 
 import type {
+  CategoriesResponse,
   CompareParams,
   CompareResponse,
   PriceAlertRequest,
@@ -23,6 +24,7 @@ import type {
   StatsOverview,
 } from "@/types/contract";
 import {
+  getMockCategories,
   getMockStatsOverview,
   mockCompare,
   mockProductDetail,
@@ -135,6 +137,15 @@ export function fetchStatsOverview(signal?: AbortSignal): Promise<ApiResult<Stat
   return withFallback(
     () => fetchJson<StatsOverview>("/api/v1/stats/overview", undefined, signal),
     () => getMockStatsOverview(),
+    signal,
+  );
+}
+
+/** GET /api/v1/categories — populated canonical categories with live product & compare counts */
+export function fetchCategories(signal?: AbortSignal): Promise<ApiResult<CategoriesResponse>> {
+  return withFallback(
+    () => fetchJson<CategoriesResponse>("/api/v1/categories", undefined, signal),
+    () => getMockCategories(),
     signal,
   );
 }

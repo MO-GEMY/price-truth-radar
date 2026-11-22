@@ -10,7 +10,17 @@
 /* Enums (CONTRACTS.md §3.1, §5.3, §5.6)                               */
 /* ------------------------------------------------------------------ */
 
-export type Category = "electronics" | "fashion" | "home_appliances" | "groceries";
+export type Category =
+  | "electronics"
+  | "home_appliances"
+  | "home_furniture"
+  | "fashion"
+  | "beauty"
+  | "groceries"
+  | "health"
+  | "sports"
+  | "pet_care"
+  | "baby_kids";
 
 export type DiscountVerdict =
   | "ALL_TIME_LOW"
@@ -88,6 +98,20 @@ export interface StatsOverview {
   avg_fake_inflation_pct: number;
   last_pipeline_run_at: string;
   available_stores: string[];
+  category_counts?: Record<string, number>;
+}
+
+export interface CategoryFacetItem {
+  slug: Category;
+  label_en: string;
+  label_ar: string;
+  product_count: number;
+  compare_count: number;
+}
+
+export interface CategoriesResponse {
+  items: CategoryFacetItem[];
+  total_products: number;
 }
 
 /* ------------------------------------------------------------------ */

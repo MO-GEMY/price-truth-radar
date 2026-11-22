@@ -872,7 +872,7 @@ stores:
   display_name: El Ezaby Pharmacy
   platform: custom
   base_url: https://elezabypharmacy.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: local_only
   enabled: false
@@ -883,7 +883,7 @@ stores:
   display_name: Seif Pharmacies
   platform: custom
   base_url: https://www.seif-online.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -894,7 +894,7 @@ stores:
   display_name: Misr Pharmacies
   platform: magento_graphql
   base_url: https://misr-online.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: local_only
   enabled: false
@@ -905,7 +905,7 @@ stores:
   display_name: Roshdy Pharmacies
   platform: woocommerce
   base_url: https://roshdypharmacies.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -916,7 +916,7 @@ stores:
   display_name: Delmar & Attalla
   platform: woocommerce
   base_url: https://delmar-attalla.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -927,7 +927,7 @@ stores:
   display_name: Fouda Pharmacy
   platform: woocommerce
   base_url: https://foudapharmacy.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -938,7 +938,7 @@ stores:
   display_name: El Tarshouby Pharmacy
   platform: woocommerce
   base_url: https://eltarshouby.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -949,7 +949,7 @@ stores:
   display_name: Chefaa
   platform: custom
   base_url: https://chefaa.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -960,7 +960,7 @@ stores:
   display_name: Yodawy
   platform: custom
   base_url: https://www.yodawy.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: local_only
   enabled: false
@@ -971,7 +971,7 @@ stores:
   display_name: Faces Egypt
   platform: custom
   base_url: https://www.faces.eg
-  category: pharmacy
+  category: beauty
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -982,7 +982,7 @@ stores:
   display_name: Mazaya Egypt
   platform: magento_graphql
   base_url: https://mazayastores.com
-  category: pharmacy
+  category: beauty
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -993,7 +993,7 @@ stores:
   display_name: SouKare Egypt
   platform: shopify
   base_url: https://eg.soukare.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: false
@@ -1418,7 +1418,7 @@ stores:
   display_name: El Zenouki
   platform: woocommerce
   base_url: https://elzenouki.com
-  category: kitchen
+  category: home_furniture
   vertical: core
   region_mode: cloud
   enabled: true
@@ -1429,7 +1429,7 @@ stores:
   display_name: El Zenouki Cookware
   platform: shopify
   base_url: https://elzenoukicookware.com
-  category: kitchen
+  category: home_furniture
   vertical: core
   region_mode: cloud
   enabled: true
@@ -1440,7 +1440,7 @@ stores:
   display_name: Neoflam Egypt
   platform: woocommerce
   base_url: https://neoflamegypt.com
-  category: kitchen
+  category: home_furniture
   vertical: core
   region_mode: cloud
   enabled: true
@@ -1451,7 +1451,7 @@ stores:
   display_name: Nouval Egypt
   platform: shopify
   base_url: https://www.nouval.com
-  category: kitchen
+  category: home_furniture
   vertical: core
   region_mode: cloud
   enabled: true
@@ -1462,7 +1462,7 @@ stores:
   display_name: Zinox El Zenouki
   platform: shopify
   base_url: https://zinox-elzenouki.com
-  category: kitchen
+  category: home_furniture
   vertical: core
   region_mode: cloud
   enabled: true
@@ -2177,7 +2177,7 @@ stores:
   display_name: Beseha
   platform: woocommerce
   base_url: https://beseha.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: true
@@ -2188,7 +2188,7 @@ stores:
   display_name: Bloom Pharmacy
   platform: shopify
   base_url: https://www.bloompharmacy.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: cloud
   enabled: true
@@ -2276,7 +2276,7 @@ stores:
   display_name: Amin Pet Shop
   platform: shopify
   base_url: https://aminpetshop.com
-  category: groceries
+  category: pet_care
   vertical: groceries
   region_mode: cloud
   enabled: true
@@ -2298,7 +2298,7 @@ stores:
   display_name: Happet Pet Store
   platform: shopify
   base_url: https://happet.net
-  category: groceries
+  category: pet_care
   vertical: groceries
   region_mode: cloud
   enabled: true
@@ -2430,7 +2430,7 @@ stores:
   display_name: Azza Fahmy Egypt
   platform: shopify
   base_url: https://eg.azzafahmy.com
-  category: watches
+  category: fashion
   vertical: fashion
   region_mode: cloud
   enabled: true
@@ -2441,7 +2441,7 @@ stores:
   display_name: Cocyta Optics
   platform: shopify
   base_url: https://cocyta.com
-  category: optics
+  category: fashion
   vertical: fashion
   region_mode: cloud
   enabled: true
@@ -2529,7 +2529,7 @@ stores:
   display_name: Diwan Bookstore
   platform: woocommerce
   base_url: https://diwanegypt.com
-  category: books
+  category: baby_kids
   vertical: core
   region_mode: local_only
   enabled: false
@@ -2551,7 +2551,7 @@ stores:
   display_name: PetsEgypt
   platform: shopify
   base_url: https://petsegypt.com
-  category: groceries
+  category: pet_care
   vertical: groceries
   region_mode: local_only
   enabled: false
@@ -2562,7 +2562,7 @@ stores:
   display_name: Samir & Aly
   platform: shopify
   base_url: https://samirandaly.com
-  category: books
+  category: baby_kids
   vertical: core
   region_mode: local_only
   enabled: false
@@ -2584,7 +2584,7 @@ stores:
   display_name: Tdawi Pharmacy
   platform: woocommerce
   base_url: https://tdawi.com
-  category: pharmacy
+  category: health
   vertical: groceries
   region_mode: local_only
   enabled: false
@@ -2595,7 +2595,7 @@ stores:
   display_name: Baraka Optical
   platform: shopify
   base_url: https://albarakaoptical.com
-  category: optics
+  category: fashion
   vertical: fashion
   region_mode: cloud
   enabled: false
@@ -2628,7 +2628,7 @@ stores:
   display_name: Bernasos
   platform: woocommerce
   base_url: https://bernasos.com
-  category: books
+  category: baby_kids
   vertical: core
   region_mode: cloud
   enabled: false
@@ -2639,7 +2639,7 @@ stores:
   display_name: Doctor M Egypt
   platform: shopify
   base_url: https://www.doctor-m.com
-  category: optics
+  category: fashion
   vertical: fashion
   region_mode: cloud
   enabled: false
@@ -2661,7 +2661,7 @@ stores:
   display_name: Happy Vision
   platform: shopify
   base_url: https://happyvision.com.eg
-  category: optics
+  category: fashion
   vertical: fashion
   region_mode: cloud
   enabled: false
@@ -2783,7 +2783,7 @@ stores:
   display_name: Shorouk Bookstores
   platform: custom
   base_url: https://www.shoroukbookstores.com
-  category: books
+  category: baby_kids
   vertical: core
   region_mode: cloud
   enabled: false
@@ -2794,7 +2794,7 @@ stores:
   display_name: Virgin Megastore Egypt
   platform: custom
   base_url: https://www.virginmegastore.eg
-  category: lifestyle
+  category: fashion
   vertical: fashion
   region_mode: cloud
   enabled: false
@@ -2805,7 +2805,7 @@ stores:
   display_name: Zahran Stores
   platform: shopify
   base_url: https://zahranstores.com
-  category: kitchen
+  category: home_furniture
   vertical: core
   region_mode: cloud
   enabled: false

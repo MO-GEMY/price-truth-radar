@@ -151,7 +151,8 @@ export default function HomePage() {
           </p>}
         </div>
         {!searchState && <>
-          <FeedFilters value={{ category, verdict, store, sort }} stores={storeChoices} onChange={updateFilters} />
+          <FeedFilters value={{ category, verdict, store, sort }} stores={storeChoices}
+            categoryCounts={storedStats?.category_counts} onChange={updateFilters} />
           <MockBanner source={current?.source ?? null} onRetry={() => setAttempt((value) => value + 1)} />
           {failed === key && <ErrorState onRetry={() => setAttempt((value) => value + 1)} />}
           {loading && <ResultSkeleton />}

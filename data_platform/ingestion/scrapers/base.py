@@ -164,7 +164,7 @@ def validate_price_floor(
     current_price: Decimal,
 ) -> Optional[str]:
     """Return an error reason if `current_price` violates category/appliance sanity floors."""
-    if category in ("electronics", "home_appliances", "fashion") and current_price < NON_GROCERY_MIN_PRICE_EGP:
+    if category != "groceries" and current_price < NON_GROCERY_MIN_PRICE_EGP:
         return (
             f"Suspiciously low price ({current_price} EGP < {NON_GROCERY_MIN_PRICE_EGP} EGP) "
             f"for {category} listing"
@@ -227,7 +227,31 @@ def utc_now_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
-Category = Literal["electronics", "fashion", "home_appliances", "groceries"]
+CANONICAL_CATEGORIES: tuple[str, ...] = (
+    "electronics",
+    "home_appliances",
+    "home_furniture",
+    "fashion",
+    "beauty",
+    "groceries",
+    "health",
+    "sports",
+    "pet_care",
+    "baby_kids",
+)
+
+Category = Literal[
+    "electronics",
+    "home_appliances",
+    "home_furniture",
+    "fashion",
+    "beauty",
+    "groceries",
+    "health",
+    "sports",
+    "pet_care",
+    "baby_kids",
+]
 ScrapeMode = Literal["daily", "discover"]
 ScrapeVertical = Literal["core", "groceries", "fashion"]
 

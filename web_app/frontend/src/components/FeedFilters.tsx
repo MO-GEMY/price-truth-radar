@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import type { DiscountVerdict, FeedCategoryFilter, FeedSort } from "@/types/contract";
-import { categories, categoryLabels } from "@/lib/browse-state";
+import { categoryLabels, visibleCategories } from "@/lib/browse-state";
+import { formatNumber } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
 
@@ -19,13 +20,17 @@ export interface FeedFilterState {
 
 export const defaultFilters: FeedFilterState = { category: "all", verdict: "", store: "", sort: "claimed_vs_real_gap_desc" };
 
-export function FeedFilters({ value, stores, onChange }: {
-  value: FeedFilterState; stores: string[]; onChange: (next: FeedFilterState) => void;
+export function FeedFilters({ value, stores, categoryCounts, onChange }: {
+  value: FeedFilterState;
+  stores: string[];
+  categoryCounts?: Record<string, number> | null;
+  onChange: (next: FeedFilterState) => void;
 }) {
   const { lang, t } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const [draft, setDraft] = useState(value);
+  const shownCategories = visibleCategories(categoryCounts, value.category);
   const available = [...new Set([...stores, ...(value.store ? [value.store] : [])])].sort((a, b) =>
     storeDisplayName(a, lang).localeCompare(storeDisplayName(b, lang), lang),
   );
@@ -43,11 +48,19 @@ export function FeedFilters({ value, stores, onChange }: {
   return (
     <div className="space-y-2">
       <div className="ptr-toolbar">
-        <div className="ptr-controls" role="group" aria-label={t("filters.category")}>
-          {categories.map((category) => <button className="ptr-chip" key={category} type="button"
-            aria-pressed={value.category === category} onClick={() => onChange({ ...value, category })}>
-            {t(categoryLabels[category])}
-          </button>)}
+        <div className="ptr-category-bar" role="group" aria-label={t("filters.category")}>
+          {shownCategories.map((category) => {
+            const catCount = category === "all" ? null : categoryCounts?.[category];
+            return (
+              <button className="ptr-chip" key={category} type="button"
+                aria-pressed={value.category === category} onClick={() => onChange({ ...value, category })}>
+                <span>{t(categoryLabels[category])}</span>
+                {typeof catCount === "number" && catCount > 0 && (
+                  <span className="ptr-chip-count"><bdi>{formatNumber(catCount, lang)}</bdi></span>
+                )}
+              </button>
+            );
+          })}
         </div>
         <button ref={opener} type="button" className="ptr-button" onClick={() => {
           setDraft(value);

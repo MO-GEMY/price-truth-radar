@@ -37,8 +37,8 @@ Primary serving table for search, radar feed, and product headers.
 | `product_sk` | `VARCHAR` | Primary Key (MD5 surrogate key of `store_name` + `external_id`) |
 | `canonical_product_key` | `VARCHAR` | Nullable. Normalized match key across stores (e.g., `samsung_s24_ultra_256gb_12gb`) |
 | `store_name` | `VARCHAR` | Not Null. Lowercase slug (e.g., `btech`, `sigma`, `local_brand_x`) |
-| `category` | `VARCHAR` | Enum: `'electronics'`, `'fashion'`, `'home_appliances'` |
-| `sub_category` | `VARCHAR` | e.g., `'smartphones'`, `'laptops'`, `'monitors'`, `'tvs'`, `'air_conditioners'`, `'refrigerators'`, `'hoodies'`, `'sneakers'` |
+| `category` | `VARCHAR` | Enum: `'electronics'`, `'home_appliances'`, `'home_furniture'`, `'fashion'`, `'beauty'`, `'groceries'`, `'health'`, `'sports'`, `'pet_care'`, `'baby_kids'` |
+| `sub_category` | `VARCHAR` | e.g., `'smartphones'`, `'laptops'`, `'monitors'`, `'tvs'`, `'air_conditioners'`, `'refrigerators'`, `'mattresses'`, `'cookware'`, `'hoodies'`, `'sneakers'`, `'perfumes'`, `'skincare'`, `'vitamins'`, `'fitness_equipment'`, `'cat_food'`, `'toys'` |
 | `brand` | `VARCHAR` | Normalized brand name |
 | `product_title` | `TEXT` | Cleaned display title |
 | `product_url` | `TEXT` | Direct store URL |
@@ -76,7 +76,7 @@ Cross-store arbitrage comparison for matched electronics products (`stores_count
 | :--- | :--- | :--- |
 | `canonical_product_key` | `VARCHAR` | Primary Key |
 | `product_title_clean` | `TEXT` | Clean unified title |
-| `category` | `VARCHAR` | `'electronics'`, `'fashion'`, or `'home_appliances'` |
+| `category` | `VARCHAR` | Canonical category enum (`'electronics'`, `'home_appliances'`, `'home_furniture'`, `'fashion'`, `'beauty'`, `'groceries'`, `'health'`, `'sports'`, `'pet_care'`, `'baby_kids'`) |
 | `brand` | `VARCHAR` | Normalized brand |
 | `stores_count` | `INTEGER` | Number of stores carrying this item |
 | `lowest_price` | `NUMERIC(12,2)` | Lowest current price in EGP |
@@ -122,14 +122,15 @@ Base path: `/api/v1` (except `/health`). CORS must allow frontend origins (`*` i
   "presale_hikes_today": 11,
   "avg_fake_inflation_pct": 16.4,
   "last_pipeline_run_at": "2026-11-21T03:00:00Z",
-  "available_stores": ["2b", "amazon_eg", "btech", "dalydress", "dejavu", "noon", "sigma", "town_team"]
+  "available_stores": ["2b", "amazon_eg", "btech", "dalydress", "dejavu", "noon", "sigma", "town_team"],
+  "category_counts": { "electronics": 6200, "home_appliances": 4100, "fashion": 12400, "beauty": 8900 }
 }
 ```
 
 ### 5.3 Radar Feed (Paginated & Filterable)
 * `GET /api/v1/radar/feed`
 * Query Params:
-  * `category`: `all` | `electronics` | `fashion` | `home_appliances` (default `all`)
+  * `category`: `all` | `electronics` | `home_appliances` | `home_furniture` | `fashion` | `beauty` | `groceries` | `health` | `sports` | `pet_care` | `baby_kids` (default `all`)
   * `verdict`: optional (`ALL_TIME_LOW`, `GENUINE_DEAL`, `FAKE_DISCOUNT`, `PRESALE_HIKE`, `NORMAL_PRICE`)
   * `store`: optional store slug
   * `sort`: `real_discount_pct_desc` | `claimed_vs_real_gap_desc` | `price_asc` | `price_desc` (default `claimed_vs_real_gap_desc`)

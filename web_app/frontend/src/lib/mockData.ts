@@ -8,6 +8,7 @@
 
 import type {
   AlternativeListing,
+  CategoriesResponse,
   Category,
   CompareListing,
   CompareParams,
@@ -763,6 +764,10 @@ export function getMockStatsOverview(): StatsOverview {
           ) / fake.length,
         )
       : 0;
+  const categoryCounts: Record<string, number> = {};
+  for (const p of products) {
+    categoryCounts[p.category] = (categoryCounts[p.category] ?? 0) + 1;
+  }
   return {
     total_tracked: products.length,
     fake_discounts_today: count("FAKE_DISCOUNT"),
@@ -772,6 +777,44 @@ export function getMockStatsOverview(): StatsOverview {
     avg_fake_inflation_pct: avgInflation,
     last_pipeline_run_at: MOCK_NOW,
     available_stores: getMockStoreNames(),
+    category_counts: categoryCounts,
+  };
+}
+
+export function getMockCategories(): CategoriesResponse {
+  const products = getDataset();
+  const productCounts: Record<string, number> = {};
+  const compareKeys: Record<string, Set<string>> = {};
+  for (const p of products) {
+    productCounts[p.category] = (productCounts[p.category] ?? 0) + 1;
+    if (p.canonical_product_key) {
+      compareKeys[p.category] ??= new Set();
+      compareKeys[p.category].add(p.canonical_product_key);
+    }
+  }
+  const meta: Array<[Category, string, string]> = [
+    ["electronics", "Electronics", "إلكترونيات"],
+    ["home_appliances", "Home Appliances", "أجهزة منزلية"],
+    ["home_furniture", "Home & Furniture", "أثاث ومنزل"],
+    ["fashion", "Fashion", "أزياء"],
+    ["beauty", "Beauty & Perfumes", "عطور وتجميل"],
+    ["groceries", "Groceries", "منتجات غذائية"],
+    ["health", "Health & Pharmacy", "صيدليات وصحة"],
+    ["sports", "Sports & Fitness", "رياضة ولياقة"],
+    ["pet_care", "Pet Care", "مستلزمات الحيوانات"],
+    ["baby_kids", "Baby & Kids", "أطفال وألعاب"],
+  ];
+  return {
+    items: meta
+      .map(([slug, label_en, label_ar]) => ({
+        slug,
+        label_en,
+        label_ar,
+        product_count: productCounts[slug] ?? 0,
+        compare_count: compareKeys[slug]?.size ?? 0,
+      }))
+      .filter((item) => item.product_count > 0 || item.compare_count > 0),
+    total_products: products.length,
   };
 }
 

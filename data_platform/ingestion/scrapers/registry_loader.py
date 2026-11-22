@@ -29,23 +29,24 @@ DEFAULT_REGISTRY_PATH = Path(__file__).resolve().parents[1] / "stores_registry.y
 PlatformType = Literal["shopify", "woocommerce", "magento_graphql", "custom"]
 RegionMode = Literal["cloud", "local_only"]
 
-# Map extended starter-registry categories onto DB-contract categories safely
+# Map registry categories (and legacy aliases) onto canonical top-level categories
 _CATEGORY_CONTRACT_MAP: dict[str, Category] = {
     "electronics": "electronics",
     "home_appliances": "home_appliances",
-    "kitchen": "home_appliances",
-    "home_furniture": "home_appliances",
-    "groceries": "groceries",
-    "pharmacy": "groceries",
-    "health": "groceries",
+    "home_furniture": "home_furniture",
+    "kitchen": "home_furniture",
     "fashion": "fashion",
-    "beauty": "fashion",
-    "sports": "fashion",
     "optics": "fashion",
     "watches": "fashion",
-    "baby_kids": "fashion",
     "lifestyle": "fashion",
-    "books": "electronics",
+    "beauty": "beauty",
+    "groceries": "groceries",
+    "health": "health",
+    "pharmacy": "health",
+    "sports": "sports",
+    "pet_care": "pet_care",
+    "baby_kids": "baby_kids",
+    "books": "baby_kids",
 }
 
 DEFAULT_REGISTRY_MAX_PRODUCTS = 650

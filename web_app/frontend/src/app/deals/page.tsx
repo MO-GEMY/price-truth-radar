@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { fetchRadarHighlights, type HighlightsView } from "@/lib/api";
-import { browseHref, categories, categoryLabels, parseCategory, productHref, setBrowseParams, useBrowseParams } from "@/lib/browse-state";
-import { formatDateTime, formatPctPlain, formatPrice } from "@/lib/format";
+import { fetchRadarHighlights, fetchStatsOverview, type HighlightsView } from "@/lib/api";
+import { browseHref, categoryLabelKey, categoryLabels, parseCategory, productHref, setBrowseParams, useBrowseParams, visibleCategories } from "@/lib/browse-state";
+import { formatDateTime, formatNumber, formatPctPlain, formatPrice } from "@/lib/format";
 import { isStaleObservation, type PriceHighlight } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
 import { absoluteUrl } from "@/lib/site";
@@ -39,7 +39,10 @@ function HighlightCard({ item, warning, from, live, canSharePrice }: {
         fit="contain" className="ptr-thumbnail" studio
       />
       <div className="min-w-0 space-y-2">
-        {item.store && <StoreBadge name={item.store} size="sm" />}
+        <div className="ptr-controls text-xs ptr-muted">
+          {item.store && <StoreBadge name={item.store} size="sm" />}
+          {categoryLabelKey(item.category) && <span className="ptr-badge">{t(categoryLabelKey(item.category)!)}</span>}
+        </div>
         <h2 className="text-base font-bold">{href ? <Link href={href}><bdi>{title}</bdi></Link> : <bdi>{title}</bdi>}</h2>
         <span className={`ptr-badge ${warning ? "ptr-badge-warning" : "ptr-badge-good"}`}>
           {t(item.priceHike ? "verdict.PRESALE_HIKE" : warning ? "deals.scandalBadge" : "deals.dealBadge")}
@@ -74,8 +77,19 @@ export default function DealsPage() {
   const category = parseCategory(params.get("category"));
   const tab = params.get("tab") === "scandals" ? "scandals" : "deals";
   const [data, setData] = useState<{ category: typeof category; value: HighlightsView } | null>(null);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number> | null>(null);
   const [error, setError] = useState<false | typeof category>(false);
   const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchStatsOverview(controller.signal).then((res) => {
+      if (!controller.signal.aborted && res.data.category_counts) {
+        setCategoryCounts(res.data.category_counts);
+      }
+    }).catch(() => {});
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,6 +101,8 @@ export default function DealsPage() {
     });
     return () => controller.abort();
   }, [category, attempt]);
+
+  const shownCategories = visibleCategories(categoryCounts, category);
 
   const current = data?.category === category ? data.value : null;
   const bucket = current?.[tab];
@@ -111,13 +127,19 @@ export default function DealsPage() {
           </button>
         ))}
       </div>
-      <div className="ptr-controls" role="group" aria-label={t("filters.title")}>
-        {categories.map((value) => (
-          <button type="button" key={value} className="ptr-chip" aria-pressed={category === value}
-            onClick={() => setBrowseParams({ category: value === "all" ? undefined : value })}>
-            {t(categoryLabels[value])}
-          </button>
-        ))}
+      <div className="ptr-category-bar" role="group" aria-label={t("filters.category")}>
+        {shownCategories.map((value) => {
+          const catCount = value === "all" ? null : categoryCounts?.[value];
+          return (
+            <button type="button" key={value} className="ptr-chip" aria-pressed={category === value}
+              onClick={() => setBrowseParams({ category: value === "all" ? undefined : value })}>
+              <span>{t(categoryLabels[value])}</span>
+              {typeof catCount === "number" && catCount > 0 && (
+                <span className="ptr-chip-count"><bdi>{formatNumber(catCount, lang)}</bdi></span>
+              )}
+            </button>
+          );
+        })}
       </div>
       <MockBanner source={bucket?.source ?? null} onRetry={() => setAttempt((value) => value + 1)} />
       {current?.limited && <p className="ptr-notice">{t("deals.limited")}</p>}

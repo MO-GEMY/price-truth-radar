@@ -583,6 +583,68 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(resp_fuzzy.json()["match_type"], "fuzzy_trgm")
         self.assertEqual(len(resp_fuzzy.json()["items"]), 1)
 
+    def test_expanded_categories_facets_and_filters(self) -> None:
+        now = datetime(2026, 11, 23, 1, 0, 0, tzinfo=timezone.utc)
+        pet_row = {
+            "product_sk": "sk_pet_1",
+            "canonical_product_key": None,
+            "store_name": "happet",
+            "category": "pet_care",
+            "sub_category": "cat_food",
+            "brand": "Leonardo",
+            "product_title": "Leonardo Fish Cat Dry Food",
+            "product_url": "https://happet.net/products/leonardo-fish-cat-dry-food",
+            "image_url": "https://happet.net/img.jpg",
+            "attributes_json": {},
+            "current_price": 130.0,
+            "claimed_original_price": None,
+            "rolling_60d_median": 130.0,
+            "min_historical_price": 130.0,
+            "max_historical_price": 130.0,
+            "claimed_discount_pct": 0.0,
+            "real_discount_pct": 0.0,
+            "discount_verdict": "NORMAL_PRICE",
+            "scarcity_flag": False,
+            "in_stock": True,
+            "last_updated_at": now,
+        }
+
+        def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
+            if "FULL OUTER JOIN compare_counts" in sql:
+                return _FakeResult(
+                    rows=[
+                        {"category": "electronics", "product_count": 5000, "compare_count": 320},
+                        {"category": "beauty", "product_count": 6200, "compare_count": 0},
+                        {"category": "pet_care", "product_count": 480, "compare_count": 12},
+                    ]
+                )
+            if "COUNT(*)" in sql:
+                return _FakeResult(scalar=1)
+            if "FROM gold.mart_cross_store_matches" in sql:
+                return _FakeResult(rows=[])
+            return _FakeResult(rows=[pet_row])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        # /api/v1/categories returns only >0 categories with AR+EN metadata
+        r_cats = client.get("/api/v1/categories")
+        self.assertEqual(r_cats.status_code, 200)
+        cats_body = r_cats.json()
+        self.assertEqual([c["slug"] for c in cats_body["items"]], ["electronics", "beauty", "pet_care"])
+        self.assertEqual(cats_body["items"][2]["label_ar"], "مستلزمات الحيوانات")
+        self.assertEqual(cats_body["total_products"], 11680)
+
+        # All new canonical categories accepted cleanly across feed, highlights, and compare
+        for cat in ("home_furniture", "beauty", "health", "sports", "pet_care", "baby_kids"):
+            r_feed = client.get(f"/api/v1/radar/feed?category={cat}&limit=5")
+            self.assertEqual(r_feed.status_code, 200, f"feed failed for {cat}")
+            r_hi = client.get(f"/api/radar/highlights?category={cat}&limit=5")
+            self.assertEqual(r_hi.status_code, 200, f"highlights failed for {cat}")
+            r_cmp = client.get(f"/api/v1/compare?category={cat}&limit=5")
+            self.assertEqual(r_cmp.status_code, 200, f"compare failed for {cat}")
+
 
 if __name__ == "__main__":
     unittest.main()
