@@ -1,16 +1,19 @@
 # =============================================================================
-# Price Truth Radar — Egyptian E-Commerce Stores Registry (120 Stores)
+# Price Truth Radar — Egyptian E-Commerce Stores Registry (257 Stores)
 # =============================================================================
 # Platforms: shopify | woocommerce | magento_graphql | custom
 # Region modes:
 #   - cloud      : Safe for GitHub Actions datacenter runners
 #   - local_only : Blocks datacenter IPs; runs locally via scripts/run_local_scrapers.ps1
 # Enabled flag:
-#   - 42 live-verified stores (`enabled: true, verified: true`):
-#       * 40 cloud stores balanced across 9 batches (max 6 stores/batch)
+#   - 150 live-verified active stores (`enabled: true, verified: true`):
+#       * 148 cloud stores balanced across 23 batches (max 10 stores/batch)
 #       * 2 local_only stores (`2b`, `sigma`)
-#   - 78 staged stores (`enabled: false, verified: false`) annotated with
+#   - 107 staged stores (`enabled: false, verified: false`) annotated with
 #     live probe `notes` from `verify_registry.py`.
+# Safety cap:
+#   - Expansion stores enforce `max_products: 650` in discovery mode to keep
+#     Neon PostgreSQL storage safely within the 512 MB tier at 150 stores.
 # =============================================================================
 
 version: 1
@@ -1301,3 +1304,1511 @@ stores:
   enabled: true
   verified: true
   batch: home_1
+- store_key: ahw_store
+  display_name: AHW Store
+  platform: shopify
+  base_url: https://ahw.store
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: ennap
+  display_name: Ennap
+  platform: shopify
+  base_url: https://ennap.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: gc_hardware
+  display_name: GC Hardware
+  platform: woocommerce
+  base_url: https://gc-hardware.net
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: hankerz
+  display_name: Hankerz
+  platform: woocommerce
+  base_url: https://hankerz.com.eg
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: icamstore
+  display_name: iCamStore
+  platform: woocommerce
+  base_url: https://icamstore.net
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: kimostore
+  display_name: Kimo Store
+  platform: shopify
+  base_url: https://kimostore.net
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: myxprs
+  display_name: XPRS Egypt
+  platform: shopify
+  base_url: https://myxprs.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: shamystores
+  display_name: Shamy Stores
+  platform: shopify
+  base_url: https://shamystores.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_5
+  max_products: 650
+- store_key: smartkoshk
+  display_name: Smart Koshk
+  platform: shopify
+  base_url: https://smartkoshk.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 650
+- store_key: three_egypt
+  display_name: THREE Egypt
+  platform: shopify
+  base_url: https://three-egypt.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 650
+- store_key: elzenouki
+  display_name: El Zenouki
+  platform: woocommerce
+  base_url: https://elzenouki.com
+  category: kitchen
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 650
+- store_key: elzenouki_cookware
+  display_name: El Zenouki Cookware
+  platform: shopify
+  base_url: https://elzenoukicookware.com
+  category: kitchen
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 650
+- store_key: neoflam_eg
+  display_name: Neoflam Egypt
+  platform: woocommerce
+  base_url: https://neoflamegypt.com
+  category: kitchen
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 650
+- store_key: nouval_eg
+  display_name: Nouval Egypt
+  platform: shopify
+  base_url: https://www.nouval.com
+  category: kitchen
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 650
+- store_key: zinox_elzenouki
+  display_name: Zinox El Zenouki
+  platform: shopify
+  base_url: https://zinox-elzenouki.com
+  category: kitchen
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 650
+- store_key: bed_janssen
+  display_name: Bed Janssen
+  platform: shopify
+  base_url: https://bedjanssen.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_2
+  max_products: 650
+- store_key: family_bed
+  display_name: Family Bed
+  platform: shopify
+  base_url: https://family-bed.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_2
+  max_products: 650
+- store_key: habitat_eg
+  display_name: Habitat Egypt
+  platform: woocommerce
+  base_url: https://habitategy.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_2
+  max_products: 650
+- store_key: janssen_stores
+  display_name: Janssen Stores
+  platform: woocommerce
+  base_url: https://janssenstores.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_2
+  max_products: 650
+- store_key: manzzeli
+  display_name: Manzzeli
+  platform: shopify
+  base_url: https://manzzeli.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_2
+  max_products: 650
+- store_key: mffco
+  display_name: MFFCO Furniture
+  platform: woocommerce
+  base_url: https://www.mffco.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_2
+  max_products: 650
+- store_key: bednhome
+  display_name: BedNHome
+  platform: shopify
+  base_url: https://bednhomestore.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_3
+  max_products: 650
+- store_key: elbadrawi_home
+  display_name: Elbadrawi Home
+  platform: shopify
+  base_url: https://elbadrawihome.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_3
+  max_products: 650
+- store_key: grand_style
+  display_name: Grand Style
+  platform: shopify
+  base_url: https://grandstyle.com.eg
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_3
+  max_products: 650
+- store_key: heba_linens
+  display_name: Heba Linens
+  platform: shopify
+  base_url: https://hebalinens.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_3
+  max_products: 650
+- store_key: nile_home
+  display_name: Nile Home
+  platform: shopify
+  base_url: https://www.nilehome-eg.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_3
+  max_products: 650
+- store_key: smart_furniture
+  display_name: Smart Furniture
+  platform: shopify
+  base_url: https://www.smartfurniture.com.eg
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: home_3
+  max_products: 650
+- store_key: asili_eg
+  display_name: Asili Egypt
+  platform: shopify
+  base_url: https://asilieg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: basiclook
+  display_name: The Basiclook
+  platform: shopify
+  base_url: https://www.basiclook.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: cave_eg
+  display_name: Cave Egypt
+  platform: shopify
+  base_url: https://www.caveeg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: gonative
+  display_name: Go Native
+  platform: shopify
+  base_url: https://gonative.eg
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: in_your_shoe
+  display_name: In Your Shoe
+  platform: shopify
+  base_url: https://inyourshoe.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: lokal_eg
+  display_name: LOKAL
+  platform: shopify
+  base_url: https://lokaleg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: mawlah
+  display_name: Mawlah
+  platform: shopify
+  base_url: https://mawlah.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: novencci
+  display_name: Novencci EG
+  platform: shopify
+  base_url: https://novenccieg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: shopzhivago
+  display_name: Zhivago
+  platform: shopify
+  base_url: https://shopzhivago.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_3
+  max_products: 650
+- store_key: boheme_eg
+  display_name: Boheme Shop
+  platform: shopify
+  base_url: https://www.bohemeshop.net
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: mlameh
+  display_name: Mlameh Fashion
+  platform: shopify
+  base_url: https://mlameh.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: sigma_fit
+  display_name: Sigma Fit
+  platform: shopify
+  base_url: https://sigmafiteg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: skechers_shop_eg
+  display_name: Skechers Egypt Shop
+  platform: woocommerce
+  base_url: https://www.skechersegypt.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: sn2_studios
+  display_name: SN2 Studios
+  platform: shopify
+  base_url: https://sn2studios.co
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: stabraq
+  display_name: Stabraq
+  platform: shopify
+  base_url: https://stabraq.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: streetwearts
+  display_name: Streetwear Official
+  platform: shopify
+  base_url: https://www.streetwearts.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: two_s_eg
+  display_name: 2S Egypt
+  platform: shopify
+  base_url: https://www.2segypt.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: unty
+  display_name: UNTY
+  platform: shopify
+  base_url: https://www.unty.co
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: upfuse
+  display_name: Up-fuse
+  platform: shopify
+  base_url: https://up-fuse.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_4
+  max_products: 650
+- store_key: achilles_eg
+  display_name: Achilles Stores
+  platform: shopify
+  base_url: https://achilleseg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: arctic_hunter_eg
+  display_name: Arctic Hunter Egypt
+  platform: shopify
+  base_url: https://arctichunter-eg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: eldarweesh
+  display_name: El Darweesh Leather
+  platform: shopify
+  base_url: https://eldarweesh.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: emeli_eg
+  display_name: Emeli Egypt
+  platform: shopify
+  base_url: https://emeliegypt.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: lionell
+  display_name: Lionell Leather
+  platform: shopify
+  base_url: https://www.lionell.net
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: nuniz_cairo
+  display_name: Nuniz Cairo
+  platform: shopify
+  base_url: https://nuniz-cairo.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: okhtein
+  display_name: Okhtein
+  platform: shopify
+  base_url: https://eg.okhtein.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: palma_eg
+  display_name: Palma Egypt
+  platform: shopify
+  base_url: https://getpalma.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: pronto_shoes
+  display_name: Pronto Shoes
+  platform: shopify
+  base_url: https://pronto-eg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: bashrety
+  display_name: Bashrety
+  platform: shopify
+  base_url: https://bashrety.tv
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: biostream
+  display_name: Biostream Kolagra
+  platform: shopify
+  base_url: https://biostream.bio
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: bless_eg
+  display_name: Bless
+  platform: shopify
+  base_url: https://www.bless-eg.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: bobana
+  display_name: Bobana
+  platform: shopify
+  base_url: https://bobana-eg.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: braes_eg
+  display_name: Braes Skincare
+  platform: shopify
+  base_url: https://braes.co
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: catwa_store
+  display_name: Catwa Store
+  platform: shopify
+  base_url: https://catwadeals.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: cybele_eg
+  display_name: Cybele Egypt
+  platform: shopify
+  base_url: https://cybeleegypt.net
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: dermaelle
+  display_name: Dermaelle
+  platform: shopify
+  base_url: https://e-dermaelle.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_1
+  max_products: 650
+- store_key: diwan_fragrances
+  display_name: Diwan Fragrances
+  platform: woocommerce
+  base_url: https://diwanfragrances.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: eparkville
+  display_name: E Parkville
+  platform: shopify
+  base_url: https://eparkville.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: eva_cosmetics
+  display_name: Eva Cosmetics
+  platform: shopify
+  base_url: https://www.shop.eva-cosmetics.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: hayah_labs
+  display_name: Hayah Laboratories
+  platform: shopify
+  base_url: https://hayahlaboratories.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: infinity_clinic
+  display_name: Infinity Clinic Pharma
+  platform: shopify
+  base_url: https://infinityclinicpharma.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: malak_eg
+  display_name: Malak Beauty
+  platform: shopify
+  base_url: https://malak.eg
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: melano_pharma
+  display_name: Melano Pharma
+  platform: shopify
+  base_url: https://melanopharma.store
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: mood_eg
+  display_name: MOOD Egypt
+  platform: shopify
+  base_url: https://e-mood.shop
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_2
+  max_products: 650
+- store_key: mood_fragrances
+  display_name: MOOD Fragrances
+  platform: shopify
+  base_url: https://moodfragrancesegypt.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: neuth_eg
+  display_name: Neuth France Egypt
+  platform: shopify
+  base_url: https://shop.neuthfrance.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: norshek
+  display_name: Norshek
+  platform: woocommerce
+  base_url: https://norshek.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: raw_african
+  display_name: Raw African
+  platform: shopify
+  base_url: https://rawafrican.net
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: soul_and_more
+  display_name: Soul & More
+  platform: shopify
+  base_url: https://soulandmore.co
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: source_beauty
+  display_name: Source Beauty
+  platform: shopify
+  base_url: https://sourcebeauty.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: the_hair_addict
+  display_name: The Hair Addict
+  platform: shopify
+  base_url: https://thehairaddict.net
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: zynah
+  display_name: ZYNAH Beauty
+  platform: shopify
+  base_url: https://zynah.me
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: beseha
+  display_name: Beseha
+  platform: woocommerce
+  base_url: https://beseha.com
+  category: pharmacy
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: bloom_pharmacy
+  display_name: Bloom Pharmacy
+  platform: shopify
+  base_url: https://www.bloompharmacy.com
+  category: pharmacy
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: egysupps
+  display_name: EgySupps
+  platform: woocommerce
+  base_url: https://egysupps.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: house_of_supplements
+  display_name: House of Supplements
+  platform: woocommerce
+  base_url: https://houseofsupplements.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: ifit_eg
+  display_name: iFIT Egypt
+  platform: woocommerce
+  base_url: https://ifit-eg.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: limitless_naturals
+  display_name: Limitless Naturals
+  platform: shopify
+  base_url: https://shop.limitlessnaturals.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: max_muscle_eg
+  display_name: Max Muscle Egypt
+  platform: shopify
+  base_url: https://maxmuscleelite.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: nowfoods_eg
+  display_name: NOW Foods Egypt
+  platform: woocommerce
+  base_url: https://nowfoodsegypt.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: organic_nation
+  display_name: Organic Nation
+  platform: shopify
+  base_url: https://www.organicnationeg.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 650
+- store_key: amin_pet_shop
+  display_name: Amin Pet Shop
+  platform: shopify
+  base_url: https://aminpetshop.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: espresso_egypt
+  display_name: Espresso Egypt
+  platform: shopify
+  base_url: https://www.espressoegypt.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: happet
+  display_name: Happet Pet Store
+  platform: shopify
+  base_url: https://happet.net
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: jadeite_coffee
+  display_name: Jadeite Coffee
+  platform: shopify
+  base_url: https://www.jadeitecoffee.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: java_coffee
+  display_name: JAVA Specialty Coffee
+  platform: shopify
+  base_url: https://javaspecialtycoffee.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: orga_egy
+  display_name: Orga Egypt
+  platform: woocommerce
+  base_url: https://orgaegy.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: seelaz_coffee
+  display_name: Seelaz Specialty Coffee
+  platform: shopify
+  base_url: https://seelaz.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: alnasser_eg
+  display_name: Al Nasser Sports
+  platform: shopify
+  base_url: https://alnasser.eg
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: athlete_home
+  display_name: Athlete Home
+  platform: shopify
+  base_url: https://athletehome-eg.com
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: entercise
+  display_name: Entercise
+  platform: shopify
+  base_url: https://entercise.com
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: gosport_eg
+  display_name: GO Sport Egypt
+  platform: shopify
+  base_url: https://eg.gosportme.com
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: intersport_eg
+  display_name: Intersport Egypt
+  platform: shopify
+  base_url: https://www.intersport.com.eg
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: union_sport
+  display_name: Union Sport
+  platform: shopify
+  base_url: https://unionsport.store
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: wayup_sports
+  display_name: Wayup Sports
+  platform: shopify
+  base_url: https://wayupsports.com
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: azza_fahmy
+  display_name: Azza Fahmy Egypt
+  platform: shopify
+  base_url: https://eg.azzafahmy.com
+  category: watches
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_2
+  max_products: 650
+- store_key: cocyta
+  display_name: Cocyta Optics
+  platform: shopify
+  base_url: https://cocyta.com
+  category: optics
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_2
+  max_products: 650
+- store_key: eftekassat
+  display_name: Eftekassat Kids
+  platform: shopify
+  base_url: https://eftekassat.com
+  category: baby_kids
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_2
+  max_products: 650
+- store_key: kassem_store
+  display_name: Kassem Store
+  platform: woocommerce
+  base_url: https://kassemstore.com
+  category: baby_kids
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_2
+  max_products: 650
+- store_key: le3ab_store
+  display_name: Le3ab Store
+  platform: woocommerce
+  base_url: https://www.le3abstore.com
+  category: baby_kids
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_2
+  max_products: 650
+- store_key: ourkids_eg
+  display_name: OurKids Egypt
+  platform: shopify
+  base_url: https://shop-ourkids.com
+  category: baby_kids
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_2
+  max_products: 650
+- store_key: baseus_eg
+  display_name: Baseus Egypt
+  platform: woocommerce
+  base_url: https://baseusegypt.com
+  category: electronics
+  vertical: core
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_electronics
+  notes: 403 Forbidden/WAF
+- store_key: bingo_toys
+  display_name: Bingo Toys
+  platform: shopify
+  base_url: https://bingo.eg
+  category: baby_kids
+  vertical: fashion
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_baby_kids
+  notes: 403 Cloudflare
+- store_key: decathlon_eg
+  display_name: Decathlon Egypt
+  platform: custom
+  base_url: https://www.decathlon.eg
+  category: sports
+  vertical: fashion
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_sports
+  notes: 403 Cloudflare challenge
+- store_key: diwan_books
+  display_name: Diwan Bookstore
+  platform: woocommerce
+  base_url: https://diwanegypt.com
+  category: books
+  vertical: core
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_books
+  notes: 403 Cloudflare challenge
+- store_key: hedeya
+  display_name: Hedeya Stores
+  platform: magento_graphql
+  base_url: https://www.hedeya.com
+  category: baby_kids
+  vertical: fashion
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_baby_kids
+  notes: 403 Cloudflare challenge
+- store_key: pets_egypt
+  display_name: PetsEgypt
+  platform: shopify
+  base_url: https://petsegypt.com
+  category: groceries
+  vertical: groceries
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_groceries
+  notes: 403 Cloudflare challenge
+- store_key: samir_and_aly
+  display_name: Samir & Aly
+  platform: shopify
+  base_url: https://samirandaly.com
+  category: books
+  vertical: core
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_books
+  notes: 403 Cloudflare challenge
+- store_key: super_supplements
+  display_name: Super Supplements
+  platform: woocommerce
+  base_url: https://super-eg.com
+  category: health
+  vertical: groceries
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_health
+  notes: 403 Cloudflare challenge
+- store_key: tdawi
+  display_name: Tdawi Pharmacy
+  platform: woocommerce
+  base_url: https://tdawi.com
+  category: pharmacy
+  vertical: groceries
+  region_mode: local_only
+  enabled: false
+  verified: false
+  batch: expansion_pharmacy
+  notes: 403 Cloudflare
+- store_key: albaraka_optical
+  display_name: Baraka Optical
+  platform: shopify
+  base_url: https://albarakaoptical.com
+  category: optics
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_optics
+  notes: non-EGP currency (AED)
+- store_key: amanda_milano
+  display_name: Amanda Milano
+  platform: shopify
+  base_url: https://amandamilano.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_beauty
+  notes: shopify HTTP 401; woo non-JSON
+- store_key: amina_k
+  display_name: Amina K
+  platform: shopify
+  base_url: https://aminak.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_fashion
+  notes: shopify non-JSON; woo non-JSON
+- store_key: bernasos
+  display_name: Bernasos
+  platform: woocommerce
+  base_url: https://bernasos.com
+  category: books
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_books
+  notes: woo HTTP 404; shopify HTTP 404
+- store_key: doctor_m_eg
+  display_name: Doctor M Egypt
+  platform: shopify
+  base_url: https://www.doctor-m.com
+  category: optics
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_optics
+  notes: shopify HTTP 404; woo HTTP 404
+- store_key: gamesworldegypt
+  display_name: Games World Egypt
+  platform: woocommerce
+  base_url: https://www.gamesworldegypt.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_electronics
+  notes: woo HTTP 404; shopify HTTP 404
+- store_key: happy_vision
+  display_name: Happy Vision
+  platform: shopify
+  base_url: https://happyvision.com.eg
+  category: optics
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_optics
+  notes: DNS/ConnectError ([Errno 11001] getaddrinfo failed)
+- store_key: highendstore
+  display_name: HIGHEND Store
+  platform: woocommerce
+  base_url: https://highendstore.net
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_electronics
+  notes: woo HTTP 404; shopify HTTP 404
+- store_key: kareemstores
+  display_name: Kareem Stores
+  platform: woocommerce
+  base_url: https://kareemstores.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_electronics
+  notes: woo HTTP 404; shopify HTTP 404
+- store_key: locally_eg
+  display_name: Locally Egypt
+  platform: shopify
+  base_url: https://locallyeg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_fashion
+  notes: shopify HTTP 404; woo HTTP 404
+- store_key: mamzi
+  display_name: Mamzi Store
+  platform: shopify
+  base_url: https://mamzistore.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_fashion
+  notes: non-EGP currency (AED)
+- store_key: mienta_eg
+  display_name: Mienta Egypt
+  platform: shopify
+  base_url: https://mienta.com
+  category: home_appliances
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_home_appliances
+  notes: 'DNS/ConnectError ([SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
+    )'
+- store_key: mobile_masr
+  display_name: Mobile Masr
+  platform: custom
+  base_url: https://mobilemasr.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_electronics
+  notes: shopify HTTP 404; woo HTTP 404
+- store_key: oriental_weavers
+  display_name: Oriental Weavers
+  platform: magento_graphql
+  base_url: https://orientalweavers.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_home_furniture
+  notes: magento HTTP 404; shopify HTTP 404
+- store_key: ram_electronics
+  display_name: RAM Electronics
+  platform: woocommerce
+  base_url: https://www.ram-e-shop.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_electronics
+  notes: woo HTTP 404; shopify HTTP 404
+- store_key: rich_home
+  display_name: Rich Home
+  platform: woocommerce
+  base_url: https://richhome.com.eg
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_home_furniture
+  notes: woo HTTP 404; shopify HTTP 404
+- store_key: sami_amin
+  display_name: Sami Amin
+  platform: shopify
+  base_url: https://sami-amin.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_fashion
+  notes: shopify HTTP 307; woo HTTP 307
+- store_key: shorouk_books
+  display_name: Shorouk Bookstores
+  platform: custom
+  base_url: https://www.shoroukbookstores.com
+  category: books
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_books
+  notes: shopify non-JSON; woo non-JSON
+- store_key: virgin_megastore_eg
+  display_name: Virgin Megastore Egypt
+  platform: custom
+  base_url: https://www.virginmegastore.eg
+  category: lifestyle
+  vertical: fashion
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_lifestyle
+  notes: shopify HTTP 503; woo HTTP 503
+- store_key: zahran_stores
+  display_name: Zahran Stores
+  platform: shopify
+  base_url: https://zahranstores.com
+  category: kitchen
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_kitchen
+  notes: shopify HTTP 404; woo HTTP 404

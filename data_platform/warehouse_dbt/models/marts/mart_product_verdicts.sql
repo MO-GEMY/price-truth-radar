@@ -1,7 +1,14 @@
 {{
     config(
         schema='gold',
-        materialized='table'
+        materialized='table',
+        post_hook=[
+            "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_mart_verdicts_product_sk ON {{ this }} (product_sk)",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_canonical_key ON {{ this }} (canonical_product_key) WHERE canonical_product_key IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_search_doc_trgm ON {{ this }} USING GIN (search_document gin_trgm_ops)",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_title_trgm ON {{ this }} USING GIN (LOWER(product_title) gin_trgm_ops)"
+        ]
     )
 }}
 

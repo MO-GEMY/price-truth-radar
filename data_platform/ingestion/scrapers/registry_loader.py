@@ -33,11 +33,22 @@ RegionMode = Literal["cloud", "local_only"]
 _CATEGORY_CONTRACT_MAP: dict[str, Category] = {
     "electronics": "electronics",
     "home_appliances": "home_appliances",
-    "groceries": "groceries",
-    "fashion": "fashion",
-    "pharmacy": "groceries",
+    "kitchen": "home_appliances",
     "home_furniture": "home_appliances",
+    "groceries": "groceries",
+    "pharmacy": "groceries",
+    "health": "groceries",
+    "fashion": "fashion",
+    "beauty": "fashion",
+    "sports": "fashion",
+    "optics": "fashion",
+    "watches": "fashion",
+    "baby_kids": "fashion",
+    "lifestyle": "fashion",
+    "books": "electronics",
 }
+
+DEFAULT_REGISTRY_MAX_PRODUCTS = 650
 
 
 @dataclass(frozen=True)
@@ -55,6 +66,7 @@ class StoreRegistryEntry:
     extra_verticals: tuple[ScrapeVertical, ...] = ()
     default_limit: Optional[int] = None
     discover_limit: Optional[int] = None
+    max_products: Optional[int] = None
     config: dict[str, Any] = field(default_factory=dict)
     notes: str = ""
 
@@ -112,6 +124,7 @@ def load_stores_registry(
             ),
             default_limit=int(item["default_limit"]) if item.get("default_limit") else None,
             discover_limit=int(item["discover_limit"]) if item.get("discover_limit") else None,
+            max_products=int(item["max_products"]) if item.get("max_products") else None,
             config=dict(item.get("config") or {}),
             notes=str(item.get("notes") or "").strip(),
         )
@@ -133,14 +146,15 @@ def build_platform_scraper_class(entry: StoreRegistryEntry) -> Optional[type[Bas
         "base_url": entry.base_url,
         "supported_verticals": entry.all_verticals,
     }
+    effective_max = entry.max_products or entry.discover_limit or DEFAULT_REGISTRY_MAX_PRODUCTS
     if entry.default_limit:
-        common_attrs["default_limit"] = entry.default_limit
+        common_attrs["default_limit"] = min(entry.default_limit, effective_max)
         if entry.vertical == "groceries":
-            common_attrs["groceries_limit"] = entry.default_limit
-    if entry.discover_limit:
-        common_attrs["discover_limit"] = entry.discover_limit
+            common_attrs["groceries_limit"] = min(entry.default_limit, effective_max)
+    if effective_max:
+        common_attrs["discover_limit"] = effective_max
         if entry.vertical == "groceries":
-            common_attrs["discover_groceries_limit"] = entry.discover_limit
+            common_attrs["discover_groceries_limit"] = effective_max
 
     if cfg.get("default_brand"):
         common_attrs["default_brand"] = str(cfg["default_brand"])

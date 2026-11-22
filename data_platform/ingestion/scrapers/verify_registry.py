@@ -145,6 +145,27 @@ def _is_cf_or_waf_response(resp: httpx.Response) -> Optional[str]:
     return None
 
 
+def _filter_clean_records(records: list[Any]) -> list[Any]:
+    """Keep only records with clean price, title, product_url, and image_url."""
+    clean: list[Any] = []
+    for r in records:
+        try:
+            price = float(r.current_price)
+        except Exception:
+            continue
+        title = str(getattr(r, "product_title", "") or "").strip()
+        purl = str(getattr(r, "product_url", "") or "").strip()
+        img = str(getattr(r, "image_url", "") or "").strip()
+        if (
+            price >= 1.0
+            and len(title) >= 3
+            and purl.startswith(("http://", "https://"))
+            and img.startswith(("http://", "https://"))
+        ):
+            clean.append(r)
+    return clean
+
+
 def _detect_shopify_currency(client: httpx.Client, base_url: str) -> Optional[str]:
     """Inspect Shopify storefront HTML or cart.js to confirm active currency (EGP vs USD/SAR/etc)."""
     for path in ("/cart.js", "/"):
@@ -237,8 +258,8 @@ def _probe_shopify(
         scraper = scraper_cls(hc, mode="daily", vertical=entry.vertical)
         records = scraper.scrape(limit=limit)
 
-    # Reject broken sub-1 EGP grocery feeds (e.g., 0.06 EGP)
-    records = [r for r in records if float(r.current_price) >= 1.0]
+    # Require clean EGP price, title, product_url, and image_url
+    records = _filter_clean_records(records)
 
     if len(records) >= 3:
         r0 = records[0]
@@ -333,8 +354,8 @@ def _probe_woocommerce(
         scraper = scraper_cls(hc, mode="daily", vertical=entry.vertical)
         records = scraper.scrape(limit=limit)
 
-    # Reject broken sub-1 EGP grocery feeds (e.g., 0.06 EGP)
-    records = [r for r in records if float(r.current_price) >= 1.0]
+    # Require clean EGP price, title, product_url, and image_url
+    records = _filter_clean_records(records)
 
     if len(records) >= 3:
         r0 = records[0]
@@ -464,8 +485,8 @@ def _probe_magento_graphql(
         scraper = scraper_cls(hc, mode="daily", vertical=entry.vertical)
         records = scraper.scrape(limit=limit)
 
-    # Reject broken sub-1 EGP grocery feeds (e.g., 0.06 EGP)
-    records = [r for r in records if float(r.current_price) >= 1.0]
+    # Require clean EGP price, title, product_url, and image_url
+    records = _filter_clean_records(records)
 
     if len(records) >= 3:
         r0 = records[0]
@@ -707,12 +728,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--timeout", type=float, default=15.0, help="Per-request timeout seconds (default: 15).")
     parser.add_argument("--limit", type=int, default=5, help="Sample products per store (default: 5).")
     parser.add_argument("--all", action="store_true", help="Probe enabled stores too (default: only enabled: false).")
+    parser.add_argument("--registry", type=str, default=None, help="Optional alternate registry YAML path.")
     parser.add_argument("--json-out", type=str, default=None, help="Optional path to save JSON probe results.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
     results = run_registry_probe(
+        registry_path=Path(args.registry) if args.registry else DEFAULT_REGISTRY_PATH,
         workers=args.workers,
         timeout=args.timeout,
         limit=args.limit,
