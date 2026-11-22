@@ -206,7 +206,7 @@ export const translations = {
     "feed.emptyHint": "Try widening your category, verdict, or store selection.",
 
     "verdict.ALL_TIME_LOW": "Lowest observed price",
-    "verdict.GENUINE_DEAL": "Below typical price",
+    "verdict.GENUINE_DEAL": "Genuine deal",
     "verdict.FAKE_DISCOUNT": "Advertised savings exceed tracked savings",
     "verdict.PRESALE_HIKE": "Price rose before sale",
     "verdict.NORMAL_PRICE": "No deal signal",
@@ -533,7 +533,7 @@ export const translations = {
     "feed.emptyHint": "جرّب توسيع اختيار الفئة أو التصنيف أو المتجر.",
 
     "verdict.ALL_TIME_LOW": "أقل سعر مرصود",
-    "verdict.GENUINE_DEAL": "أقل من السعر المعتاد",
+    "verdict.GENUINE_DEAL": "عرض حقيقي",
     "verdict.FAKE_DISCOUNT": "الخصم المعلن أكبر من التوفير الفعلي",
     "verdict.PRESALE_HIKE": "السعر زاد قبل العرض",
     "verdict.NORMAL_PRICE": "مفيش إشارة لعرض مميز",
