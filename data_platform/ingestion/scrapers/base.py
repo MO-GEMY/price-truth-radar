@@ -29,6 +29,7 @@ from typing import Any, Literal, Optional
 import httpx
 import psycopg2
 from dotenv import load_dotenv
+from psycopg2 import errors as pg_errors
 from psycopg2.extras import execute_values
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -654,8 +655,18 @@ ON CONFLICT (store_name, external_id, snapshot_date) DO UPDATE SET
 """
 
 
-def upsert_snapshots_to_neon(snapshots: list[RawProductSnapshot]) -> int:
-    """Non-destructively upsert scraped snapshots into `raw.raw_product_snapshots`."""
+def upsert_snapshots_to_neon(
+    snapshots: list[RawProductSnapshot],
+    *,
+    max_attempts: int = 5,
+) -> int:
+    """Non-destructively upsert scraped snapshots into `raw.raw_product_snapshots`.
+
+    Uses deterministic conflict-key ordering, a transaction-scoped PostgreSQL
+    advisory lock, and exponential-backoff retries on transient deadlock /
+    serialization errors (SQLSTATE 40P01 / 40001) so parallel CI matrix jobs
+    can commit safely without lock collisions.
+    """
     if not snapshots:
         return 0
 
@@ -663,13 +674,43 @@ def upsert_snapshots_to_neon(snapshots: list[RawProductSnapshot]) -> int:
     if not db_url:
         raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
 
-    rows = [s.to_db_tuple() for s in snapshots]
+    # Sort deterministically by ON CONFLICT (store_name, external_id, snapshot_date)
+    # to guarantee consistent row lock acquisition order.
+    rows = sorted(
+        (s.to_db_tuple() for s in snapshots),
+        key=lambda r: (r[0], r[1], r[13]),
+    )
     conn = psycopg2.connect(db_url)
     try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(DDL_SQL)
-                execute_values(cur, UPSERT_SQL, rows, page_size=500)
+        for attempt in range(1, max_attempts + 1):
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT pg_advisory_xact_lock(hashtext('raw_product_snapshots_upsert'))"
+                    )
+                    cur.execute(DDL_SQL)
+                    execute_values(cur, UPSERT_SQL, rows, page_size=500)
+                conn.commit()
+                return len(rows)
+            except psycopg2.Error as exc:
+                is_retryable = isinstance(
+                    exc, (pg_errors.DeadlockDetected, pg_errors.SerializationFailure)
+                ) or getattr(exc, "pgcode", None) in ("40P01", "40001")
+                conn.rollback()
+                if not is_retryable or attempt >= max_attempts:
+                    raise
+                sleep_for = 0.5 * (2**attempt) + random.uniform(0.1, 0.6)
+                logger.warning(
+                    "Transient PostgreSQL error during snapshot upsert "
+                    "(%s, pgcode=%s, attempt %d/%d, rows=%d); rolled back and retrying in %.2fs.",
+                    type(exc).__name__,
+                    getattr(exc, "pgcode", None),
+                    attempt,
+                    max_attempts,
+                    len(rows),
+                    sleep_for,
+                )
+                time.sleep(sleep_for)
     finally:
         conn.close()
 
