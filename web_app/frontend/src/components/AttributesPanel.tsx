@@ -26,6 +26,14 @@ const ATTR_LABEL_KEYS: Record<string, TranslationKey> = {
   store_category: "attr.store_category",
 };
 
+const HIDDEN_INTERNAL_KEYS = new Set([
+  "product_id",
+  "variant_id",
+  "offer_id",
+  "magento_product_id",
+  "amazon_query",
+]);
+
 function prettify(value: string): string {
   const cleaned = value.replace(/_/g, " ").trim();
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
@@ -48,17 +56,17 @@ export function AttributesPanel({ product }: { product: Product }) {
     const total = (attrs["total_sizes"] as number | undefined) ?? available.length;
 
     return (
-      <div className="glass rounded-2xl p-5">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+      <div className="surface rounded-2xl p-5 sm:p-6">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-white">
           <Shirt className="size-4 text-emerald-400" />
           {t("detail.sizes")}
-        </h3>
+        </h2>
         {available.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {available.map((size) => (
               <span
                 key={size}
-                className="flex size-11 items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/12 text-sm font-bold text-emerald-300"
+                className="flex min-w-11 items-center justify-center rounded-xl border border-emerald-400/35 bg-emerald-500/12 px-2.5 py-2 text-sm font-bold text-emerald-200"
               >
                 {size}
               </span>
@@ -68,7 +76,10 @@ export function AttributesPanel({ product }: { product: Product }) {
           <p className="mt-3 text-sm font-semibold text-rose-300">{t("card.outOfStock")}</p>
         )}
         <p className="num mt-4 text-xs text-slate-400">
-          {t("detail.sizesSummary", { available: formatNumber(available.length, lang), total: formatNumber(total, lang) })}
+          {t("detail.sizesSummary", {
+            available: formatNumber(available.length, lang),
+            total: formatNumber(total, lang),
+          })}
         </p>
         {product.scarcity_flag ? (
           <p className="mt-2 text-xs font-semibold text-amber-300">{t("card.lowStock")}</p>
@@ -77,23 +88,24 @@ export function AttributesPanel({ product }: { product: Product }) {
     );
   }
 
-const HIDDEN_INTERNAL_KEYS = new Set([
-  "product_id",
-  "variant_id",
-  "offer_id",
-  "magento_product_id",
-  "amazon_query",
-]);
-
-  /* -------- Electronics: specification rows -------- */
+  /* -------- Electronics & Home Appliances: crisp 2-column spec sheet -------- */
   const entries = Object.entries(attrs).filter(
-    ([key, value]) => !HIDDEN_INTERNAL_KEYS.has(key) && value !== null && value !== undefined && value !== "",
+    ([key, value]) =>
+      !HIDDEN_INTERNAL_KEYS.has(key) &&
+      value !== null &&
+      value !== undefined &&
+      value !== "",
   );
   if (entries.length === 0) return null;
 
   const renderValue = (key: string, value: unknown): string => {
     if (typeof value === "boolean") return value ? t("common.yes") : t("common.no");
     if (typeof value === "number") {
+      if (key === "ram_gb" || key === "storage_gb") return `${formatNumber(value, lang)} GB`;
+      if (key === "refresh_hz" || key === "refresh_rate_hz")
+        return `${formatNumber(value, lang)} Hz`;
+      if (key === "screen_size_inch" || key === "screen_inches")
+        return `${formatNumber(value, lang)}"`;
       if (key === "warranty") return String(value);
       return formatNumber(value, lang);
     }
@@ -108,15 +120,20 @@ const HIDDEN_INTERNAL_KEYS = new Set([
   };
 
   return (
-    <div className="glass rounded-2xl p-5">
-      <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-        <Cpu className="size-4 text-cyan-400" />
+    <div className="surface rounded-2xl p-5 sm:p-6">
+      <h2 className="flex items-center gap-2 text-sm font-bold text-white">
+        <Cpu className="size-4 text-teal-400" />
         {t("detail.attributes")}
-      </h3>
-      <dl className="mt-4 divide-y divide-white/[0.06]">
+      </h2>
+      <dl className="mt-4 grid grid-cols-1 gap-x-8 divide-y divide-white/[0.06] sm:grid-cols-2">
         {entries.map(([key, value]) => (
-          <div key={key} className="flex items-center justify-between gap-4 py-2.5">
-            <dt className="shrink-0 text-xs font-medium text-slate-400">{attributeLabel(key, t)}</dt>
+          <div
+            key={key}
+            className="flex items-center justify-between gap-4 border-b border-white/[0.06] py-3"
+          >
+            <dt className="shrink-0 text-xs font-medium text-slate-400">
+              {attributeLabel(key, t)}
+            </dt>
             <dd className="num min-w-0 break-words text-end text-sm font-semibold text-slate-100">
               {renderValue(key, value)}
             </dd>

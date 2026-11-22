@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ */
+/* Design tokens — refined obsidian consumer-intelligence terminal      */
+/* ------------------------------------------------------------------ */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
+
+  --color-ink-950: #03060b;
+  --color-ink-900: #060a12;
+  --color-ink-850: #090e18;
+  --color-ink-800: #0c1320;
+  --color-ink-700: #121b2c;
+  --color-coral-300: #fda4af;
+  --color-coral-400: #fb7185;
 }
 
 :root {
@@ -14,64 +25,138 @@ body {
   height: 100%;
 }
 
-body {
-  background-color: #05080f;
-  color: #e2e8f0;
+html {
+  scroll-padding-top: 5.5rem;
 }
 
-/* Arabic (RTL) body copy uses IBM Plex Sans Arabic; Latin digits/branding fall back to Inter. */
+body {
+  background-color: var(--color-ink-950);
+  background-image:
+    radial-gradient(1100px 520px at 50% -260px, rgba(20, 184, 166, 0.09), transparent 70%),
+    radial-gradient(700px 380px at 100% 0%, rgba(14, 165, 233, 0.05), transparent 70%);
+  background-repeat: no-repeat;
+  color: #e2e8f0;
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Arabic (RTL) copy uses IBM Plex Sans Arabic; Latin digits/brands fall back to Inter. */
 html.lang-ar body {
   font-family: var(--font-plex-arabic), var(--font-inter), ui-sans-serif, system-ui,
     sans-serif;
+  font-feature-settings: normal;
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.28);
+  background: rgba(45, 212, 191, 0.3);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
 }
 
-/* Frosted surface used across cards/panels */
+/* ------------------------------------------------------------------ */
+/* Surfaces                                                            */
+/* ------------------------------------------------------------------ */
+
+/* Base elevated card: obsidian fill, hairline border, faint top highlight */
+.surface,
 .glass {
-  background: linear-gradient(
-    180deg,
-    rgba(148, 163, 184, 0.08),
-    rgba(148, 163, 184, 0.03)
-  );
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)) padding-box,
+    var(--color-ink-850);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
-/* Tabular figures for prices/percentages */
+/* Interactive card hover lift */
+.surface-hover {
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+.surface-hover:hover {
+  border-color: rgba(45, 212, 191, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 14px 40px -12px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(45, 212, 191, 0.06);
+}
+
+/* Inset well (filters, input groups) */
+.well {
+  background: rgba(3, 6, 11, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+/* Studio product frame — white backgrounds from retailer photos sit cleanly */
+.studio-frame {
+  background: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Tabular figures for every price, percentage and counter */
 .num {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
-/* Radar rings + glow used in hero sections */
-.radar-scene {
+/* Hero backdrop: faint precision grid + teal aurora (no cheesy radar rings) */
+.hero-backdrop {
   position: relative;
+  isolation: isolate;
 }
-.radar-scene::before {
+.hero-backdrop::before {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(640px 300px at 50% -80px, rgba(34, 211, 238, 0.13), transparent 70%),
-    repeating-radial-gradient(
-      circle at 50% -180px,
-      rgba(34, 211, 238, 0.055) 0 1px,
-      transparent 1px 72px
-    );
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 75%);
 }
 
-/* Shimmer skeleton */
+/* Legacy alias kept for backwards compatibility */
+.radar-scene {
+  position: relative;
+}
+
+/* Hide horizontal scrollbars on chip rails while keeping them scrollable */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fade edges on horizontal rails */
+.rail-fade {
+  mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Loading                                                             */
+/* ------------------------------------------------------------------ */
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: rgba(148, 163, 184, 0.09);
+  background: rgba(148, 163, 184, 0.08);
   border-radius: 0.5rem;
 }
 .skeleton::after {
@@ -79,22 +164,77 @@ html.lang-ar body {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(148, 163, 184, 0.14),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.12), transparent);
   animation: shimmer 1.6s infinite;
+}
+html[dir="rtl"] .skeleton::after {
+  animation-name: shimmer-rtl;
 }
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
   }
 }
+@keyframes shimmer-rtl {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
 
-/* Dark <select> popup options on Windows */
+.skeleton-light {
+  background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9);
+  background-size: 200% 100%;
+  animation: skeleton-light 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-light {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* Live status pulse dot */
+.pulse-dot {
+  position: relative;
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: pulse-ring 2s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after,
+  .skeleton-light,
+  .pulse-dot::after {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Native <select> popups on Windows */
 select option {
-  background-color: #0b1220;
+  background-color: #0c1320;
   color: #e2e8f0;
 }

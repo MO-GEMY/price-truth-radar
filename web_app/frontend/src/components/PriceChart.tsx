@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CalendarClock, CheckCircle2 } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -12,7 +13,7 @@ import {
 } from "recharts";
 import type { PriceHistoryPoint } from "@/types/contract";
 import { useLanguage } from "@/lib/i18n";
-import { formatChartTick, formatPrice } from "@/lib/format";
+import { formatChartTick, formatDate, formatPrice } from "@/lib/format";
 
 interface ChartDatum {
   date: string;
@@ -21,9 +22,9 @@ interface ChartDatum {
   median: number;
 }
 
-const COLOR_PRICE = "#22d3ee";
-const COLOR_CLAIMED = "#f59e0b";
-const COLOR_MEDIAN = "#a78bfa";
+const COLOR_PRICE = "#2dd4bf";
+const COLOR_CLAIMED = "#fbbf24";
+const COLOR_MEDIAN = "#94a3b8";
 
 function compactNumber(value: number, lang: "en" | "ar"): string {
   return new Intl.NumberFormat(lang === "ar" ? "ar-EG-u-nu-latn" : "en-US", {
@@ -33,10 +34,9 @@ function compactNumber(value: number, lang: "en" | "ar"): string {
 }
 
 /**
- * Interactive price-history time series (CONTRACTS.md §3.2 / §5.5):
- *  - `price`                → solid cyan line
- *  - `claimed_original_price` → dashed amber line
- *  - `rolling_60d_median`   → dotted violet reference line
+ * Interactive price-history time series (CONTRACTS.md §3.2 / §5.5).
+ * When only a Day-1 baseline snapshot exists, renders a clean, trustworthy
+ * baseline card instead of a sparse single-dot chart.
  */
 export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
   const { lang, t } = useLanguage();
@@ -51,7 +51,65 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
     median: h.rolling_60d_median,
   }));
 
-  const isSinglePoint = data.length === 1;
+  if (data.length === 0) return null;
+
+  /* -------- Polished Day-1 Baseline state -------- */
+  if (data.length === 1) {
+    const point = data[0];
+    return (
+      <div className="rounded-xl border border-teal-400/20 bg-gradient-to-br from-teal-500/[0.06] via-[#060b14] to-[#050810] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/35 bg-emerald-500/12 px-3 py-1 text-xs font-bold text-emerald-300">
+            <CheckCircle2 className="size-3.5 shrink-0" />
+            {t("detail.baselineBadge")}
+          </span>
+          <span className="num text-xs font-semibold text-slate-400">
+            {t("detail.baselineTitle", { date: formatDate(point.date, lang) })}
+          </span>
+        </div>
+
+        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-slate-300 sm:text-sm">
+          {t("detail.baselineBody")}
+        </p>
+
+        {/* Visual baseline timeline */}
+        <div className="mt-5 flex items-center gap-3" aria-hidden>
+          <span className="pulse-dot size-2.5 shrink-0 rounded-full bg-teal-400 text-teal-400" />
+          <div className="h-0.5 flex-1 rounded-full bg-gradient-to-r from-teal-400/70 via-slate-600/40 to-transparent rtl:bg-gradient-to-l" />
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {t("detail.baselineRecordedPrice")}
+            </p>
+            <p className="num mt-1 text-lg font-extrabold text-teal-300">
+              {formatPrice(point.price, lang)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {t("detail.baselineClaimedPrice")}
+            </p>
+            <p className="num mt-1 text-lg font-bold text-slate-200">
+              {point.claimed !== null ? formatPrice(point.claimed, lang) : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <CalendarClock className="size-3.5 text-slate-400" />
+              {t("detail.baselineNextSnapshot")}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-200">
+              {t("detail.baselineDaily")}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* -------- Multi-day interactive time series -------- */
   const prices = data.map((d) => d.price);
   const claimedValues = data
     .map((d) => d.claimed)
@@ -64,43 +122,37 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
   const yMax = Math.ceil(max + pad);
 
   const legend = [
-    { color: COLOR_PRICE, label: t("detail.current") },
-    { color: COLOR_CLAIMED, label: t("chart.claimedOriginal") },
-    { color: COLOR_MEDIAN, label: t("chart.median") },
+    { color: COLOR_PRICE, label: t("detail.current"), dashed: false },
+    { color: COLOR_CLAIMED, label: t("chart.claimedOriginal"), dashed: true },
+    { color: COLOR_MEDIAN, label: t("chart.median"), dashed: true },
   ];
-
-  if (data.length === 0) return null;
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
-        <div className="flex flex-wrap gap-x-5 gap-y-2">
-          {legend.map((item) => (
-            <span key={item.label} className="flex items-center gap-2 text-xs font-medium text-slate-300">
-              <span
-                className="inline-block h-0.5 w-6 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
-              {item.label}
-            </span>
-          ))}
-        </div>
-        {isSinglePoint ? (
-          <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-medium text-cyan-200">
-            {t("chart.singlePointHint", { date: formatChartTick(data[0].date, lang) })}
+      <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+        {legend.map((item) => (
+          <span key={item.label} className="flex items-center gap-2 text-xs font-medium text-slate-300">
+            <span
+              className="inline-block h-0.5 w-5 rounded-full"
+              style={{
+                backgroundColor: item.dashed ? "transparent" : item.color,
+                borderTop: item.dashed ? `2px dashed ${item.color}` : undefined,
+              }}
+            />
+            {item.label}
           </span>
-        ) : null}
+        ))}
       </div>
 
       {mounted ? (
-        <ResponsiveContainer width="100%" height={360}>
+        <ResponsiveContainer width="100%" height={340}>
           <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-            <CartesianGrid stroke="rgba(148,163,184,0.12)" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke="rgba(148,163,184,0.1)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={(value) => formatChartTick(String(value), lang)}
               tick={{ fill: "#64748b", fontSize: 11 }}
-              axisLine={{ stroke: "rgba(148,163,184,0.2)" }}
+              axisLine={{ stroke: "rgba(148,163,184,0.18)" }}
               tickLine={false}
               minTickGap={32}
             />
@@ -113,13 +165,13 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               domain={[yMin, yMax]}
             />
             <Tooltip
-              cursor={{ stroke: "rgba(148,163,184,0.3)", strokeDasharray: "4 4" }}
+              cursor={{ stroke: "rgba(148,163,184,0.28)", strokeDasharray: "4 4" }}
               contentStyle={{
-                backgroundColor: "rgba(7,12,24,0.96)",
-                border: "1px solid rgba(148,163,184,0.25)",
+                backgroundColor: "rgba(6,10,18,0.96)",
+                border: "1px solid rgba(148,163,184,0.22)",
                 borderRadius: 12,
                 fontSize: 12,
-                boxShadow: "0 12px 40px rgba(2,8,20,0.6)",
+                boxShadow: "0 16px 48px rgba(0,0,0,0.7)",
               }}
               labelStyle={{ color: "#e2e8f0", fontWeight: 700, marginBottom: 6 }}
               itemStyle={{ padding: 0 }}
@@ -139,7 +191,7 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               name="price"
               stroke={COLOR_PRICE}
               strokeWidth={2.4}
-              dot={isSinglePoint ? { r: 6, fill: COLOR_PRICE, stroke: "#05080f", strokeWidth: 2 } : false}
+              dot={false}
               activeDot={{ r: 5, strokeWidth: 0 }}
             />
             <Line
@@ -148,8 +200,8 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               name="claimed"
               stroke={COLOR_CLAIMED}
               strokeWidth={1.8}
-              strokeDasharray="7 5"
-              dot={isSinglePoint ? { r: 5, fill: COLOR_CLAIMED, stroke: "#05080f", strokeWidth: 2 } : false}
+              strokeDasharray="6 4"
+              dot={false}
               connectNulls
             />
             <Line
@@ -157,14 +209,14 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
               dataKey="median"
               name="median"
               stroke={COLOR_MEDIAN}
-              strokeWidth={2}
-              strokeDasharray="2 5"
-              dot={isSinglePoint ? { r: 4, fill: COLOR_MEDIAN, stroke: "#05080f", strokeWidth: 1.5 } : false}
+              strokeWidth={1.8}
+              strokeDasharray="2 4"
+              dot={false}
             />
           </LineChart>
         </ResponsiveContainer>
       ) : (
-        <div className="skeleton h-[360px] w-full" />
+        <div className="skeleton h-[340px] w-full" />
       )}
     </div>
   );

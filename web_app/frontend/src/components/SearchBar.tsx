@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Link2, ScanSearch, Search, X } from "lucide-react";
+import { Link2, ScanSearch, Search, SearchX, X } from "lucide-react";
 import type { SearchResponse } from "@/types/contract";
 import { fetchSearch } from "@/lib/api";
 import { useLanguage } from "@/lib/i18n";
 import { formatPrice } from "@/lib/format";
+import { FEATURED_LINK_STORES, STORE_META, storeDisplayName } from "@/lib/stores";
+import { ProductImage } from "./ProductImage";
 import { VerdictBadge } from "./VerdictBadge";
 import { StoreBadge } from "./StoreBadge";
 
@@ -24,7 +26,16 @@ function extractUrlCandidate(raw: string): string | null {
   return null;
 }
 
-export function SearchBar() {
+export interface ExternalSearchTrigger {
+  query: string;
+  seq: number;
+}
+
+export function SearchBar({
+  externalTrigger,
+}: {
+  externalTrigger?: ExternalSearchTrigger | null;
+}) {
   const { lang, t } = useLanguage();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,10 +48,10 @@ export function SearchBar() {
   const [open, setOpen] = useState(false);
   const [wasUrl, setWasUrl] = useState(false);
 
-  const runSearch = useCallback(async () => {
-    const raw = query;
-    if (raw.trim().length === 0) return;
-    const url = extractUrlCandidate(raw);
+  const executeSearch = useCallback(async (rawInput: string) => {
+    const trimmed = rawInput.trim();
+    if (trimmed.length === 0) return;
+    const url = extractUrlCandidate(trimmed);
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -51,11 +62,11 @@ export function SearchBar() {
     setWasUrl(url !== null);
     try {
       const { data } = await fetchSearch(
-        url ? { url, limit: 6 } : { q: raw.trim(), limit: 6 },
+        url ? { url, limit: 6 } : { q: trimmed, limit: 6 },
         controller.signal,
       );
       setResults(data);
-      setNotFound(data.total === 0);
+      setNotFound(data.total === 0 || data.match_type === "url_not_found");
     } catch {
       if (!controller.signal.aborted) {
         setResults(null);
@@ -64,7 +75,14 @@ export function SearchBar() {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [query]);
+  }, []);
+
+  // Allow hero quick-try chips to run an immediate search
+  useEffect(() => {
+    if (!externalTrigger || !externalTrigger.query.trim()) return;
+    setQuery(externalTrigger.query);
+    void executeSearch(externalTrigger.query);
+  }, [externalTrigger, executeSearch]);
 
   const goToProduct = (productSk: string) => {
     setOpen(false);
@@ -87,8 +105,12 @@ export function SearchBar() {
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    void runSearch();
+    void executeSearch(query);
   };
+
+  const urlDetected = extractUrlCandidate(query) !== null;
+  const isUrlNotFound =
+    wasUrl && (results?.match_type === "url_not_found" || (notFound && !loading));
 
   return (
     <div className="relative">
@@ -102,24 +124,33 @@ export function SearchBar() {
       ) : null}
 
       <form onSubmit={handleSubmit} className="relative z-40" role="search">
-        <div className="glass flex items-center gap-2 rounded-2xl px-4 py-2 shadow-[0_8px_40px_rgba(2,8,20,0.55)] focus-within:border-cyan-400/50">
-          <Search className="size-5 shrink-0 text-slate-400" />
+        <div className="surface flex items-center gap-2 rounded-2xl p-1.5 ps-3.5 shadow-[0_14px_48px_rgba(0,0,0,0.55)] transition focus-within:border-teal-400/50 focus-within:ring-2 focus-within:ring-teal-400/15 sm:ps-4">
+          {urlDetected ? (
+            <Link2 className="size-4 shrink-0 text-emerald-400 sm:size-5" />
+          ) : (
+            <Search className="size-4 shrink-0 text-slate-400 sm:size-5" />
+          )}
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => results && setOpen(true)}
+            onFocus={() => (results || notFound) && setOpen(true)}
             placeholder={t("search.placeholder")}
-            className="h-11 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+            className="h-10 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500 sm:h-11"
             aria-label={t("search.placeholder")}
           />
+          {urlDetected ? (
+            <span className="hidden shrink-0 items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 md:inline-flex">
+              {t("search.urlBadge")}
+            </span>
+          ) : null}
           {query ? (
             <button
               type="button"
               onClick={reset}
               aria-label="Clear"
-              className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+              className="rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
             >
               <X className="size-4" />
             </button>
@@ -127,57 +158,110 @@ export function SearchBar() {
           <button
             type="submit"
             disabled={loading || query.trim().length === 0}
-            className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 px-4 text-sm font-bold text-[#04121a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 px-3.5 text-xs font-bold text-[#031214] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 sm:h-11 sm:gap-2 sm:px-5 sm:text-sm"
           >
-            <ScanSearch className="size-4" />
+            <ScanSearch className="size-4 shrink-0" />
             <span>{loading ? t("search.checking") : t("search.button")}</span>
           </button>
         </div>
-        <p className="mt-2 px-1 text-[11px] text-slate-500">{t("search.hint")}</p>
       </form>
 
       {open ? (
-        <div className="glass absolute inset-x-0 top-full z-40 mt-2 max-h-96 overflow-y-auto rounded-2xl p-2 shadow-[0_16px_60px_rgba(2,8,20,0.7)]">
+        <div className="surface absolute inset-x-0 top-full z-40 mt-2 max-h-[26rem] overflow-y-auto rounded-2xl p-2 shadow-[0_24px_70px_rgba(0,0,0,0.8)]">
           {loading ? (
-            <p className="px-3 py-4 text-sm text-slate-400">{t("search.checking")}</p>
+            <div className="space-y-2 p-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-xl p-2">
+                  <div className="skeleton size-11 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="skeleton h-3.5 w-3/4" />
+                    <div className="skeleton h-3 w-1/3" />
+                  </div>
+                  <div className="skeleton h-5 w-20 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : isUrlNotFound ? (
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-300">
+                  <Link2 className="size-4" />
+                </span>
+                <div className="min-w-0 space-y-1.5">
+                  <p className="text-sm font-bold text-white">
+                    {t("search.urlNotFoundTitle")}
+                  </p>
+                  <p className="text-xs leading-relaxed text-slate-400">
+                    {t("search.urlNotFoundBody")}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {FEATURED_LINK_STORES.map((slug) => (
+                      <span
+                        key={slug}
+                        className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-slate-300"
+                      >
+                        {storeDisplayName(slug, lang)}{" "}
+                        <span className="text-slate-500">({STORE_META[slug]?.domain})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : notFound || !results || results.items.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-slate-400">{t("search.noResults")}</p>
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+              <SearchX className="size-6 text-slate-500" />
+              <p className="text-sm font-semibold text-slate-300">{t("search.noResults")}</p>
+              <p className="text-xs text-slate-500">{t("search.hint")}</p>
+            </div>
           ) : (
             <>
-              <p className="flex items-center gap-2 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <p className="flex items-center gap-2 px-3 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 {wasUrl ? (
                   <>
-                    <Link2 className="size-3 text-emerald-400" />
+                    <Link2 className="size-3.5 text-emerald-400" />
                     {t("search.urlMatch")}
                   </>
                 ) : (
                   <>
-                    <Search className="size-3 text-cyan-400" />
+                    <Search className="size-3.5 text-teal-400" />
                     {t("search.textMatch")}
                   </>
                 )}
               </p>
-              <ul>
+              <ul className="divide-y divide-white/[0.05]">
                 {results.items.map((item) => (
                   <li key={item.product_sk}>
                     <button
                       type="button"
                       onClick={() => goToProduct(item.product_sk)}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start transition hover:bg-white/[0.06]"
+                      className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-start transition hover:bg-white/[0.05]"
                     >
-                      <span className="num flex w-28 shrink-0 flex-col text-sm font-bold text-white">
-                        {formatPrice(item.current_price, lang)}
-                      </span>
+                      <ProductImage
+                        src={item.image_url}
+                        alt={item.product_title}
+                        category={item.category}
+                        subCategory={item.sub_category}
+                        brand={item.brand}
+                        fit={item.category === "fashion" ? "cover" : "contain"}
+                        objectPosition={item.category === "fashion" ? "top" : "center"}
+                        studio={item.category !== "fashion"}
+                        className="size-11 shrink-0 rounded-lg"
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-slate-100">
                           {item.product_title}
                         </span>
-                        <span className="mt-1 flex items-center gap-2">
+                        <span className="mt-1 flex flex-wrap items-center gap-2">
                           <StoreBadge name={item.store_name} size="sm" />
-                          <span className="text-[11px] text-slate-500">{item.brand}</span>
+                          <span className="num text-xs font-bold text-white">
+                            {formatPrice(item.current_price, lang)}
+                          </span>
                         </span>
                       </span>
-                      <VerdictBadge verdict={item.discount_verdict} size="sm" />
+                      <span className="hidden shrink-0 sm:inline-flex">
+                        <VerdictBadge verdict={item.discount_verdict} size="sm" />
+                      </span>
                     </button>
                   </li>
                 ))}

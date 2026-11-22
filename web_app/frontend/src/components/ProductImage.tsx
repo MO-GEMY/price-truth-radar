@@ -68,6 +68,9 @@ export interface ProductImageProps {
   subCategory?: string;
   brand?: string;
   fit?: "cover" | "contain";
+  objectPosition?: "center" | "top";
+  /** Renders retailer photos inside a crisp white studio frame (ideal for e-commerce cutouts). */
+  studio?: boolean;
   dimmed?: boolean;
   zoomOnGroupHover?: boolean;
   priority?: boolean;
@@ -75,9 +78,9 @@ export interface ProductImageProps {
 }
 
 /**
- * Resilient product image with shimmer loading state and a clean branded
- * category fallback so slow, missing, or broken URLs never show raw browser
- * broken-image icons or clipped alt text.
+ * Studio-clean product thumbnail with light-frame shimmer and branded dark
+ * fallback so retailer photos with white backgrounds integrate cleanly onto
+ * the dark obsidian canvas without jagged edges or broken-image icons.
  */
 export function ProductImage({
   src,
@@ -85,7 +88,9 @@ export function ProductImage({
   category,
   subCategory,
   brand,
-  fit = "cover",
+  fit = "contain",
+  objectPosition = "center",
+  studio = true,
   dimmed = false,
   zoomOnGroupHover = false,
   priority = false,
@@ -119,34 +124,47 @@ export function ProductImage({
         : Shirt) ??
     PackageOpen;
 
-  const fitClass = fit === "contain" ? "object-contain p-3" : "object-cover";
+  const isFailed = status === "error" || !validUrl;
+  const fitClass =
+    fit === "contain"
+      ? "object-contain p-3.5"
+      : objectPosition === "top"
+        ? "object-cover object-top"
+        : "object-cover object-center";
   const labelText = [brand, subCategory?.replace(/_/g, " ")].filter(Boolean).join(" · ");
 
   return (
     <div
-      className={`relative overflow-hidden bg-slate-900/80 ${className}`}
+      className={`relative overflow-hidden ${
+        !isFailed && studio ? "studio-frame" : "bg-[#111827]"
+      } ${className}`}
     >
       {/* Loading shimmer behind image until decoded */}
       {status === "loading" && validUrl ? (
         <div
-          className="skeleton absolute inset-0 flex items-center justify-center rounded-none"
+          className={`absolute inset-0 flex items-center justify-center ${
+            studio ? "skeleton-light" : "skeleton rounded-none"
+          }`}
           aria-hidden
         >
-          <FallbackIcon className="size-8 text-slate-700" strokeWidth={1.5} />
+          <FallbackIcon
+            className={`size-8 ${studio ? "text-slate-300" : "text-slate-700"}`}
+            strokeWidth={1.5}
+          />
         </div>
       ) : null}
 
-      {/* Branded fallback when image URL is missing or fails to load */}
-      {status === "error" || !validUrl ? (
+      {/* Branded dark fallback when image URL is missing or fails to load */}
+      {isFailed ? (
         <div
           role="img"
           aria-label={alt}
-          className={`flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-800/80 via-slate-900/90 to-[#070d1a] px-4 text-center ${
+          className={`flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0e1627] via-[#090f1c] to-[#050810] px-4 text-center ${
             dimmed ? "opacity-50 saturate-0" : ""
           }`}
         >
-          <span className="flex size-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-400">
-            <FallbackIcon className="size-6" strokeWidth={1.6} />
+          <span className="flex size-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400">
+            <FallbackIcon className="size-5" strokeWidth={1.6} />
           </span>
           {labelText ? (
             <span className="max-w-full truncate text-[11px] font-medium text-slate-500">
@@ -174,7 +192,7 @@ export function ProductImage({
             status !== "loaded"
               ? "opacity-0"
               : dimmed
-                ? "opacity-40 saturate-0"
+                ? "opacity-45 saturate-0"
                 : "opacity-100"
           } ${zoomOnGroupHover ? "group-hover:scale-[1.04]" : ""}`}
         />
