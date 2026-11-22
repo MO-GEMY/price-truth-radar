@@ -2,7 +2,7 @@
     LOWER(
         TRIM(
             REGEXP_REPLACE(
-                TRANSLATE(
+                REGEXP_REPLACE(TRANSLATE(
                     COALESCE({{ title_col }}, '') || ' ' ||
                     COALESCE({{ brand_col }}, '') || ' ' ||
                     REPLACE(COALESCE({{ sub_category_col }}, ''), '_', ' ') || ' ' ||
@@ -33,8 +33,8 @@
                     END,
                     'أإآٱةىؤئ٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹',
                     'ااااهيوي01234567890123456789'
-                ),
-                '\s+',
+                ), '[\u0610-\u061A\u0640\u064B-\u065F\u0670\u06D6-\u06ED]', '', 'g'),
+                '[[:space:]\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF®™]+',
                 ' ',
                 'g'
             )

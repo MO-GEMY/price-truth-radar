@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from app.bilingual import expand_search_query, normalize_arabic
 from app.cache import api_cache, set_cache_headers
+from app.catalog_search import build_catalog_query, search_catalog
 from app.database import get_db
 from app.routers.radar import PRODUCT_SELECT_COLS
 from app.schemas import (
@@ -145,7 +145,7 @@ def search_products(
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
     set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
-    cache_key = f"products:search:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
+    cache_key = f"products:search:v2:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -368,109 +368,12 @@ def search_products(
             api_cache.set(cache_key, res, ttl=120.0)
             return res
 
-    # 2. Bilingual AR <-> EN search on normalized title, brand, sub_category & canonical key
-    #    with multi-term AND matching + graceful pg_trgm typo-tolerant fallback.
-    query_str = (q or "").strip()
-    if not query_str:
+    query = build_catalog_query(q or "")
+    if not query.terms:
         return SearchResponse(match_type="none", items=[], total=0)
 
-    variants = expand_search_query(query_str)
-    norm_q = normalize_arabic(query_str).lower()
-    prefix_pattern = f"{norm_q}%"
-
-    haystack_expr = (
-        "TRANSLATE("
-        "LOWER(COALESCE(product_title, '') || ' ' || COALESCE(brand, '') || ' ' || "
-        "REPLACE(COALESCE(sub_category, ''), '_', ' ') || ' ' || COALESCE(canonical_product_key, '')), "
-        "'أإآٱةىؤئ٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', "
-        "'ااااهيوي01234567890123456789'"
-        ")"
-    )
-
-    or_clauses: list[str] = []
-    params: dict[str, object] = {"prefix": prefix_pattern, "limit": limit}
-
-    for idx, variant in enumerate(variants):
-        v_key = f"var_{idx}"
-        or_clauses.append(f"{haystack_expr} LIKE :{v_key}")
-        params[v_key] = f"%{variant}%"
-
-        # Multi-word AND clause so e.g. "تلاجة سامسونج" -> "refrigerator samsung" matches
-        # "Samsung 450L No Frost Refrigerator" regardless of word order.
-        tokens = [tok for tok in variant.split() if len(tok) >= 2]
-        if len(tokens) >= 2:
-            and_parts: list[str] = []
-            for t_idx, tok in enumerate(tokens[:6]):
-                t_key = f"v{idx}_t{t_idx}"
-                and_parts.append(f"{haystack_expr} LIKE :{t_key}")
-                params[t_key] = f"%{tok}%"
-            or_clauses.append(f"({' AND '.join(and_parts)})")
-
-    where_clause = " OR ".join(or_clauses)
-    count_sql = text(
-        f"""
-        SELECT COUNT(*)::INTEGER
-        FROM gold.mart_product_verdicts
-        WHERE {where_clause}
-        """
-    )
-    total = int(db.execute(count_sql, params).scalar_one())
-
-    search_sql = text(
-        f"""
-        SELECT {PRODUCT_SELECT_COLS}
-        FROM gold.mart_product_verdicts
-        WHERE {where_clause}
-        ORDER BY
-            CASE
-                WHEN LOWER(brand) LIKE :prefix THEN 0
-                WHEN LOWER(product_title) LIKE :prefix THEN 1
-                ELSE 2
-            END ASC,
-            real_discount_pct DESC,
-            product_sk ASC
-        LIMIT :limit
-        """
-    )
-    rows = db.execute(search_sql, params).mappings().all()
-
-    # Typo-tolerant pg_trgm fallback when exact/bilingual LIKE returns 0 hits
-    match_type = "text_search"
-    if not rows and len(norm_q) >= 3:
-        primary_trgm = variants[1] if len(variants) > 1 else norm_q
-        trgm_sql = text(
-            f"""
-            SELECT {PRODUCT_SELECT_COLS}
-            FROM gold.mart_product_verdicts
-            WHERE similarity({haystack_expr}, :trgm_q) >= 0.22
-               OR similarity(LOWER(product_title), :trgm_q) >= 0.22
-            ORDER BY
-                GREATEST(
-                    similarity({haystack_expr}, :trgm_q),
-                    similarity(LOWER(product_title), :trgm_q)
-                ) DESC,
-                real_discount_pct DESC,
-                product_sk ASC
-            LIMIT :limit
-            """
-        )
-        try:
-            rows = (
-                db.execute(trgm_sql, {"trgm_q": primary_trgm, "limit": limit})
-                .mappings()
-                .all()
-            )
-            if rows:
-                total = len(rows)
-                match_type = "fuzzy_trgm"
-        except Exception:
-            # pg_trgm extension not yet installed on this DB — stay graceful
-            try:
-                db.rollback()
-            except Exception:
-                pass
-
-    items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
+    rows, total, match_type = search_catalog(db, query, limit)
+    items = [ProductVerdictItem.model_validate(row) for row in rows]
     res = SearchResponse(match_type=match_type, items=items, total=total)
     api_cache.set(cache_key, res, ttl=300.0)
     return res
