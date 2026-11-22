@@ -34,6 +34,7 @@ from .base import (
     ThrottledResponseError,
     normalize_snake_slug,
     parse_egp_price,
+    strip_installment_segments,
     utc_now_naive,
 )
 from .groceries import (
@@ -209,8 +210,9 @@ _GENERIC_EGP_RE = re.compile(
 
 
 def _extract_prices_from_text(txt: str) -> list[Decimal]:
+    cleaned = strip_installment_segments(txt or "")
     vals: list[Decimal] = []
-    for m1, m2 in _GENERIC_EGP_RE.findall(txt or ""):
+    for m1, m2 in _GENERIC_EGP_RE.findall(cleaned):
         parsed = parse_egp_price(m1 or m2)
         if parsed is not None and parsed >= Decimal("5"):
             vals.append(parsed)

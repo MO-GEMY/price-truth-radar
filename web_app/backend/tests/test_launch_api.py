@@ -192,6 +192,84 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(resp2.status_code, 200)
         self.assertEqual(len(fake_db.calls), calls_after_first)
 
+    def test_highlights_excludes_bait_and_low_price_major_appliances(self) -> None:
+        now = datetime(2026, 11, 22, 12, 0, 0, tzinfo=timezone.utc)
+        rows = [
+            # 1 EGP bait listing -> MUST be excluded
+            {
+                "product_sk": "sk_bait_1",
+                "canonical_product_key": None,
+                "store_name": "compumarts",
+                "category": "electronics",
+                "sub_category": "accessories",
+                "product_title": "1 EGP Placeholder Promo Mouse",
+                "product_url": "https://compumarts.com/products/bait",
+                "image_url": "https://cdn.example.com/bait.jpg",
+                "current_price": 1.0,
+                "claimed_original_price": 500.0,
+                "rolling_60d_median": 500.0,
+                "min_historical_price": 1.0,
+                "claimed_discount_pct": 99.8,
+                "real_discount_pct": 99.8,
+                "discount_verdict": "ALL_TIME_LOW",
+                "last_updated_at": now,
+            },
+            # 1,445 EGP Bosch gas cooker (installment leak) -> MUST be excluded
+            {
+                "product_sk": "sk_cooker_leak",
+                "canonical_product_key": None,
+                "store_name": "rayashop",
+                "category": "home_appliances",
+                "sub_category": "cookers",
+                "product_title": "BOSCH 90cm 5-Burner Gas Cooker",
+                "product_url": "https://www.rayashop.com/en/bosch-cooker",
+                "image_url": "https://cdn.example.com/cooker.jpg",
+                "current_price": 1445.0,
+                "claimed_original_price": 28900.0,
+                "rolling_60d_median": 28900.0,
+                "min_historical_price": 1445.0,
+                "claimed_discount_pct": 95.0,
+                "real_discount_pct": 95.0,
+                "discount_verdict": "FAKE_DISCOUNT",
+                "last_updated_at": now,
+            },
+            # Legitimate cash-price appliance -> MUST be kept
+            {
+                "product_sk": "sk_cooker_real",
+                "canonical_product_key": "bosch_cooker_90",
+                "store_name": "rayashop",
+                "category": "home_appliances",
+                "sub_category": "cookers",
+                "product_title": "BOSCH 90cm 5-Burner Gas Cooker",
+                "product_url": "https://www.rayashop.com/en/bosch-cooker-real",
+                "image_url": "https://cdn.example.com/cooker.jpg",
+                "current_price": 28900.0,
+                "claimed_original_price": 34000.0,
+                "rolling_60d_median": 31000.0,
+                "min_historical_price": 28900.0,
+                "claimed_discount_pct": 15.0,
+                "real_discount_pct": 6.8,
+                "discount_verdict": "ALL_TIME_LOW",
+                "last_updated_at": now,
+            },
+        ]
+
+        fake_db = _FakeReadDB(lambda _sql, _params: _FakeResult(rows=rows))
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        resp = client.get("/api/radar/highlights?limit=10&category=all")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        # Both SQL queries must include the price-floor guards
+        self.assertTrue(all("current_price >= 10" in sql for sql in fake_db.calls))
+        self.assertTrue(all("current_price < 2500" in sql for sql in fake_db.calls))
+        # Neither bucket may contain the 1 EGP bait or 1,445 EGP cooker leak
+        scandal_ids = [item["id"] for item in body["biggest_scandals"]]
+        deal_ids = [item["id"] for item in body["best_real_deals"]]
+        self.assertEqual(scandal_ids, ["sk_cooker_real"])
+        self.assertEqual(deal_ids, ["sk_cooker_real"])
+
     def test_stats_and_compare_cache_headers_and_ttl_hit(self) -> None:
         now = datetime(2026, 11, 22, 12, 0, 0, tzinfo=timezone.utc)
 

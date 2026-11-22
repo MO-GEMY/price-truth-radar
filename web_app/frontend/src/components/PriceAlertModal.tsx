@@ -28,7 +28,16 @@ export interface PriceAlertModalProps {
 type Phase = "idle" | "submitting" | "success" | "error";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const TELEGRAM_RE = /^@?[a-zA-Z][a-zA-Z0-9_]{2,32}$|^\+?\d{8,15}$/;
+/** Backend contract: Telegram `@username` (5–32 chars) or numeric chat_id — bots cannot message phone numbers. */
+const TELEGRAM_USERNAME_RE = /^@[A-Za-z0-9_]{5,32}$/;
+const TELEGRAM_CHAT_ID_RE = /^\d{5,15}$/;
+
+function isValidTelegramDestination(raw: string): boolean {
+  const value = raw.trim();
+  if (value.startsWith("@")) return TELEGRAM_USERNAME_RE.test(value);
+  if (/^\d+$/.test(value)) return TELEGRAM_CHAT_ID_RE.test(value);
+  return TELEGRAM_USERNAME_RE.test(`@${value}`);
+}
 
 export function PriceAlertModal({
   open,
@@ -39,11 +48,12 @@ export function PriceAlertModal({
   currentPrice,
 }: PriceAlertModalProps) {
   const { lang, t } = useLanguage();
-  const [channel, setChannel] = useState<AlertChannel>("telegram");
+  const [channel, setChannel] = useState<AlertChannel>("email");
   const [target, setTarget] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [serverMessage, setServerMessage] = useState<string>("");
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Reset per open + sensible default: ~10% below the current price.
@@ -51,9 +61,10 @@ export function PriceAlertModal({
     if (!open) return;
     setTarget(currentPrice > 0 ? String(Math.floor(currentPrice * 0.9)) : "");
     setDestination("");
-    setChannel("telegram");
+    setChannel("email");
     setPhase("idle");
     setServerMessage("");
+    setErrorStatus(null);
   }, [open, currentPrice]);
 
   // Escape-to-close + lock body scroll while open.
@@ -82,7 +93,7 @@ export function PriceAlertModal({
     destination.trim().length > 0 &&
     (channel === "email"
       ? !EMAIL_RE.test(destination.trim())
-      : !TELEGRAM_RE.test(destination.trim().startsWith("@") ? destination.trim() : `@${destination.trim()}`));
+      : !isValidTelegramDestination(destination.trim()));
 
   const priceInvalid = target.trim().length > 0 && (!targetNumber || targetNumber <= 0 || targetNumber >= currentPrice);
 
@@ -97,26 +108,44 @@ export function PriceAlertModal({
     if (!canSubmit) return;
     setPhase("submitting");
     setServerMessage("");
+    setErrorStatus(null);
     try {
+      const telegramDestination =
+        destination.trim().startsWith("@")
+          ? destination.trim()
+          : `@${destination.trim()}`;
       const res: PriceAlertResponse = await submitPriceAlert({
         product_key: productKey,
         product_title: productTitle,
         store_name: storeName,
         target_price: targetNumber,
         channel,
-        destination: destination.trim().startsWith("@")
-          ? destination.trim()
-          : channel === "telegram"
-            ? `@${destination.trim().replace(/^@/, "")}`
-            : destination.trim(),
+        destination: channel === "telegram" ? telegramDestination : destination.trim(),
       });
       setServerMessage(res.message || "");
       setPhase("success");
     } catch (err) {
+      setErrorStatus(err instanceof ApiError ? err.status : null);
       setServerMessage(err instanceof ApiError ? err.message : "");
       setPhase("error");
     }
   }
+
+  const friendlyError = useMemo(() => {
+    if (phase !== "error") return null;
+    switch (errorStatus) {
+      case 404:
+        return t("alert.errServiceNotLive");
+      case 409:
+        return t("alert.errDuplicate");
+      case 429:
+        return t("alert.errRateLimit");
+      case 400:
+        return t("alert.errInvalid");
+      default:
+        return serverMessage || t("alert.error");
+    }
+  }, [phase, errorStatus, serverMessage, t]);
 
   if (!open) return null;
 
@@ -138,6 +167,9 @@ export function PriceAlertModal({
       {t(labelKey)}
     </button>
   );
+
+  /** Raw HTTP statuses mapped to friendly bilingual banners (404 service not
+   * live yet, 409 duplicate alert, 429 rate limit, 400 rejected payload). */
 
   return (
     <div
@@ -211,8 +243,8 @@ export function PriceAlertModal({
                 {t("alert.channel")}
               </p>
               <div className="flex gap-2">
-                {channelBtn("telegram", <Send className="size-4 shrink-0" />, "alert.telegram")}
                 {channelBtn("email", <BellRing className="size-4 shrink-0" />, "alert.email")}
+                {channelBtn("telegram", <Send className="size-4 shrink-0" />, "alert.telegram")}
               </div>
             </div>
 
@@ -258,28 +290,33 @@ export function PriceAlertModal({
               >
                 {t("alert.targetPrice")}
               </label>
-              <div className="relative">
-                <input
-                  id="alert-target"
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="1"
-                  dir="ltr"
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                  className={`num h-11 w-full rounded-xl border bg-[#050912] px-3.5 text-sm font-bold text-slate-100 outline-none transition focus:outline-none ${
-                    priceInvalid
-                      ? "border-rose-400/60 focus:border-rose-400"
-                      : "border-white/10 focus:border-teal-400/50"
-                  }`}
+              <input
+                id="alert-target"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="1"
+                dir="ltr"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                className={`num h-11 w-full rounded-xl border bg-[#050912] px-3.5 text-sm font-bold text-slate-100 outline-none transition focus:outline-none ${
+                  priceInvalid
+                    ? "border-rose-400/60 focus:border-rose-400"
+                    : "border-white/10 focus:border-teal-400/50"
+                }`}
                 />
-                {pctBelow ? (
-                  <span className="absolute inset-y-0 end-3 my-auto h-fit rounded-md border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+              {/* Helper pill lives in its own row UNDER the input so it never
+                  collides with the typed number in RTL or LTR. */}
+              {pctBelow ? (
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
                     {t("alert.belowHint", { pct: pctBelow })}
                   </span>
-                ) : null}
-              </div>
+                  <span className="num text-[10px] font-medium text-slate-500">
+                    {formatPrice(targetNumber, lang)}
+                  </span>
+                </div>
+              ) : null}
               {priceInvalid ? (
                 <p className="mt-1 text-[11px] font-medium text-rose-300">
                   {t("alert.invalidPrice")}
@@ -287,10 +324,10 @@ export function PriceAlertModal({
               ) : null}
             </div>
 
-            {/* Error banner */}
-            {phase === "error" ? (
+            {/* Error banner — friendly mapping for raw HTTP statuses */}
+            {friendlyError ? (
               <p className="rounded-xl border border-rose-400/35 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200">
-                {serverMessage || t("alert.error")}
+                {friendlyError}
               </p>
             ) : null}
 

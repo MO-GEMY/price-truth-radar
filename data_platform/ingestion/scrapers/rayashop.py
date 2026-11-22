@@ -5,8 +5,9 @@ Uses `curl_cffi` TLS impersonation (`ImpersonatedHttpClient`, `impersonate="chro
 across Raya Shop's SSR category pages (`/en/mobiles-and-tablets`,
 `/en/televisions-and-receivers`, `/en/large-appliances`, `/en/laptops-pcs`,
 `/en/small-appliances`). Parses embedded `JSON-LD Product` blocks when present
-and falls back cleanly to SSR product card DOM extraction. Includes graceful
-403/WAF detection so datacenter blocks exit cleanly without breaking other stores.
+and targets `article.ProductCardPlpGrid` cash-price elements strictly while
+excluding monthly installment widgets (`Takseety`, `valU`, `Aman`, `Souhoola`,
+`/mo`, `قسط`, `شهري`) and `- N EGP` savings badges.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from decimal import Decimal
 from typing import Any, Optional
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from .base import (
     BaseScraper,
@@ -29,7 +30,9 @@ from .base import (
     RawProductSnapshot,
     ScrapeVertical,
     ThrottledResponseError,
+    is_installment_text,
     parse_egp_price,
+    strip_installment_segments,
     utc_now_naive,
 )
 from .two_b import _extract_specs, _normalize_brand, _refine_sub_category
@@ -44,7 +47,94 @@ RAYASHOP_CATEGORIES: tuple[tuple[str, Category, str], ...] = (
     ("small_appliances", "home_appliances", "https://www.rayashop.com/en/small-appliances"),
 )
 
-_PRICE_NUM_RE = re.compile(r"(?<!\d)(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d{3,7}(?:\.\d{1,2})?)\s*EGP", re.I)
+_PRICE_NUM_RE = re.compile(
+    r"(?<!-\s)(?<!-)(?<!\d)(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d{2,7}(?:\.\d{1,2})?)\s*EGP\b",
+    re.I,
+)
+
+_EXCLUDED_PRICE_CLASS_TOKENS: tuple[str, ...] = (
+    "productcardcustomlabels",
+    "installment",
+    "takseety",
+    "valu",
+    "aman",
+    "suhoula",
+    "souhoola",
+    "bg-red-50",
+    "text-red-700",
+)
+
+
+def _has_excluded_price_ancestor(el: Tag, stop_at: Tag) -> bool:
+    """Return True if `el` or any ancestor up to `stop_at` is an installment or savings badge."""
+    cur: Optional[Tag] = el
+    while cur is not None and cur is not stop_at:
+        classes = " ".join(cur.get("class") or []).lower()
+        if any(tok in classes for tok in _EXCLUDED_PRICE_CLASS_TOKENS):
+            return True
+        own_txt = re.sub(r"\s+", " ", cur.get_text(" ", strip=True))
+        if own_txt.startswith("-") or is_installment_text(own_txt):
+            return True
+        cur = cur.parent if isinstance(cur.parent, Tag) else None
+    return False
+
+
+def _extract_rayashop_card_prices(card: Tag) -> tuple[Optional[Decimal], Optional[Decimal]]:
+    """Extract (cash_price, claimed_original_price) from a Raya Shop product card.
+
+    Strictly targets `.ProductCardPlpGrid__Price` cash & strikethrough spans and
+    excludes monthly installment banners (`Takseety ... EGP/ 36 mo`, `valU`,
+    `Aman`, `Souhoola`, `قسط`, `شهري`) and `- N EGP` savings badges.
+    """
+    price_container = card.select_one(".ProductCardPlpGrid__Price")
+    if price_container is not None:
+        cash_price: Optional[Decimal] = None
+        old_price: Optional[Decimal] = None
+
+        for span in price_container.select("span.currency"):
+            if _has_excluded_price_ancestor(span, price_container):
+                continue
+            raw_txt = re.sub(r"\s+", " ", span.get_text(" ", strip=True))
+            if raw_txt.startswith("-") or is_installment_text(raw_txt):
+                continue
+            parsed = parse_egp_price(raw_txt)
+            if parsed is None:
+                continue
+            classes = {c.lower() for c in (span.get("class") or [])}
+            if "line-through" in classes:
+                if old_price is None or parsed > old_price:
+                    old_price = parsed
+            elif cash_price is None:
+                cash_price = parsed
+
+        if cash_price is not None:
+            claimed = old_price if (old_price is not None and old_price > cash_price) else None
+            return cash_price, claimed
+
+    # Safe fallback if Raya Shop updates DOM class names: scrub installment & savings elements first
+    parts: list[str] = []
+    for node in card.descendants:
+        if isinstance(node, Tag) and node.name in ("span", "div", "p"):
+            classes = " ".join(node.get("class") or []).lower()
+            if any(tok in classes for tok in _EXCLUDED_PRICE_CLASS_TOKENS):
+                continue
+    # Remove installment/savings nodes from a lightweight text view
+    safe_chunks: list[str] = []
+    for text_node in card.find_all(string=True):
+        parent = text_node.parent if isinstance(text_node.parent, Tag) else None
+        if parent is not None and _has_excluded_price_ancestor(parent, card):
+            continue
+        chunk = str(text_node).strip()
+        if chunk:
+            safe_chunks.append(chunk)
+    cleaned_txt = strip_installment_segments(" ".join(safe_chunks))
+    matches = [parse_egp_price(m) for m in _PRICE_NUM_RE.findall(cleaned_txt)]
+    valid = [p for p in matches if p is not None and p >= Decimal("10")]
+    if not valid or len(valid) > 3:
+        return None, None
+    cash_price = valid[0]
+    claimed = max(valid) if max(valid) > cash_price else None
+    return cash_price, claimed
 
 
 def _extract_jsonld_items(soup: BeautifulSoup) -> list[dict[str, Any]]:
@@ -86,6 +176,93 @@ class RayaShopScraper(BaseScraper):
     min_delay_seconds = 2.0
     request_timeout = 30.0
 
+    def _parse_single_card(
+        self,
+        card: Tag,
+        cat_name: Category,
+        default_sub: str,
+        snapshot_date: Any,
+        scraped_at: datetime,
+        seen_urls: set[str],
+    ) -> Optional[RawProductSnapshot]:
+        anchor = (
+            card.select_one('a.ProductCardPlpGrid__ImageLink[href]')
+            or card.select_one('.ProductCardPlpGrid__Footer a[href]')
+            or card.select_one('a[href^="/en/"], a[href^="https://www.rayashop.com/en/"]')
+        )
+        if anchor is None:
+            return None
+        href = str(anchor.get("href") or "").strip()
+        path = urlparse(urljoin(self.base_url, href)).path.rstrip("/")
+        if not path or path.count("/") < 2:
+            return None
+        if any(
+            skip in path.lower()
+            for skip in ("/login", "/cart", "/account", "/checkout", "/black-friday", "/brands", "/stores", "/category")
+        ):
+            return None
+        full_url = urljoin(self.base_url, path)
+        if full_url in seen_urls:
+            return None
+
+        current_price, claimed_price = _extract_rayashop_card_prices(card)
+        if current_price is None:
+            return None
+
+        title = ""
+        for sel in (".ProductCardPlpGrid__Name", "h2", "h3", "h4", "[class*='title']", "[class*='name']"):
+            el = card.select_one(sel)
+            if el:
+                cand = re.sub(r"\s+", " ", el.get_text(" ", strip=True)).strip()
+                if len(cand) >= 6 and "EGP" not in cand:
+                    title = cand
+                    break
+        if not title:
+            img = card.select_one("img[alt]")
+            if img:
+                title = re.sub(r"\s+", " ", str(img.get("alt") or "")).strip()
+        if len(title) < 6:
+            return None
+
+        img_url: Optional[str] = None
+        for img in card.select("img.ProductCardPlpGrid__Thumb, img"):
+            for attr in ("data-src", "src"):
+                val = str(img.get(attr) or "").strip()
+                if val.startswith("http") and not val.endswith(".svg") and "logo" not in val.lower():
+                    img_url = val
+                    break
+            if img_url:
+                break
+
+        slug = path.rsplit("/", 1)[-1]
+        seen_urls.add(full_url)
+        brand = _normalize_brand(None, title)
+        sub_cat = _refine_sub_category(default_sub, cat_name, title)
+        attrs: dict[str, Any] = _extract_specs(title, sub_cat)
+        attrs.pop("two_b_category", None)
+        attrs["rayashop_category"] = sub_cat
+        card_txt = card.get_text(" ", strip=True)
+
+        return self.validate_record(
+            {
+                "store_name": self.store_name,
+                "external_id": slug[:120],
+                "canonical_product_key": None,
+                "category": cat_name,
+                "sub_category": sub_cat,
+                "brand": brand,
+                "product_title": title,
+                "product_url": full_url,
+                "image_url": img_url,
+                "attributes_json": attrs,
+                "current_price": current_price,
+                "claimed_original_price": claimed_price,
+                "in_stock": "out of stock" not in card_txt.lower(),
+                "snapshot_date": snapshot_date,
+                "scraped_at": scraped_at,
+            }
+        )
+
     def _parse_dom_cards(
         self,
         soup: BeautifulSoup,
@@ -97,96 +274,25 @@ class RayaShopScraper(BaseScraper):
         results: list[RawProductSnapshot] = []
         seen_urls: set[str] = set()
 
-        # RayaShop Nuxt product links sit inside cards containing an EGP price + img
-        for anchor in soup.select('a[href^="/en/"], a[href^="https://www.rayashop.com/en/"]'):
-            href = str(anchor.get("href") or "").strip()
-            path = urlparse(urljoin(self.base_url, href)).path.rstrip("/")
-            if not path or path.count("/") < 2:
-                continue
-            if any(
-                skip in path.lower()
-                for skip in ("/login", "/cart", "/account", "/checkout", "/black-friday", "/brands", "/stores", "/category")
-            ):
-                continue
-            full_url = urljoin(self.base_url, path)
-            if full_url in seen_urls:
-                continue
+        # Primary: Raya Shop Nuxt PLP product cards (`article.ProductCardPlpGrid`)
+        plp_cards = soup.select("article.ProductCardPlpGrid")
+        if plp_cards:
+            for card in plp_cards:
+                rec = self._parse_single_card(card, cat_name, default_sub, snapshot_date, scraped_at, seen_urls)
+                if rec is not None:
+                    results.append(rec)
+            return results
 
-            # Walk up up to 3 parents to find card containing price + image
+        # Fallback: walk from product anchors to card container (still guarded against installments)
+        for anchor in soup.select('a[href^="/en/"], a[href^="https://www.rayashop.com/en/"]'):
             card = anchor
             for _ in range(3):
                 txt = card.get_text(" ", strip=True)
                 if _PRICE_NUM_RE.search(txt) and card.select_one("img"):
                     break
-                if card.parent:
+                if isinstance(card.parent, Tag):
                     card = card.parent
-
-            card_txt = card.get_text(" ", strip=True)
-            price_matches = [parse_egp_price(m) for m in _PRICE_NUM_RE.findall(card_txt)]
-            valid_prices = [p for p in price_matches if p is not None and p >= Decimal("50")]
-            if not valid_prices:
-                continue
-
-            # Skip if card is actually an entire container with > 4 prices
-            if len(valid_prices) > 4:
-                continue
-
-            current_price = min(valid_prices)
-            max_price = max(valid_prices)
-            claimed_price = max_price if max_price > current_price else None
-
-            title = ""
-            for sel in ("h2", "h3", "h4", "[class*='title']", "[class*='name']"):
-                el = card.select_one(sel)
-                if el:
-                    cand = re.sub(r"\s+", " ", el.get_text(" ", strip=True)).strip()
-                    if len(cand) >= 8 and "EGP" not in cand:
-                        title = cand
-                        break
-            if not title:
-                img = card.select_one("img[alt]")
-                if img:
-                    title = re.sub(r"\s+", " ", str(img.get("alt") or "")).strip()
-            if len(title) < 6:
-                continue
-
-            img_url: Optional[str] = None
-            for img in card.select("img"):
-                for attr in ("data-src", "src"):
-                    val = str(img.get(attr) or "").strip()
-                    if val.startswith("http") and not val.endswith(".svg") and "logo" not in val.lower():
-                        img_url = val
-                        break
-                if img_url:
-                    break
-
-            slug = path.rsplit("/", 1)[-1]
-            seen_urls.add(full_url)
-            brand = _normalize_brand(None, title)
-            sub_cat = _refine_sub_category(default_sub, cat_name, title)
-            attrs: dict[str, Any] = _extract_specs(title, sub_cat)
-            attrs.pop("two_b_category", None)
-            attrs["rayashop_category"] = sub_cat
-
-            rec = self.validate_record(
-                {
-                    "store_name": self.store_name,
-                    "external_id": slug[:120],
-                    "canonical_product_key": None,
-                    "category": cat_name,
-                    "sub_category": sub_cat,
-                    "brand": brand,
-                    "product_title": title,
-                    "product_url": full_url,
-                    "image_url": img_url,
-                    "attributes_json": attrs,
-                    "current_price": current_price,
-                    "claimed_original_price": claimed_price,
-                    "in_stock": "out of stock" not in card_txt.lower(),
-                    "snapshot_date": snapshot_date,
-                    "scraped_at": scraped_at,
-                }
-            )
+            rec = self._parse_single_card(card, cat_name, default_sub, snapshot_date, scraped_at, seen_urls)
             if rec is not None:
                 results.append(rec)
 

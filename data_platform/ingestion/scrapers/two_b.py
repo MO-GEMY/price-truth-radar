@@ -30,6 +30,7 @@ from .base import (
     ImpersonatedHttpClient,
     RawProductSnapshot,
     ThrottledResponseError,
+    is_installment_text,
     parse_egp_price,
     utc_now_naive,
 )
@@ -184,18 +185,19 @@ def _extract_dom_tiles(soup: BeautifulSoup, base_url: str) -> tuple[dict[str, di
         href = str(link_el.get("href") or "").strip() if link_el else ""
         full_href = urljoin(base_url, href) if href and href != "#" else ""
 
-        old_el = li.select_one('[data-price-type="oldPrice"]')
+        price_box = li.select_one(".price-box") or li
+        old_el = price_box.select_one('[data-price-type="oldPrice"]')
         old_raw = (
             old_el.get("data-price-amount") or old_el.get_text(" ", strip=True)
-            if old_el
+            if (old_el and not is_installment_text(old_el.get_text(" ", strip=True)))
             else None
         )
         old_price: Optional[Decimal] = parse_egp_price(old_raw)
 
-        final_el = li.select_one('[data-price-type="finalPrice"]')
+        final_el = price_box.select_one('[data-price-type="finalPrice"]')
         final_raw = (
             final_el.get("data-price-amount") or final_el.get_text(" ", strip=True)
-            if final_el
+            if (final_el and not is_installment_text(final_el.get_text(" ", strip=True)))
             else None
         )
         final_price: Optional[Decimal] = parse_egp_price(final_raw)

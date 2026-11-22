@@ -229,7 +229,9 @@ function highlightsFromFeed(
   feed: RadarFeedResponse,
   kind: "scandals" | "deals",
 ): RadarHighlights["biggest_scandals"] {
-  const items = [...feed.items];
+  // Price floor: marketplace bait listings (EGP 1 "TVs") poison the scandal
+  // ranking with 100% fake inflation — exclude anything below EGP 10.
+  const items = feed.items.filter((p) => p.current_price >= 10);
   if (kind === "scandals") {
     return items
       .filter((p) => p.claimed_discount_pct >= 10)

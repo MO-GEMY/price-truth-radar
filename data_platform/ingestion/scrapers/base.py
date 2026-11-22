@@ -85,6 +85,99 @@ def is_throttled_html(html: str, *, min_bytes: int = 5120) -> Optional[str]:
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩٫٬", "0123456789.,")
 _PRICE_NUMBER_RE = re.compile(r"(\d[\d,]*(?:\.\d{1,2})?)")
 _MAX_NUMERIC_12_2 = Decimal("9999999999.99")
+
+NON_GROCERY_MIN_PRICE_EGP = Decimal("10.00")
+MAJOR_APPLIANCE_MIN_PRICE_EGP = Decimal("2500.00")
+
+MAJOR_APPLIANCE_SUB_CATEGORIES: frozenset[str] = frozenset(
+    {
+        "cookers",
+        "refrigerators",
+        "washing_machines",
+        "air_conditioners",
+        "tvs",
+        "dishwashers",
+        "freezers",
+    }
+)
+
+APPLIANCE_ACCESSORY_TITLE_RE = re.compile(
+    r"(?:\b(?:"
+    r"cover|hose|stand|remote(?:\s+control)?|filter|cable|bracket|cleaner|"
+    r"mount|wall\s+mount|adapter|adaptor|lnb|receiver|reciever|dish|tray|shelf|"
+    r"knob|burner\s+cap|thermostat|valve|gasket|pipe|cap|kit|plug|switch|sensor|"
+    r"spare|part|parts|accessor(?:y|ies)|protector|stabilizer|regulator|fan\s+blade|"
+    r"drain|inlet|outlet|detergent|tablet|salt|rinse|descaler|brush|base|wheel|caster|"
+    r"extension|connector|splitter|antenna|aerial|dongle|stick|box|projector\s+screen"
+    r")\b|"
+    r"غطاء|كفر|ريموت|حامل|ستاند|فلتر|كابل|سلك|خرطوم|منظف|قطع(?:ة)?\s*غيار|"
+    r"اكسسوار|إكسسوار|محول|رسيفر|عدسة|مفتاح|صمام|جوان|ثرموستات|رف|درج|طبق\s*ميكروويف|قاعدة)",
+    re.I,
+)
+
+INSTALLMENT_TEXT_RE = re.compile(
+    r"(?:قسط|أقساط|اقساط|تقسيط|شهري(?:اً|ا)?|في\s*الشهر|"
+    r"/\s*(?:\d+\s*)?(?:mo|month|months)\b|"
+    r"\b(?:per\s*month|installment(?:s)?|monthly|valu|aman|suhoula|souhoola|"
+    r"takseety|sympl|forsaa?|shahry|0%\s*interest|0%\s*dp|down\s*payment)\b)",
+    re.I,
+)
+
+_SAVINGS_BADGE_RE = re.compile(
+    r"(?:^|[\s|(])(?:-\s*|save\s+|وفر\s+)\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:EGP|LE|L\.E\.?|ج\.م)\b",
+    re.I,
+)
+
+
+def is_installment_text(text: str) -> bool:
+    """Return True if text appears to describe a monthly installment / BNPL plan."""
+    return bool(text and INSTALLMENT_TEXT_RE.search(text))
+
+
+def strip_installment_segments(text: str) -> str:
+    """Remove installment/monthly clauses and `- N EGP` savings badges from card text."""
+    if not text:
+        return ""
+    kept: list[str] = []
+    for seg in re.split(r"[\n|•]+", text):
+        cleaned = seg.strip()
+        if not cleaned or INSTALLMENT_TEXT_RE.search(cleaned):
+            continue
+        cleaned = _SAVINGS_BADGE_RE.sub(" ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if cleaned:
+            kept.append(cleaned)
+    return " | ".join(kept)
+
+
+def is_appliance_accessory_title(title: str) -> bool:
+    """Return True if a title clearly describes a spare part or accessory."""
+    return bool(title and APPLIANCE_ACCESSORY_TITLE_RE.search(title))
+
+
+def validate_price_floor(
+    *,
+    category: str,
+    sub_category: str,
+    product_title: str,
+    current_price: Decimal,
+) -> Optional[str]:
+    """Return an error reason if `current_price` violates category/appliance sanity floors."""
+    if category in ("electronics", "home_appliances", "fashion") and current_price < NON_GROCERY_MIN_PRICE_EGP:
+        return (
+            f"Suspiciously low price ({current_price} EGP < {NON_GROCERY_MIN_PRICE_EGP} EGP) "
+            f"for {category} listing"
+        )
+    if (
+        sub_category in MAJOR_APPLIANCE_SUB_CATEGORIES
+        and current_price < MAJOR_APPLIANCE_MIN_PRICE_EGP
+        and not is_appliance_accessory_title(product_title)
+    ):
+        return (
+            f"Suspiciously low major-appliance price ({current_price} EGP < {MAJOR_APPLIANCE_MIN_PRICE_EGP} EGP) "
+            f"for non-accessory {sub_category}: {product_title!r}"
+        )
+    return None
 _TWO_PLACES = Decimal("0.01")
 
 
@@ -212,6 +305,15 @@ class RawProductSnapshot(BaseModel):
 
     @model_validator(mode="after")
     def _normalize_claimed_price(self) -> "RawProductSnapshot":
+        # Reject bait (< 10 EGP non-grocery) and installment-corrupted major appliance prices.
+        floor_err = validate_price_floor(
+            category=self.category,
+            sub_category=self.sub_category,
+            product_title=self.product_title,
+            current_price=self.current_price,
+        )
+        if floor_err is not None:
+            raise ValueError(floor_err)
         # A strikethrough original price is only meaningful if strictly higher than current_price.
         if (
             self.claimed_original_price is not None

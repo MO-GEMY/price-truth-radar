@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -15,11 +16,62 @@ from app.schemas import HighlightVerdict, RadarHighlightItem, RadarHighlightsRes
 
 router = APIRouter(tags=["highlights"])
 
+_MAJOR_APPLIANCE_SUBS: frozenset[str] = frozenset(
+    {
+        "cookers",
+        "refrigerators",
+        "washing_machines",
+        "air_conditioners",
+        "tvs",
+        "dishwashers",
+        "freezers",
+    }
+)
+
+_ACCESSORY_SQL_REGEX = (
+    r"(\m(cover|hose|stand|remote|filter|cable|bracket|cleaner|mount|adapter|adaptor|"
+    r"lnb|receiver|reciever|dish|tray|shelf|knob|thermostat|valve|gasket|pipe|cap|kit|"
+    r"plug|switch|sensor|spare|part|parts|accessory|accessories|protector|stabilizer|"
+    r"regulator|drain|detergent|tablet|salt|brush|base|extension|connector|splitter|"
+    r"antenna|aerial|dongle|stick)\M|"
+    r"غطاء|كفر|ريموت|حامل|ستاند|فلتر|كابل|سلك|خرطوم|منظف|غيار|اكسسوار|إكسسوار|محول|رسيفر|عدسة|مفتاح|صمام|رف|درج)"
+)
+
+_ACCESSORY_PY_RE = re.compile(
+    r"(?:\b(?:"
+    r"cover|hose|stand|remote|filter|cable|bracket|cleaner|mount|adapter|adaptor|"
+    r"lnb|receiver|reciever|dish|tray|shelf|knob|thermostat|valve|gasket|pipe|cap|kit|"
+    r"plug|switch|sensor|spare|part|parts|accessor(?:y|ies)|protector|stabilizer|"
+    r"regulator|drain|detergent|tablet|salt|brush|base|extension|connector|splitter|"
+    r"antenna|aerial|dongle|stick"
+    r")\b|"
+    r"غطاء|كفر|ريموت|حامل|ستاند|فلتر|كابل|سلك|خرطوم|منظف|غيار|اكسسوار|إكسسوار|محول|رسيفر|عدسة|مفتاح|صمام|رف|درج)",
+    re.I,
+)
+
+_PRICE_FLOOR_SQL_GUARD = f"""
+    AND current_price >= 10
+    AND NOT (
+        sub_category IN (
+            'cookers',
+            'refrigerators',
+            'washing_machines',
+            'air_conditioners',
+            'tvs',
+            'dishwashers',
+            'freezers'
+        )
+        AND current_price < 2500
+        AND product_title !~* '{_ACCESSORY_SQL_REGEX}'
+    )
+"""
+
 _HIGHLIGHT_COLS = """
     product_sk,
     canonical_product_key,
     store_name,
     category,
+    sub_category,
     product_title,
     product_url,
     image_url,
@@ -32,6 +84,18 @@ _HIGHLIGHT_COLS = """
     discount_verdict,
     last_updated_at
 """
+
+
+def _passes_highlight_price_floor(row: dict[str, Any]) -> bool:
+    """Defense-in-depth price-floor filter excluding < 10 EGP bait & < 2,500 EGP non-accessory major appliances."""
+    price = float(row.get("current_price") or 0.0)
+    if price < 10.0:
+        return False
+    sub_cat = str(row.get("sub_category") or "").strip().lower()
+    title = str(row.get("product_title") or "")
+    if sub_cat in _MAJOR_APPLIANCE_SUBS and price < 2500.0 and not _ACCESSORY_PY_RE.search(title):
+        return False
+    return True
 
 
 def _row_to_highlight(row: dict[str, Any], *, bucket: Literal["scandal", "deal"]) -> RadarHighlightItem:
@@ -107,6 +171,7 @@ def get_radar_highlights(
         SELECT {_HIGHLIGHT_COLS}
         FROM gold.mart_product_verdicts
         WHERE in_stock = TRUE
+          {_PRICE_FLOOR_SQL_GUARD}
           AND (
               discount_verdict IN ('PRESALE_HIKE', 'FAKE_DISCOUNT')
               OR (claimed_discount_pct - real_discount_pct) >= 10.0
@@ -132,6 +197,7 @@ def get_radar_highlights(
         SELECT {_HIGHLIGHT_COLS}
         FROM gold.mart_product_verdicts
         WHERE in_stock = TRUE
+          {_PRICE_FLOOR_SQL_GUARD}
           AND discount_verdict NOT IN ('FAKE_DISCOUNT', 'PRESALE_HIKE')
           AND (
               discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL')
@@ -156,11 +222,19 @@ def get_radar_highlights(
         """
     )
 
-    scandal_rows = db.execute(scandals_sql, params).mappings().all()
-    deal_rows = db.execute(deals_sql, params).mappings().all()
+    scandal_rows = [
+        dict(r)
+        for r in db.execute(scandals_sql, params).mappings().all()
+        if _passes_highlight_price_floor(dict(r))
+    ]
+    deal_rows = [
+        dict(r)
+        for r in db.execute(deals_sql, params).mappings().all()
+        if _passes_highlight_price_floor(dict(r))
+    ]
 
-    biggest_scandals = [_row_to_highlight(dict(r), bucket="scandal") for r in scandal_rows]
-    best_real_deals = [_row_to_highlight(dict(r), bucket="deal") for r in deal_rows]
+    biggest_scandals = [_row_to_highlight(r, bucket="scandal") for r in scandal_rows]
+    best_real_deals = [_row_to_highlight(r, bucket="deal") for r in deal_rows]
 
     timestamps = [
         r["last_updated_at"]

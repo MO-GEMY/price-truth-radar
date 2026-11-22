@@ -25,7 +25,9 @@ from .base import (
     Category,
     RawProductSnapshot,
     ScrapeVertical,
+    is_installment_text,
     parse_egp_price,
+    strip_installment_segments,
     utc_now_naive,
 )
 from .two_b import _extract_specs, _normalize_brand, _refine_sub_category
@@ -124,19 +126,20 @@ class RaneenScraper(BaseScraper):
                     if len(title) < 4:
                         continue
 
-                    # Prices (Magento data-price-amount or EGP text)
+                    # Prices (Magento data-price-amount inside .price-box, excluding installment widgets)
                     current_price: Optional[Decimal] = None
                     claimed_price: Optional[Decimal] = None
 
-                    fin_el = card.select_one('[data-price-type="finalPrice"]')
-                    old_el = card.select_one('[data-price-type="oldPrice"]')
-                    if fin_el:
+                    price_root = card.select_one(".price-box") or card
+                    fin_el = price_root.select_one('[data-price-type="finalPrice"]')
+                    old_el = price_root.select_one('[data-price-type="oldPrice"]')
+                    if fin_el and not is_installment_text(fin_el.get_text(" ", strip=True)):
                         current_price = parse_egp_price(fin_el.get("data-price-amount") or fin_el.get_text(" ", strip=True))
-                    if old_el:
+                    if old_el and not is_installment_text(old_el.get_text(" ", strip=True)):
                         claimed_price = parse_egp_price(old_el.get("data-price-amount") or old_el.get_text(" ", strip=True))
 
                     if current_price is None:
-                        card_txt = card.get_text(" ", strip=True)
+                        card_txt = strip_installment_segments(card.get_text(" | ", strip=True))
                         nums = [parse_egp_price(m) for m in _EGP_PRICE_RE.findall(card_txt)]
                         nums = [n for n in nums if n is not None and n >= Decimal("10")]
                         if nums:
