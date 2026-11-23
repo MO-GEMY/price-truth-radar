@@ -218,10 +218,26 @@ class ProductVariantItem(BaseModel):
     product_url: str
 
 
+class SimilarAlternativeItem(BaseModel):
+    product_sk: str
+    title: str
+    store_name: str
+    current_price: float
+    price_diff_egp: float
+    price_diff_pct: float
+    verdict: DiscountVerdict
+    in_stock: bool
+    image_url: Optional[str] = None
+    product_url: str
+    similarity_reason: str
+    is_exact_match: Literal[False] = False
+
+
 class ProductDetailResponse(BaseModel):
     product: ProductVerdictItem
     history: list[PriceHistoryPoint]
     alternatives: list[AlternativeListing]
+    similar_alternatives: list[SimilarAlternativeItem] = Field(default_factory=list)
     variants: list[ProductVariantItem] = Field(default_factory=list)
 
 

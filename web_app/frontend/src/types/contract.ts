@@ -195,10 +195,26 @@ export interface ProductVariant {
   product_url: string;
 }
 
+export interface SimilarAlternative {
+  product_sk: string;
+  title: string;
+  store_name: string;
+  current_price: number;
+  price_diff_egp: number;
+  price_diff_pct: number;
+  verdict: DiscountVerdict;
+  in_stock: boolean;
+  image_url: string | null;
+  product_url: string;
+  similarity_reason: string;
+  is_exact_match: false;
+}
+
 export interface ProductDetailResponse {
   product: Product;
   history: PriceHistoryPoint[];
   alternatives: AlternativeListing[];
+  similar_alternatives?: SimilarAlternative[];
   variants?: ProductVariant[];
 }
 

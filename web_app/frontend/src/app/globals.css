@@ -544,6 +544,40 @@ html[lang="ar"] .ptr-hero h1 { max-width: none; }
 }
 .ptr-offer > * { min-width: 0; }
 
+.ptr-similar-wrap { display: grid; gap: 10px; min-width: 0; }
+.ptr-similar-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.ptr-similar-header h2 { margin-block-end: 0; }
+.ptr-similar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, .9fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding-block: 12px;
+  border-block-start: 1px solid var(--ptr-line);
+}
+.ptr-similar-row > * { min-width: 0; }
+.ptr-similar-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ptr-similar-thumb { flex: none; width: 52px; height: 52px; border-radius: 8px; }
+.ptr-similar-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 650;
+  font-size: .94rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.ptr-similar-title:hover { color: var(--ptr-teal); text-decoration: underline; }
+.ptr-similar-price { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+
 .ptr-product-heading { display: flex; gap: 16px; align-items: center; min-width: 0; }
 .ptr-product-heading > div { min-width: 0; flex: 1; }
 .ptr-product-heading h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); margin-block: 5px; }
@@ -696,6 +730,9 @@ html[lang="ar"] .ptr-hero h1 { max-width: none; }
   .ptr-offer { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
   .ptr-offer > :nth-child(3) { grid-column: 1 / -1; justify-self: start; }
   .ptr-offer > :last-child { grid-column: 1 / -1; }
+  .ptr-similar-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .ptr-similar-price { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .ptr-similar-actions { width: 100%; }
   .ptr-product-heading { align-items: flex-start; gap: 12px; }
   .ptr-receipt-layout { grid-template-columns: minmax(0, 1fr); }
   .ptr-decision { grid-area: 1 / 1; }

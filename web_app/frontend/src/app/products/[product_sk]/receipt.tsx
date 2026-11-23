@@ -20,6 +20,7 @@ import { PriceAlertModal } from "@/components/PriceAlertModal";
 import { PriceChart } from "@/components/PriceChart";
 import { ProductImage } from "@/components/ProductImage";
 import { ShareButton } from "@/components/ShareButton";
+import { SimilarAlternativesList } from "@/components/SimilarAlternativesList";
 import { DetailSkeleton, ErrorState } from "@/components/states";
 import { StoreBadge } from "@/components/StoreBadge";
 import { VerdictBadge } from "@/components/VerdictBadge";
@@ -58,7 +59,7 @@ export function ProductReceipt({ productSk, initial }: {
   const loaded = retry ? response?.result : initial;
   if (!loaded) return <div className="ptr-wrap ptr-page"><ErrorState onRetry={() => setRetry((value) => value + 1)} /></div>;
 
-  const { product, history, alternatives, variants = [] } = loaded.data;
+  const { product, history, alternatives, similar_alternatives = [], variants = [] } = loaded.data;
   const label = storeDisplayName(product.store_name, lang);
   const price = formatPrice(product.current_price, lang);
   const timestamp = observedTimestamp(product.last_updated_at);
@@ -224,10 +225,29 @@ export function ProductReceipt({ productSk, initial }: {
         </section>
       </div>
       <section id="alternatives" className="surface ptr-section">
-        <h2>{t("detail.alternatives")}</h2>
-        {alternatives.length ? <AlternativesTable alternatives={alternatives} from={from ?? undefined} sample={!live}
-          currentOffer={{ price: product.current_price, in_stock: product.in_stock }} />
-          : <p className="ptr-muted text-sm">{t("detail.noAlternatives")}</p>}
+        {alternatives.length > 0 ? (
+          <>
+            <h2>{t("detail.alternatives")}</h2>
+            <AlternativesTable
+              alternatives={alternatives}
+              from={from ?? undefined}
+              sample={!live}
+              currentOffer={{ price: product.current_price, in_stock: product.in_stock }}
+            />
+          </>
+        ) : similar_alternatives.length > 0 ? (
+          <SimilarAlternativesList
+            items={similar_alternatives}
+            category={product.category}
+            from={from ?? undefined}
+            sample={!live}
+          />
+        ) : (
+          <>
+            <h2>{t("detail.alternatives")}</h2>
+            <p className="ptr-muted text-sm">{t("detail.noAlternatives")}</p>
+          </>
+        )}
       </section>
       <section className="surface ptr-section">
         <h2>{t("detail.history")}</h2>

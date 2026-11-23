@@ -21,7 +21,9 @@ from app.schemas import (
     ProductVariantItem,
     ProductVerdictItem,
     SearchResponse,
+    SimilarAlternativeItem,
 )
+from app.similar_alternatives import find_similar_alternatives
 
 router = APIRouter(prefix="/api/v1/products", tags=["products"])
 
@@ -387,7 +389,7 @@ def get_product_detail(
     db: Connection = Depends(get_db),
 ) -> ProductDetailResponse:
     set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
-    cache_key = f"products:detail:v2:{product_sk}"
+    cache_key = f"products:detail:v3:{product_sk}"
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -468,10 +470,15 @@ def get_product_detail(
         )
         variants = [ProductVariantItem.model_validate(dict(r)) for r in variant_rows]
 
+    similar_alternatives: list[SimilarAlternativeItem] = []
+    if not alternatives:
+        similar_alternatives = find_similar_alternatives(db, product, max_results=5)
+
     res = ProductDetailResponse(
         product=product,
         history=history,
         alternatives=alternatives,
+        similar_alternatives=similar_alternatives,
         variants=variants,
     )
     api_cache.set(cache_key, res, ttl=300.0)
