@@ -9,6 +9,7 @@ Supports both plain HTTP (`PoliteHttpClient`) and optional TLS impersonation
 
 from __future__ import annotations
 
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 import math
 import re
@@ -61,6 +62,182 @@ query SearchProducts($search: String!, $pageSize: Int!, $currentPage: Int!) {
 """.strip()
 
 _EAN_RE = re.compile(r"^\d{8}(?:\d{4,6})?$")
+_WEIGHT_OPTION_TITLE_RE = re.compile(r"(?:\bweight\b|\bportion\b|\bpack\s*weight\b|وزن|الوزن)", re.I)
+_WEIGHT_VALUE_RE = re.compile(
+    r"^\s*(\d+(?:\.\d+)?)\s*(g|gm|gr|gram|grams|kg|kgs|kilo|kilos|ml|l|liter|litre|جم|جرام|كجم|كيلو)\b",
+    re.I,
+)
+_TITLE_HAS_WEIGHT_RE = re.compile(
+    r"(?:\b\d+(?:\.\d+)?\s*(?:g|gm|gr|gram|grams|kg|kgs|kilo|ml|l|liter|litre)\b|\d+(?:\.\d+)?\s*(?:جم|جرام|كجم|كيلو))",
+    re.I,
+)
+
+
+def _normalize_weight_option_label(raw_label: str) -> Optional[str]:
+    """Normalize a Magento customizable weight option label like '125 gm' -> '125g', '0.5 kg' -> '500g'."""
+    text = re.sub(r"\s+", " ", (raw_label or "").strip())
+    if not text:
+        return None
+    m = _WEIGHT_VALUE_RE.search(text)
+    if not m:
+        return None
+    val = float(m.group(1))
+    unit = m.group(2).lower()
+    if unit in ("kg", "kgs", "kilo", "kilos", "كجم", "كيلو"):
+        if val < 1.0:
+            grams = int(round(val * 1000))
+            return f"{grams}g" if grams > 0 else None
+        s = f"{val:.2f}".rstrip("0").rstrip(".")
+        return f"{s}kg"
+    if unit in ("g", "gm", "gr", "gram", "grams", "جم", "جرام"):
+        grams = int(round(val))
+        return f"{grams}g" if grams > 0 else None
+    if unit in ("l", "liter", "litre"):
+        s = f"{val:.2f}".rstrip("0").rstrip(".")
+        return f"{s}L"
+    if unit == "ml":
+        ml = int(round(val))
+        return f"{ml}ml" if ml > 0 else None
+    return None
+
+
+def _apply_option_modifier(
+    base_price: Decimal, mod_price: Decimal, price_type: str
+) -> Optional[Decimal]:
+    """Compute effective option price given a Magento base price and option modifier."""
+    ptype = (price_type or "FIXED").upper()
+    if ptype == "PERCENT":
+        eff = base_price * (Decimal("1") + (mod_price / Decimal("100")))
+    else:
+        eff = base_price + mod_price
+    if eff <= Decimal("0"):
+        return None
+    return eff.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _extract_custom_weight_pricing(
+    item: dict[str, Any],
+    current_price: Decimal,
+    regular_price: Optional[Decimal],
+    max_final_price: Optional[Decimal],
+) -> tuple[Optional[Decimal], Optional[str], dict[str, Any]]:
+    """
+    Resolve true same-unit `claimed_original_price` and selected weight label for
+    Magento 2 weighted/customizable products (e.g. Gourmet Egypt deli/produce items).
+
+    Magento stores like Gourmet model weighted items with base `regular_price` = 1kg
+    and a required negative-PERCENT `Weight` option (e.g. `125g` = `-87.5%`).
+    Without inspecting `options` / `special_price` / `maximum_price`, the 1kg base
+    price leaks as a bogus 50%–87.5% `claimed_original_price`.
+    """
+    has_special_key = "special_price" in item
+    special_price = parse_egp_price(item.get("special_price")) if item.get("special_price") is not None else None
+    has_real_special = (
+        special_price is not None
+        and regular_price is not None
+        and special_price < regular_price
+    )
+
+    options = item.get("options") if isinstance(item.get("options"), list) else []
+    weight_entries: list[dict[str, Any]] = []
+    any_negative_option = False
+
+    for opt in options:
+        if not isinstance(opt, dict):
+            continue
+        opt_title = str(opt.get("title") or "").strip()
+        raw_values = opt.get("value")
+        values = raw_values if isinstance(raw_values, list) else ([raw_values] if isinstance(raw_values, dict) else [])
+        is_weight_opt = bool(_WEIGHT_OPTION_TITLE_RE.search(opt_title))
+
+        parsed_entries: list[dict[str, Any]] = []
+        for val in values:
+            if not isinstance(val, dict):
+                continue
+            v_title = str(val.get("title") or "").strip()
+            raw_mod = val.get("price")
+            try:
+                mod_dec = Decimal(str(raw_mod)) if raw_mod is not None else Decimal("0")
+            except Exception:
+                mod_dec = Decimal("0")
+            if mod_dec < Decimal("0"):
+                any_negative_option = True
+            ptype = str(val.get("price_type") or "FIXED").upper()
+            norm_label = _normalize_weight_option_label(v_title)
+            if is_weight_opt or norm_label is not None:
+                parsed_entries.append(
+                    {
+                        "label": norm_label or v_title,
+                        "mod": mod_dec,
+                        "price_type": ptype,
+                    }
+                )
+        if parsed_entries and (is_weight_opt or any(e["mod"] < Decimal("0") for e in parsed_entries)):
+            weight_entries.extend(parsed_entries)
+
+    selected_label: Optional[str] = None
+    selected_entry: Optional[dict[str, Any]] = None
+    extra_attrs: dict[str, Any] = {}
+
+    effective_base = special_price if has_real_special else regular_price
+    if weight_entries and effective_base is not None:
+        option_prices: list[Decimal] = []
+        best_diff: Optional[Decimal] = None
+        for entry in weight_entries:
+            eff = _apply_option_modifier(effective_base, entry["mod"], entry["price_type"])
+            if eff is None:
+                continue
+            option_prices.append(eff)
+            diff = abs(eff - current_price)
+            if best_diff is None or diff < best_diff:
+                best_diff = diff
+                selected_entry = entry
+
+        # Accept the matched option when within 2% (or 1 EGP) of current_price
+        if selected_entry is not None and best_diff is not None:
+            tol = max(Decimal("1.00"), current_price * Decimal("0.02"))
+            if best_diff <= tol and selected_entry.get("label"):
+                selected_label = str(selected_entry["label"])
+
+        if len(option_prices) > 1:
+            min_opt = min(current_price, *option_prices)
+            max_opt = max(current_price, *option_prices)
+            extra_attrs["variant_count"] = len(option_prices)
+            extra_attrs["variant_min_price"] = float(min_opt)
+            extra_attrs["variant_max_price"] = float(max_opt)
+
+    # Determine claimed_original_price safely
+    has_negative_weight = any(e["mod"] < Decimal("0") for e in weight_entries)
+    option_driven_gap = (
+        has_negative_weight
+        or any_negative_option
+        or (
+            has_special_key
+            and not has_real_special
+            and max_final_price is not None
+            and max_final_price > current_price
+        )
+    )
+
+    if option_driven_gap:
+        if has_real_special and regular_price is not None and selected_entry is not None:
+            # Compute same-weight original price so a true promo on a weighted item is preserved
+            same_weight_orig = _apply_option_modifier(
+                regular_price, selected_entry["mod"], selected_entry["price_type"]
+            )
+            claimed_original = (
+                same_weight_orig
+                if (same_weight_orig is not None and same_weight_orig > current_price)
+                else None
+            )
+        else:
+            claimed_original = None
+    else:
+        claimed_original = (
+            regular_price if (regular_price is not None and regular_price > current_price) else None
+        )
+
+    return claimed_original, selected_label, extra_attrs
 
 
 class MagentoGraphQLBaseScraper(BaseScraper):
@@ -126,16 +303,25 @@ class MagentoGraphQLBaseScraper(BaseScraper):
 
         price_range = item.get("price_range") if isinstance(item.get("price_range"), dict) else {}
         min_price = price_range.get("minimum_price") if isinstance(price_range.get("minimum_price"), dict) else {}
+        max_price = price_range.get("maximum_price") if isinstance(price_range.get("maximum_price"), dict) else {}
         final_obj = min_price.get("final_price") if isinstance(min_price.get("final_price"), dict) else {}
         regular_obj = min_price.get("regular_price") if isinstance(min_price.get("regular_price"), dict) else {}
+        max_final_obj = max_price.get("final_price") if isinstance(max_price.get("final_price"), dict) else {}
 
         current_price = parse_egp_price(final_obj.get("value"))
         if current_price is None:
             return None
         regular_price = parse_egp_price(regular_obj.get("value"))
-        claimed_original = (
-            regular_price if (regular_price is not None and regular_price > current_price) else None
+        max_final_price = parse_egp_price(max_final_obj.get("value"))
+        claimed_original, selected_weight_label, weight_extra_attrs = _extract_custom_weight_pricing(
+            item, current_price, regular_price, max_final_price
         )
+        if selected_weight_label:
+            compact_title = re.sub(r"\s+", "", title).lower()
+            if selected_weight_label.lower() not in compact_title and not _TITLE_HAS_WEIGHT_RE.search(title):
+                title = f"{title} - {selected_weight_label}"
+            elif selected_weight_label.lower() not in compact_title:
+                title = f"{title} ({selected_weight_label})"
 
         image_url: Optional[str] = None
         for img_key in ("small_image", "image", "thumbnail"):
@@ -178,8 +364,23 @@ class MagentoGraphQLBaseScraper(BaseScraper):
         attrs: dict[str, Any] = {f"{self.store_name}_category": cat_names[0] if cat_names else sub_category}
         if ean:
             attrs["ean"] = ean
+        if selected_weight_label:
+            attrs["variant_label"] = selected_weight_label
+        if weight_extra_attrs:
+            attrs.update(weight_extra_attrs)
         if cat == "groceries":
-            attrs.update(parse_grocery_packaging(title, raw_payload={"ean": ean} if ean else None))
+            pkg = parse_grocery_packaging(
+                title,
+                extra_text=selected_weight_label or "",
+                raw_payload={"ean": ean} if ean else None,
+            )
+            if selected_weight_label:
+                # Ensure the authoritative Weight option wins over any base unit token in title
+                opt_pkg = parse_grocery_packaging(selected_weight_label)
+                for k in ("net_weight_g", "net_volume_ml", "pack_size"):
+                    if k in opt_pkg:
+                        pkg[k] = opt_pkg[k]
+            attrs.update(pkg)
 
         stock_status = str(item.get("stock_status") or "IN_STOCK").upper()
         in_stock = stock_status == "IN_STOCK"

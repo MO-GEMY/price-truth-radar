@@ -174,6 +174,59 @@ class MobacoScraper(MagentoGraphQLBaseScraper):
     )
 
 
+_GOURMET_GQL_QUERY = """
+query SearchProducts($search: String!, $pageSize: Int!, $currentPage: Int!) {
+  products(search: $search, pageSize: $pageSize, currentPage: $currentPage) {
+    total_count
+    page_info {
+      current_page
+      total_pages
+    }
+    items {
+      name
+      sku
+      url_key
+      stock_status
+      special_price
+      small_image { url }
+      thumbnail { url }
+      categories { name }
+      price_range {
+        minimum_price {
+          final_price { value currency }
+          regular_price { value }
+        }
+        maximum_price {
+          final_price { value }
+          regular_price { value }
+        }
+      }
+      ... on CustomizableProductInterface {
+        options {
+          title
+          required
+          ... on CustomizableDropDownOption {
+            value {
+              title
+              price
+              price_type
+            }
+          }
+          ... on CustomizableRadioOption {
+            value {
+              title
+              price
+              price_type
+            }
+          }
+        }
+      }
+    }
+  }
+}
+""".strip()
+
+
 class GourmetScraper(MagentoGraphQLBaseScraper):
     store_name = "gourmet"
     category: Category = "groceries"
@@ -181,6 +234,7 @@ class GourmetScraper(MagentoGraphQLBaseScraper):
     graphql_url = "https://gourmetegypt.com/graphql"
     product_url_prefix = "/"
     product_url_suffix = ".html"
+    gql_query = _GOURMET_GQL_QUERY
     default_limit = 200
     groceries_limit = 200
     supported_verticals: tuple[ScrapeVertical, ...] = ("groceries",)

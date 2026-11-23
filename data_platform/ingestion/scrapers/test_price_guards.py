@@ -18,6 +18,7 @@ from data_platform.ingestion.scrapers.base import (
     is_installment_text,
     strip_installment_segments,
 )
+from data_platform.ingestion.scrapers.platform_stores import GourmetScraper
 from data_platform.ingestion.scrapers.rayashop import (
     RayaShopScraper,
     _extract_rayashop_card_prices,
@@ -443,6 +444,186 @@ class TestInstallmentAndPriceFloorGuards(unittest.TestCase):
         self.assertEqual(r.attributes_json["variant_count"], 2)
         self.assertEqual(r.attributes_json["variant_min_price"], 5843.0)
         self.assertEqual(r.attributes_json["variant_max_price"], 11932.0)
+
+
+class TestWeightedGroceryPricingGuards(unittest.TestCase):
+    def _scraper(self) -> GourmetScraper:
+        return GourmetScraper(http_client=None)  # type: ignore[arg-type]
+
+    def test_gourmet_smoked_herrings_125g_does_not_leak_per_kg_price_as_discount(self) -> None:
+        item = {
+            "sku": "2035299000000",
+            "name": "Smoked Herrings Fillet in Oil",
+            "url_key": "smoked-herrings-fillet-in-oil",
+            "stock_status": "IN_STOCK",
+            "special_price": None,
+            "small_image": {"url": "https://gourmetegypt.com/media/herrings.jpg"},
+            "categories": [{"name": "Seafood"}],
+            "price_range": {
+                "minimum_price": {
+                    "final_price": {"value": 95, "currency": "EGP"},
+                    "regular_price": {"value": 760},
+                },
+                "maximum_price": {
+                    "final_price": {"value": 760},
+                    "regular_price": {"value": 760},
+                },
+            },
+            "options": [
+                {
+                    "title": "Weight",
+                    "required": True,
+                    "value": [{"title": "125g", "price": -87.5, "price_type": "PERCENT"}],
+                }
+            ],
+        }
+        rec = self._scraper()._parse_item(
+            item, "canned_sauces", "groceries", date(2026, 11, 23), datetime(2026, 11, 23, 12, 0, 0)
+        )
+        assert rec is not None
+        self.assertEqual(rec.current_price, Decimal("95.00"))
+        self.assertIsNone(rec.claimed_original_price)
+        self.assertEqual(rec.product_title, "Smoked Herrings Fillet in Oil - 125g")
+        self.assertEqual(rec.attributes_json["variant_label"], "125g")
+        self.assertEqual(rec.attributes_json["net_weight_g"], 125)
+        self.assertEqual(rec.attributes_json["pack_size"], "125g")
+        self.assertNotIn("variant_count", rec.attributes_json)
+
+    def test_gourmet_multi_weight_cheese_sets_default_weight_and_range_without_fake_discount(self) -> None:
+        item = {
+            "sku": "2035311000000",
+            "name": "Dutch Gouda Lavender Cheese",
+            "url_key": "dutch-gouda-lavender-cheese",
+            "stock_status": "IN_STOCK",
+            "special_price": None,
+            "small_image": {"url": "https://gourmetegypt.com/media/gouda.jpg"},
+            "categories": [{"name": "Cheese"}],
+            "price_range": {
+                "minimum_price": {
+                    "final_price": {"value": 265, "currency": "EGP"},
+                    "regular_price": {"value": 1325},
+                },
+                "maximum_price": {
+                    "final_price": {"value": 1325},
+                    "regular_price": {"value": 1325},
+                },
+            },
+            "options": [
+                {
+                    "title": "Weight",
+                    "required": True,
+                    "value": [
+                        {"title": "200g", "price": -80, "price_type": "PERCENT"},
+                        {"title": "350g", "price": -65, "price_type": "PERCENT"},
+                        {"title": "500g", "price": -50, "price_type": "PERCENT"},
+                    ],
+                }
+            ],
+        }
+        rec = self._scraper()._parse_item(
+            item, "dairy_cheese", "groceries", date(2026, 11, 23), datetime(2026, 11, 23, 12, 0, 0)
+        )
+        assert rec is not None
+        self.assertEqual(rec.current_price, Decimal("265.00"))
+        self.assertIsNone(rec.claimed_original_price)
+        self.assertEqual(rec.product_title, "Dutch Gouda Lavender Cheese - 200g")
+        self.assertEqual(rec.attributes_json["variant_label"], "200g")
+        self.assertEqual(rec.attributes_json["net_weight_g"], 200)
+        self.assertEqual(rec.attributes_json["variant_count"], 3)
+        self.assertEqual(rec.attributes_json["variant_min_price"], 265.0)
+        self.assertEqual(rec.attributes_json["variant_max_price"], 662.5)
+
+    def test_gourmet_packaged_real_discount_is_preserved(self) -> None:
+        item = {
+            "sku": "764460583465",
+            "name": "Raw African Jojoba Oil 100ml",
+            "url_key": "raw-african-jojoba-oil",
+            "stock_status": "IN_STOCK",
+            "special_price": 136,
+            "small_image": {"url": "https://gourmetegypt.com/media/jojoba.jpg"},
+            "categories": [{"name": "Oils"}],
+            "price_range": {
+                "minimum_price": {
+                    "final_price": {"value": 136, "currency": "EGP"},
+                    "regular_price": {"value": 170},
+                },
+                "maximum_price": {
+                    "final_price": {"value": 136},
+                    "regular_price": {"value": 170},
+                },
+            },
+            "options": [],
+        }
+        rec = self._scraper()._parse_item(
+            item, "oils_ghee", "groceries", date(2026, 11, 23), datetime(2026, 11, 23, 12, 0, 0)
+        )
+        assert rec is not None
+        self.assertEqual(rec.current_price, Decimal("136.00"))
+        self.assertEqual(rec.claimed_original_price, Decimal("170.00"))
+        self.assertEqual(rec.product_title, "Raw African Jojoba Oil 100ml")
+
+    def test_gourmet_weighted_item_with_real_special_price_computes_same_weight_original(self) -> None:
+        item = {
+            "sku": "2035999000000",
+            "name": "Smoked Salmon Fillet",
+            "url_key": "smoked-salmon-fillet",
+            "stock_status": "IN_STOCK",
+            "special_price": 800,
+            "small_image": {"url": "https://gourmetegypt.com/media/salmon.jpg"},
+            "categories": [{"name": "Seafood"}],
+            "price_range": {
+                "minimum_price": {
+                    "final_price": {"value": 200, "currency": "EGP"},
+                    "regular_price": {"value": 1000},
+                },
+                "maximum_price": {
+                    "final_price": {"value": 800},
+                    "regular_price": {"value": 1000},
+                },
+            },
+            "options": [
+                {
+                    "title": "Weight",
+                    "required": True,
+                    "value": [{"title": "250g", "price": -75, "price_type": "PERCENT"}],
+                }
+            ],
+        }
+        rec = self._scraper()._parse_item(
+            item, "canned_sauces", "groceries", date(2026, 11, 23), datetime(2026, 11, 23, 12, 0, 0)
+        )
+        assert rec is not None
+        self.assertEqual(rec.current_price, Decimal("200.00"))
+        self.assertEqual(rec.claimed_original_price, Decimal("250.00"))
+        self.assertEqual(rec.product_title, "Smoked Salmon Fillet - 250g")
+        self.assertEqual(rec.attributes_json["net_weight_g"], 250)
+
+    def test_gourmet_option_gap_without_options_array_still_blocks_fake_discount(self) -> None:
+        item = {
+            "sku": "2035000000001",
+            "name": "Fresh Marinated Chicken Breast",
+            "url_key": "fresh-marinated-chicken-breast",
+            "stock_status": "IN_STOCK",
+            "special_price": None,
+            "small_image": {"url": "https://gourmetegypt.com/media/chicken.jpg"},
+            "categories": [{"name": "Poultry"}],
+            "price_range": {
+                "minimum_price": {
+                    "final_price": {"value": 120, "currency": "EGP"},
+                    "regular_price": {"value": 240},
+                },
+                "maximum_price": {
+                    "final_price": {"value": 240},
+                    "regular_price": {"value": 240},
+                },
+            },
+        }
+        rec = self._scraper()._parse_item(
+            item, "canned_sauces", "groceries", date(2026, 11, 23), datetime(2026, 11, 23, 12, 0, 0)
+        )
+        assert rec is not None
+        self.assertEqual(rec.current_price, Decimal("120.00"))
+        self.assertIsNone(rec.claimed_original_price)
 
 
 if __name__ == "__main__":
