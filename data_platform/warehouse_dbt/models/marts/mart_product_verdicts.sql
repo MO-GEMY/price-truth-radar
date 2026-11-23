@@ -18,7 +18,9 @@
     )
 }}
 
-WITH latest_staged AS (
+-- Evaluate the silver.stg_products view ONCE into a materialized CTE so both
+-- latest_staged and variant_conflict_signals share a single scan.
+WITH staged_base AS MATERIALIZED (
     SELECT
         product_sk,
         canonical_product_key,
@@ -44,18 +46,25 @@ WITH latest_staged AS (
         total_sizes,
         unit_price_egp,
         snapshot_date,
-        scraped_at,
-        ROW_NUMBER() OVER (
-            PARTITION BY product_sk
-            ORDER BY snapshot_date DESC, scraped_at DESC
-        ) AS rn
+        scraped_at
     FROM {{ ref('stg_products') }}
 ),
 
+current_products_base AS (
+    SELECT DISTINCT ON (product_sk)
+        *
+    FROM staged_base
+    ORDER BY product_sk, snapshot_date DESC, scraped_at DESC
+),
+
+-- Compute sibling variant rollup inline via window functions (O(N log N), zero self-join).
 current_products AS (
-    SELECT *
-    FROM latest_staged
-    WHERE rn = 1
+    SELECT
+        *,
+        COUNT(*) OVER (PARTITION BY store_name, parent_product_key)::INTEGER AS sibling_count,
+        MIN(current_price) OVER (PARTITION BY store_name, parent_product_key)::NUMERIC(12,2) AS sibling_min_price,
+        MAX(current_price) OVER (PARTITION BY store_name, parent_product_key)::NUMERIC(12,2) AS sibling_max_price
+    FROM current_products_base
 ),
 
 -- Detect legacy unsplit variant mixing across historical snapshots of the same product_sk:
@@ -81,21 +90,8 @@ variant_conflict_signals AS (
                 )
             ) > 1
         )::BOOLEAN AS has_variant_label_conflict
-    FROM {{ ref('stg_products') }}
+    FROM staged_base
     GROUP BY product_sk
-),
-
--- Roll up sibling variants sharing the same (store_name, parent_product_key)
--- so each variant row also carries its parent product's variant count & price range.
-parent_variant_rollup AS (
-    SELECT
-        store_name,
-        parent_product_key,
-        COUNT(*)::INTEGER AS sibling_count,
-        MIN(current_price)::NUMERIC(12,2) AS sibling_min_price,
-        MAX(current_price)::NUMERIC(12,2) AS sibling_max_price
-    FROM current_products
-    GROUP BY store_name, parent_product_key
 ),
 
 product_latest_dates AS (
@@ -148,24 +144,24 @@ metrics AS (
         GREATEST(
             1,
             COALESCE(cp.attr_variant_count, 1),
-            COALESCE(pvr.sibling_count, 1)
+            COALESCE(cp.sibling_count, 1)
         )::INTEGER AS variant_count,
         (
             GREATEST(
                 1,
                 COALESCE(cp.attr_variant_count, 1),
-                COALESCE(pvr.sibling_count, 1)
+                COALESCE(cp.sibling_count, 1)
             ) > 1
         )::BOOLEAN AS has_multiple_variants,
         LEAST(
             cp.current_price,
             COALESCE(cp.attr_variant_min_price, cp.current_price),
-            COALESCE(pvr.sibling_min_price, cp.current_price)
+            COALESCE(cp.sibling_min_price, cp.current_price)
         )::NUMERIC(12,2) AS min_variant_price,
         GREATEST(
             cp.current_price,
             COALESCE(cp.attr_variant_max_price, cp.current_price),
-            COALESCE(pvr.sibling_max_price, cp.current_price)
+            COALESCE(cp.sibling_max_price, cp.current_price)
         )::NUMERIC(12,2) AS max_variant_price,
         cp.current_price,
         cp.claimed_original_price,
@@ -247,9 +243,6 @@ metrics AS (
         ON cp.product_sk = hs.product_sk
     LEFT JOIN variant_conflict_signals vcs
         ON cp.product_sk = vcs.product_sk
-    LEFT JOIN parent_variant_rollup pvr
-        ON cp.store_name = pvr.store_name
-       AND cp.parent_product_key = pvr.parent_product_key
 )
 
 SELECT

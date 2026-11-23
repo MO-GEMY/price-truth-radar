@@ -20,7 +20,7 @@
     'hayah_labs', 'infinity_clinic', 'malak_eg', 'melano_pharma', 'mood_eg',
     'mood_fragrances', 'neuth_eg', 'norshek', 'raw_african', 'soul_and_more',
     'source_beauty', 'the_hair_addict', 'zynah',
-    'faces_eg', 'mazaya_eg', 'amanda_milano'
+    'faces_eg', 'mazaya_eg', 'amanda_milano', 'telofill_eg', 'cleo_labs'
 ] %}
 
 {% set health_stores = [
@@ -33,7 +33,7 @@
 
 {% set sports_stores = [
     'alnasser_eg', 'athlete_home', 'entercise', 'gosport_eg',
-    'intersport_eg', 'union_sport', 'wayup_sports', 'decathlon_eg'
+    'intersport_eg', 'union_sport', 'wayup_sports', 'decathlon_eg', 'puma_eg'
 ] %}
 
 {% set pet_care_stores = [
@@ -279,12 +279,30 @@ cleaned AS (
             ELSE NULL::NUMERIC(12,2)
         END AS unit_price_egp,
         snapshot_date::DATE AS snapshot_date,
-        scraped_at::TIMESTAMP AS scraped_at,
-        ROW_NUMBER() OVER (
-            PARTITION BY product_sk, snapshot_date::DATE
-            ORDER BY scraped_at DESC
-        ) AS rn
+        scraped_at::TIMESTAMP AS scraped_at
     FROM normalized_source
+),
+
+-- Deduplicate to latest scrape per (product_sk, snapshot_date) using DISTINCT ON
+-- so PostgreSQL keeps accurate row-count estimates (avoiding ROW_NUMBER() rn=1 underestimates
+-- that trigger O(N^2) nested-loop joins in downstream marts).
+deduped AS (
+    SELECT DISTINCT ON (product_sk, snapshot_date)
+        *
+    FROM cleaned
+    ORDER BY product_sk, snapshot_date, scraped_at DESC
+),
+
+-- Single-pass O(N log N) window check: if any split variant row (`external_id` containing `__v`)
+-- exists for a `(store_name, parent_product_key)`, suppress older pre-split legacy rows for that
+-- same parent without a correlated EXISTS or self-join.
+with_split_flag AS (
+    SELECT
+        *,
+        BOOL_OR(external_id LIKE '%\_\_v%' ESCAPE '\') OVER (
+            PARTITION BY store_name, parent_product_key
+        ) AS parent_has_split_variants
+    FROM deduped
 )
 
 SELECT
@@ -318,5 +336,8 @@ SELECT
     unit_price_egp,
     snapshot_date,
     scraped_at
-FROM cleaned
-WHERE rn = 1
+FROM with_split_flag
+WHERE NOT (
+    parent_has_split_variants
+    AND external_id NOT LIKE '%\_\_v%' ESCAPE '\'
+)

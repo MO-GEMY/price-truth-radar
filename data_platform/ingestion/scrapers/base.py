@@ -949,6 +949,8 @@ class DeltaStats:
     inserted_or_changed: int
     skipped_unchanged: int
     touched_last_seen: int
+    new_products: int = 0
+    changed_existing: int = 0
 
     @property
     def savings_pct(self) -> float:
@@ -976,12 +978,15 @@ def compute_delta_snapshots(
     """
     changed: list[RawProductSnapshot] = []
     touch_rows: list[tuple[str, str, date, datetime]] = []
+    new_count = 0
+    changed_existing_count = 0
 
     for snap in snapshots:
         key = (snap.store_name, snap.external_id)
         prev = existing_latest.get(key)
         if prev is None:
             changed.append(snap)
+            new_count += 1
             continue
 
         prev_price, prev_claimed, prev_stock, prev_title, prev_date = prev
@@ -994,12 +999,15 @@ def compute_delta_snapshots(
             touch_rows.append((snap.store_name, snap.external_id, prev_date, snap.scraped_at))
         else:
             changed.append(snap)
+            changed_existing_count += 1
 
     stats = DeltaStats(
         total_scraped=len(snapshots),
         inserted_or_changed=len(changed),
         skipped_unchanged=len(touch_rows),
         touched_last_seen=len(touch_rows),
+        new_products=new_count,
+        changed_existing=changed_existing_count,
     )
     return changed, touch_rows, stats
 
@@ -1102,11 +1110,20 @@ def upsert_snapshots_to_neon(
                             snapshots, existing
                         )
                         logger.info(
-                            "[delta] total=%d inserted/changed=%d skipped_unchanged=%d (storage_saved=%.1f%%)",
+                            "[delta] total=%d inserted/changed=%d (new=%d changed=%d) skipped_unchanged=%d (storage_saved=%.1f%%)",
                             dstats.total_scraped,
                             dstats.inserted_or_changed,
+                            dstats.new_products,
+                            dstats.changed_existing,
                             dstats.skipped_unchanged,
                             dstats.savings_pct,
+                        )
+                        print(
+                            f"DELTA_SUMMARY | total_scraped={dstats.total_scraped} "
+                            f"| new={dstats.new_products} "
+                            f"| changed={dstats.changed_existing} "
+                            f"| skipped_unchanged={dstats.skipped_unchanged} "
+                            f"| savings_pct={dstats.savings_pct:.1f}%"
                         )
 
                     # Sort deterministically by ON CONFLICT (store_name, external_id, snapshot_date)

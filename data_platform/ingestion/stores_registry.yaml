@@ -2812,3 +2812,80 @@ stores:
   verified: false
   batch: expansion_kitchen
   notes: shopify HTTP 404; woo HTTP 404
+- store_key: cottonil_eg
+  display_name: Cottonil Egypt
+  platform: shopify
+  base_url: https://cottonilshop.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: caesar_eg
+  display_name: Caesar Egypt
+  platform: shopify
+  base_url: https://caesareg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: dice_sportswear
+  display_name: Dice Egypt
+  platform: shopify
+  base_url: https://diceunderwear.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_5
+  max_products: 650
+- store_key: puma_eg
+  display_name: PUMA Egypt
+  platform: shopify
+  base_url: https://eg.puma.com
+  category: sports
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_1
+  max_products: 650
+- store_key: shaheen_coffee
+  display_name: Shaheen Coffee
+  platform: shopify
+  base_url: https://shaheencoffee.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 650
+- store_key: telofill_eg
+  display_name: Telofill Egypt
+  platform: shopify
+  base_url: https://www.telofill.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650
+- store_key: cleo_labs
+  display_name: Cleo Laboratories
+  platform: woocommerce
+  base_url: https://cleolaboratories.com
+  category: beauty
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: beauty_3
+  max_products: 650

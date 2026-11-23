@@ -250,12 +250,26 @@ def main(argv: list[str] | None = None) -> int:
 
     run_targets: list[tuple[str, ScrapeVertical]] = []
     if args.batch:
-        batch_targets = get_batch_targets(args.batch, region_mode="cloud", enabled_only=True)
+        region_filter = None if args.batch.startswith("local_") else "cloud"
+        batch_targets = get_batch_targets(args.batch, region_mode=region_filter, enabled_only=True)
         for slug, vert in batch_targets:
             if slug in SCRAPER_REGISTRY and vert in SCRAPER_REGISTRY[slug].supported_verticals:
                 run_targets.append((slug, vert))
         if not run_targets:
-            parser.error(f"Batch '{args.batch}' has no enabled cloud stores registered.")
+            # Distinguish a valid batch with 0 enabled entries (skip cleanly) from an unknown batch typo.
+            any_in_batch = get_batch_targets(args.batch, region_mode=None, enabled_only=False)
+            if any_in_batch:
+                logging.warning(
+                    "Batch '%s' has 0 enabled stores (%d disabled/staged); skipping cleanly.",
+                    args.batch,
+                    len(any_in_batch),
+                )
+                print(
+                    f"BATCH_SKIPPED | batch={args.batch} | reason=no_enabled_stores "
+                    f"| staged_disabled={len(any_in_batch)}"
+                )
+                return 0
+            parser.error(f"Batch '{args.batch}' does not exist in stores_registry.yaml.")
     else:
         vertical: ScrapeVertical = args.vertical
         if args.store == "all":
