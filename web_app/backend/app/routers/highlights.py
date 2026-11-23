@@ -189,7 +189,7 @@ def get_radar_highlights(
         cat_filter = "AND category = :category"
         params["category"] = category
 
-    parent_expr = "COALESCE(parent_product_key, store_name || '::' || product_sk)"
+    parent_expr = "parent_product_key"
     scandal_rank_expr = """
         CASE WHEN discount_verdict = 'PRESALE_HIKE' THEN 0 ELSE 1 END ASC,
         GREATEST(
@@ -265,14 +265,14 @@ def get_radar_highlights(
     )
 
     scandal_rows = [
-        dict(r)
+        row_dict
         for r in db.execute(scandals_sql, params).mappings().all()
-        if _passes_highlight_price_floor(dict(r))
+        if _passes_highlight_price_floor(row_dict := dict(r))
     ]
     deal_rows = [
-        dict(r)
+        row_dict
         for r in db.execute(deals_sql, params).mappings().all()
-        if _passes_highlight_price_floor(dict(r))
+        if _passes_highlight_price_floor(row_dict := dict(r))
     ]
 
     biggest_scandals = [_row_to_highlight(r, bucket="scandal") for r in scandal_rows]

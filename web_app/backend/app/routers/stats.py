@@ -33,39 +33,51 @@ CATEGORY_METADATA: dict[str, tuple[str, str]] = {
 
 OVERVIEW_SQL = text(
     """
+    WITH base AS (
+        SELECT
+            category,
+            store_name,
+            COUNT(*)::INTEGER AS cnt,
+            COUNT(*) FILTER (WHERE discount_verdict = 'FAKE_DISCOUNT')::INTEGER AS fake_cnt,
+            COUNT(*) FILTER (WHERE discount_verdict = 'GENUINE_DEAL')::INTEGER AS genuine_cnt,
+            COUNT(*) FILTER (WHERE discount_verdict = 'ALL_TIME_LOW')::INTEGER AS atl_cnt,
+            COUNT(*) FILTER (WHERE discount_verdict = 'PRESALE_HIKE')::INTEGER AS hike_cnt,
+            SUM(claimed_discount_pct - real_discount_pct)
+                FILTER (WHERE discount_verdict = 'FAKE_DISCOUNT') AS fake_infl_sum,
+            MAX(last_updated_at) AS max_updated_at
+        FROM gold.mart_product_verdicts
+        GROUP BY category, store_name
+    ),
+    cat_totals AS (
+        SELECT category, SUM(cnt)::INTEGER AS cnt
+        FROM base
+        WHERE category IS NOT NULL
+        GROUP BY category
+        HAVING SUM(cnt) > 0
+    )
     SELECT
-        COUNT(*)::INTEGER AS total_tracked,
-        COUNT(*) FILTER (WHERE discount_verdict = 'FAKE_DISCOUNT')::INTEGER AS fake_discounts_today,
-        COUNT(*) FILTER (WHERE discount_verdict = 'GENUINE_DEAL')::INTEGER AS genuine_deals_today,
-        COUNT(*) FILTER (WHERE discount_verdict = 'ALL_TIME_LOW')::INTEGER AS all_time_lows_today,
-        COUNT(*) FILTER (WHERE discount_verdict = 'PRESALE_HIKE')::INTEGER AS presale_hikes_today,
+        COALESCE(SUM(cnt), 0)::INTEGER AS total_tracked,
+        COALESCE(SUM(fake_cnt), 0)::INTEGER AS fake_discounts_today,
+        COALESCE(SUM(genuine_cnt), 0)::INTEGER AS genuine_deals_today,
+        COALESCE(SUM(atl_cnt), 0)::INTEGER AS all_time_lows_today,
+        COALESCE(SUM(hike_cnt), 0)::INTEGER AS presale_hikes_today,
         COALESCE(
             ROUND(
-                AVG(claimed_discount_pct - real_discount_pct)
-                FILTER (WHERE discount_verdict = 'FAKE_DISCOUNT'),
+                (SUM(fake_infl_sum) / NULLIF(SUM(fake_cnt), 0))::NUMERIC,
                 1
             ),
             0.0
         )::FLOAT AS avg_fake_inflation_pct,
-        MAX(last_updated_at) AS last_pipeline_run_at,
+        MAX(max_updated_at) AS last_pipeline_run_at,
         COALESCE(
             ARRAY_AGG(DISTINCT store_name ORDER BY store_name) FILTER (WHERE store_name IS NOT NULL),
             ARRAY[]::TEXT[]
         ) AS available_stores,
         COALESCE(
-            (
-                SELECT JSONB_OBJECT_AGG(cat_row.category, cat_row.cnt)
-                FROM (
-                    SELECT category, COUNT(*)::INTEGER AS cnt
-                    FROM gold.mart_product_verdicts
-                    WHERE category IS NOT NULL
-                    GROUP BY category
-                    HAVING COUNT(*) > 0
-                ) cat_row
-            ),
+            (SELECT JSONB_OBJECT_AGG(category, cnt) FROM cat_totals),
             '{}'::JSONB
         ) AS category_counts
-    FROM gold.mart_product_verdicts
+    FROM base
     """
 )
 

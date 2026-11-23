@@ -1,7 +1,11 @@
 {{
     config(
         schema='gold',
-        materialized='table'
+        materialized='table',
+        post_hook=[
+            "DROP INDEX IF EXISTS {{ this.schema }}.idx_fct_price_history_sk_date",
+            "CREATE INDEX idx_fct_price_history_sk_date ON {{ this }} (product_sk, snapshot_date ASC)"
+        ]
     )
 }}
 

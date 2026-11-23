@@ -713,10 +713,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
         ]
 
         def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
-            if "COUNT(DISTINCT" in sql:
-                return _FakeResult(scalar=1)
-            if "DISTINCT ON" in sql:
-                return _FakeResult(rows=[rug_small])
+            if "is_primary_variant = TRUE" in sql or "DISTINCT ON" in sql:
+                return _FakeResult(rows=[{**rug_small, "total_count": 1}])
             if "WHERE parent_product_key = :parent_key" in sql:
                 self.assertEqual(params["parent_key"], "kabbani::999")
                 return _FakeResult(rows=sibling_rows)
@@ -730,7 +728,7 @@ class TestLaunchBackendAPI(unittest.TestCase):
         app.dependency_overrides[get_db] = lambda: fake_db
         client = TestClient(app)
 
-        # 1. Feed deduplicates by parent_product_key and exposes all 6 variant rollup fields
+        # 1. Feed deduplicates via single-pass `is_primary_variant = TRUE` + COUNT(*) OVER()
         r_feed = client.get("/api/v1/radar/feed?category=home_furniture&limit=10")
         self.assertEqual(r_feed.status_code, 200)
         feed_body = r_feed.json()
@@ -743,8 +741,9 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertTrue(item["has_multiple_variants"])
         self.assertEqual(item["min_variant_price"], 2400.0)
         self.assertEqual(item["max_variant_price"], 7200.0)
-        self.assertTrue(any("DISTINCT ON" in sql for sql in fake_db.calls))
-        self.assertTrue(any("COUNT(DISTINCT" in sql for sql in fake_db.calls))
+        self.assertEqual(len(fake_db.calls), 1)
+        self.assertIn("is_primary_variant = TRUE", fake_db.calls[0])
+        self.assertIn("COUNT(*) OVER()", fake_db.calls[0])
 
         # 2. Detail endpoint returns ordered sibling variants + product rollup fields
         r_det = client.get("/api/v1/products/sk_rug_small")
@@ -758,6 +757,119 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual([v["current_price"] for v in det["variants"]], [2400.0, 4500.0, 7200.0])
         self.assertEqual(det["variants"][1]["variant_label"], "160x230 سم")
         self.assertEqual(det["variants"][2]["in_stock"], False)
+
+    def test_zero_db_health_endpoint_and_health_db(self) -> None:
+        fake_db = _FakeReadDB(lambda _sql, _params: _FakeResult(scalar=1))
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        # GET /health must return HTTP 200 "OK" with ZERO SQL queries
+        r = client.get("/health")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.text, "OK")
+        self.assertEqual(len(fake_db.calls), 0)
+
+        # GET /health/db runs SELECT 1 and reports DB connectivity
+        r_db = client.get("/health/db")
+        self.assertEqual(r_db.status_code, 200)
+        self.assertEqual(r_db.json(), {"status": "ok", "database": "connected"})
+        self.assertEqual(len(fake_db.calls), 1)
+
+    def test_single_variant_product_detail_skips_variants_db_query(self) -> None:
+        now = datetime(2026, 11, 23, 12, 0, 0, tzinfo=timezone.utc)
+        single_row = {
+            "product_sk": "sk_single_1",
+            "canonical_product_key": "canon_single_1",
+            "store_name": "amazon_eg",
+            "category": "electronics",
+            "sub_category": "smartphones",
+            "brand": "Apple",
+            "product_title": "Apple iPhone 15 128GB",
+            "product_url": "https://www.amazon.eg/-/en/dp/B0CHX1W1XY",
+            "image_url": "https://m.media-amazon.com/images/I/test.jpg",
+            "attributes_json": {},
+            "current_price": 42000.0,
+            "claimed_original_price": None,
+            "rolling_60d_median": 42000.0,
+            "min_historical_price": 42000.0,
+            "max_historical_price": 42000.0,
+            "claimed_discount_pct": 0.0,
+            "real_discount_pct": 0.0,
+            "discount_verdict": "NORMAL_PRICE",
+            "scarcity_flag": False,
+            "in_stock": True,
+            "last_updated_at": now,
+            "parent_product_key": "amazon_eg::B0CHX1W1XY",
+            "variant_label": None,
+            "variant_count": 1,
+            "has_multiple_variants": False,
+            "min_variant_price": 42000.0,
+            "max_variant_price": 42000.0,
+        }
+
+        def handler(sql: str, _params: dict[str, Any]) -> _FakeResult:
+            if "WHERE product_sk = :product_sk" in sql and "mart_product_verdicts" in sql:
+                return _FakeResult(rows=[single_row])
+            if "FROM gold.fct_price_history" in sql:
+                return _FakeResult(rows=[])
+            if "FROM gold.mart_cross_store_matches" in sql:
+                return _FakeResult(
+                    rows=[
+                        {
+                            "listings_json": [
+                                {
+                                    "product_sk": "sk_single_1",
+                                    "store_name": "amazon_eg",
+                                    "price": 42000.0,
+                                    "in_stock": True,
+                                    "product_url": "https://www.amazon.eg/-/en/dp/B0CHX1W1XY",
+                                    "discount_verdict": "NORMAL_PRICE",
+                                },
+                                {
+                                    "product_sk": "sk_single_2",
+                                    "store_name": "noon",
+                                    "price": 43500.0,
+                                    "in_stock": True,
+                                    "product_url": "https://www.noon.com/egypt-en/n123/p/",
+                                    "discount_verdict": "NORMAL_PRICE",
+                                },
+                            ]
+                        }
+                    ]
+                )
+            if "WHERE parent_product_key = :parent_key" in sql:
+                raise AssertionError("Should NOT run variants DB query for single-variant products!")
+            return _FakeResult(rows=[])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        r = client.get("/api/v1/products/sk_single_1")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(len(body["variants"]), 1)
+        self.assertEqual(body["variants"][0]["product_sk"], "sk_single_1")
+        self.assertFalse(any("parent_product_key = :parent_key" in sql for sql in fake_db.calls))
+
+    def test_url_lookup_narrows_by_store_name_for_known_domains(self) -> None:
+        captured: list[tuple[str, dict[str, Any]]] = []
+
+        def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
+            captured.append((sql, params))
+            return _FakeResult(rows=[])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        r = client.get("/api/v1/products/search?url=https://www.amazon.eg/-/en/dp/B0DHX98Q3Q?utm_source=fb")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["match_type"], "url_not_found")
+        self.assertTrue(len(captured) >= 2)
+        self.assertIn("store_name = :inferred_store", captured[0][0])
+        self.assertEqual(captured[0][1]["inferred_store"], "amazon_eg")
+        self.assertIn("store_name = 'amazon_eg'", captured[1][0])
 
 
 if __name__ == "__main__":

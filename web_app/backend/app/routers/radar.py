@@ -8,6 +8,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import DBAPIError
 
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
@@ -93,36 +94,90 @@ def get_radar_feed(
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     order_clause = SORT_EXPRESSIONS[sort]
-
-    parent_expr = "COALESCE(parent_product_key, store_name || '::' || product_sk)"
-    count_sql = text(
-        f"SELECT COUNT(DISTINCT {parent_expr})::INTEGER FROM gold.mart_product_verdicts {where_clause}"
-    )
-    total = int(db.execute(count_sql, params).scalar_one())
-
     offset = (page - 1) * limit
     query_params = {**params, "limit": limit, "offset": offset}
-    items_sql = text(
-        f"""
-        WITH deduped AS (
-            SELECT DISTINCT ON ({parent_expr})
-                {PRODUCT_SELECT_COLS}
-            FROM gold.mart_product_verdicts
-            {where_clause}
-            ORDER BY
-                {parent_expr},
-                in_stock DESC,
-                current_price ASC,
-                product_sk ASC
-        )
-        SELECT {PRODUCT_SELECT_COLS}
-        FROM deduped
-        ORDER BY {order_clause}
-        LIMIT :limit OFFSET :offset
-        """
-    )
 
-    rows = db.execute(items_sql, query_params).mappings().all()
+    # Fast path (no verdict filter): `is_primary_variant = TRUE` is precomputed in dbt
+    # with the exact same tie-breaking (`in_stock DESC, current_price ASC, product_sk ASC`
+    # per `parent_product_key`), eliminating the 101k-row DISTINCT ON external disk sort
+    # and the redundant second full-table COUNT(DISTINCT ...) scan.
+    rows = None
+    if verdict is None:
+        primary_conditions = ["is_primary_variant = TRUE", *conditions]
+        primary_where = f"WHERE {' AND '.join(primary_conditions)}"
+        fast_sql = text(
+            f"""
+            SELECT
+                {PRODUCT_SELECT_COLS},
+                COUNT(*) OVER()::INTEGER AS total_count
+            FROM gold.mart_product_verdicts
+            {primary_where}
+            ORDER BY {order_clause}
+            LIMIT :limit OFFSET :offset
+            """
+        )
+        try:
+            rows = db.execute(fast_sql, query_params).mappings().all()
+        except DBAPIError as exc:
+            # Rolling-deploy compatibility if `is_primary_variant` is not yet materialized
+            if "is_primary_variant" not in str(exc):
+                raise
+            db.rollback()
+            rows = None
+
+    if rows is None:
+        dedup_sql = text(
+            f"""
+            WITH deduped AS (
+                SELECT DISTINCT ON (parent_product_key)
+                    {PRODUCT_SELECT_COLS}
+                FROM gold.mart_product_verdicts
+                {where_clause}
+                ORDER BY
+                    parent_product_key,
+                    in_stock DESC,
+                    current_price ASC,
+                    product_sk ASC
+            )
+            SELECT
+                {PRODUCT_SELECT_COLS},
+                COUNT(*) OVER()::INTEGER AS total_count
+            FROM deduped
+            ORDER BY {order_clause}
+            LIMIT :limit OFFSET :offset
+            """
+        )
+        rows = db.execute(dedup_sql, query_params).mappings().all()
+
+    if rows and "total_count" in rows[0] and rows[0]["total_count"] is not None:
+        total = int(rows[0]["total_count"])
+    elif rows:
+        total = len(rows)
+    elif page > 1:
+        count_where = (
+            f"WHERE {' AND '.join(['is_primary_variant = TRUE', *conditions])}"
+            if verdict is None
+            else where_clause
+        )
+        count_expr = "COUNT(*)::INTEGER" if verdict is None else "COUNT(DISTINCT parent_product_key)::INTEGER"
+        try:
+            total = int(
+                db.execute(
+                    text(f"SELECT {count_expr} FROM gold.mart_product_verdicts {count_where}"),
+                    params,
+                ).scalar_one()
+            )
+        except DBAPIError:
+            db.rollback()
+            total = int(
+                db.execute(
+                    text(f"SELECT COUNT(DISTINCT parent_product_key)::INTEGER FROM gold.mart_product_verdicts {where_clause}"),
+                    params,
+                ).scalar_one()
+            )
+    else:
+        total = 0
+
     items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
     total_pages = math.ceil(total / limit) if total > 0 else 0
 

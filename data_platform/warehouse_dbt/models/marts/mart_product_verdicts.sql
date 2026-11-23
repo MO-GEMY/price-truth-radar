@@ -13,7 +13,10 @@
             "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_search_doc_trgm",
             "CREATE INDEX idx_mart_verdicts_search_doc_trgm ON {{ this }} USING GIN (search_document gin_trgm_ops)",
             "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_title_trgm",
-            "CREATE INDEX idx_mart_verdicts_title_trgm ON {{ this }} USING GIN (LOWER(product_title) gin_trgm_ops)"
+            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_store_name",
+            "CREATE INDEX idx_mart_verdicts_store_name ON {{ this }} (store_name)",
+            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_non_normal_verdict",
+            "CREATE INDEX idx_mart_verdicts_non_normal_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict <> 'NORMAL_PRICE'"
         ]
     )
 }}
@@ -63,7 +66,13 @@ current_products AS (
         *,
         COUNT(*) OVER (PARTITION BY store_name, parent_product_key)::INTEGER AS sibling_count,
         MIN(current_price) OVER (PARTITION BY store_name, parent_product_key)::NUMERIC(12,2) AS sibling_min_price,
-        MAX(current_price) OVER (PARTITION BY store_name, parent_product_key)::NUMERIC(12,2) AS sibling_max_price
+        MAX(current_price) OVER (PARTITION BY store_name, parent_product_key)::NUMERIC(12,2) AS sibling_max_price,
+        (
+            ROW_NUMBER() OVER (
+                PARTITION BY parent_product_key
+                ORDER BY in_stock DESC, current_price ASC, product_sk ASC
+            ) = 1
+        )::BOOLEAN AS is_primary_variant
     FROM current_products_base
 ),
 
@@ -248,7 +257,8 @@ metrics AS (
         END::BOOLEAN AS scarcity_flag,
         cp.in_stock,
         cp.scraped_at AS last_updated_at,
-        cp.unit_price_egp
+        cp.unit_price_egp,
+        cp.is_primary_variant
     FROM current_products cp
     LEFT JOIN history_stats hs
         ON cp.product_sk = hs.product_sk
@@ -301,5 +311,6 @@ SELECT
     variant_count::INTEGER AS variant_count,
     has_multiple_variants::BOOLEAN AS has_multiple_variants,
     min_variant_price::NUMERIC(12,2) AS min_variant_price,
-    max_variant_price::NUMERIC(12,2) AS max_variant_price
+    max_variant_price::NUMERIC(12,2) AS max_variant_price,
+    is_primary_variant::BOOLEAN AS is_primary_variant
 FROM metrics

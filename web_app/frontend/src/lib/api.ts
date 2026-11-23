@@ -91,10 +91,13 @@ export async function fetchJson<T>(
   else signal?.addEventListener("abort", onOuterAbort, { once: true });
 
   try {
+    // Allow browser HTTP caching on public read-only client fetches so back-navigation
+    // and repeat views honor backend Cache-Control headers; keep no-store on SSR.
+    const isBrowser = typeof window !== "undefined";
     const response = await fetch(buildUrl(path, params), {
       headers: { Accept: "application/json" },
       signal: controller.signal,
-      cache: "no-store",
+      ...(isBrowser ? {} : { cache: "no-store" as const }),
     });
     if (!response.ok) {
       throw new ApiError(response.status, `API ${path} responded with ${response.status}`);
@@ -402,6 +405,7 @@ export interface SitemapEntry {
 export async function fetchSitemapEntries(
   signal?: AbortSignal,
   timeoutMs = 4500,
+  limit = 500,
 ): Promise<SitemapEntry[] | null> {
   if (!isApiConfigured()) return null;
   const controller = new AbortController();
@@ -411,7 +415,7 @@ export async function fetchSitemapEntries(
   else signal?.addEventListener("abort", onOuterAbort, { once: true });
 
   try {
-    const res = await fetch(`${API_BASE}/api/seo/sitemap-entries`, {
+    const res = await fetch(`${API_BASE}/api/seo/sitemap-entries?limit=${limit}`, {
       headers: { Accept: "application/json" },
       signal: controller.signal,
       cache: "no-store",

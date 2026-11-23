@@ -63,6 +63,40 @@ _NOON_SKU_RE = re.compile(r"/([a-z0-9_-]+)/p(?:/|$)", re.I)
 _AMAZON_ASIN_RE = re.compile(r"/(?:dp|gp/product)/([a-z0-9]{10})(?:/|$)", re.I)
 _JUMIA_SKU_RE = re.compile(r"-(\d{5,15})\.html$", re.I)
 
+# Known domain -> store_name map so URL lookups narrow via `idx_mart_verdicts_store_name`
+# instead of scanning all 100k+ rows with REGEXP_REPLACE.
+_HOST_TO_STORE: dict[str, str] = {
+    "amazon.eg": "amazon_eg",
+    "noon.com": "noon",
+    "btech.com": "btech",
+    "2b.com.eg": "2b",
+    "sigma-computer.com": "sigma",
+    "dream2000.com": "dream2000",
+    "rayashop.com": "rayashop",
+    "raneen.com": "raneen",
+    "elarabygroup.com": "elaraby",
+    "tradelineegypt.com": "tradeline",
+    "tradelinestores.com": "tradeline",
+    "jumia.com.eg": "jumia_eg",
+    "seoudisupermarket.com": "seoudi",
+    "spinneys-egypt.com": "spinneys",
+    "gourmetegypt.com": "gourmet",
+    "hyperone.com.eg": "hyperone",
+    "metro-markets.com": "metro_market",
+    "compumarts.com": "compumarts",
+    "elbadrgroupeg.store": "elbadr",
+    "egyptlaptop.com": "egyptlaptop",
+    "cairosales.com": "cairosales",
+    "ehabcenter.com": "ehab_center",
+    "kimostore.net": "kimostore",
+    "kabbanifurniture.com": "kabbani",
+    "ariika.com": "ariika",
+    "chichomz.com": "chichomz",
+    "happet.net": "happet",
+    "sourcebeauty.com": "source_beauty",
+    "bloompharmacy.com": "bloom_pharmacy",
+}
+
 
 def _parse_url_parts(raw_url: str) -> dict[str, Optional[str]]:
     """Parse and normalize a pasted URL while stripping ad/analytics tracking params.
@@ -166,11 +200,17 @@ def search_products(
         amazon_asin = parts["amazon_asin"]
         jumia_sku = parts["jumia_sku"]
 
+        inferred_store = _HOST_TO_STORE.get(netloc)
+        store_scope_sql = "store_name = :inferred_store AND " if inferred_store else ""
+        exact_params: dict[str, object] = {"exact_key": exact_key, "limit": limit}
+        if inferred_store:
+            exact_params["inferred_store"] = inferred_store
+
         exact_sql = text(
             f"""
             SELECT {PRODUCT_SELECT_COLS}
             FROM gold.mart_product_verdicts
-            WHERE LOWER(
+            WHERE {store_scope_sql}LOWER(
                 REGEXP_REPLACE(
                     RTRIM(REPLACE(product_url, '/?', '?'), '/'),
                     '^https?://(www\\.)?',
@@ -182,17 +222,7 @@ def search_products(
             LIMIT :limit
             """
         )
-        rows = (
-            db.execute(
-                exact_sql,
-                {
-                    "exact_key": exact_key,
-                    "limit": limit,
-                },
-            )
-            .mappings()
-            .all()
-        )
+        rows = db.execute(exact_sql, exact_params).mappings().all()
 
         # Deterministic fallback 1: Sigma `/en/item?id=<slug>` (handles query reordering)
         if not rows and sigma_id:
@@ -201,15 +231,7 @@ def search_products(
                 f"""
                 SELECT {PRODUCT_SELECT_COLS}
                 FROM gold.mart_product_verdicts
-                WHERE SPLIT_PART(
-                    SPLIT_PART(
-                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
-                        '?',
-                        1
-                    ),
-                    '/',
-                    1
-                ) = 'sigma-computer.com'
+                WHERE store_name = 'sigma'
                   AND LOWER(product_url) ~ :id_pattern
                 ORDER BY product_sk ASC
                 LIMIT :limit
@@ -228,7 +250,8 @@ def search_products(
                 f"""
                 SELECT {PRODUCT_SELECT_COLS}
                 FROM gold.mart_product_verdicts
-                WHERE LOWER(
+                WHERE store_name = 'btech'
+                  AND LOWER(
                     REGEXP_REPLACE(
                         RTRIM(SPLIT_PART(product_url, '?', 1), '/'),
                         '^https?://(www\\.)?',
@@ -253,15 +276,7 @@ def search_products(
                 f"""
                 SELECT {PRODUCT_SELECT_COLS}
                 FROM gold.mart_product_verdicts
-                WHERE SPLIT_PART(
-                    SPLIT_PART(
-                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
-                        '?',
-                        1
-                    ),
-                    '/',
-                    1
-                ) = 'noon.com'
+                WHERE store_name = 'noon'
                   AND LOWER(product_url) ~ :noon_pattern
                 ORDER BY product_sk ASC
                 LIMIT :limit
@@ -280,15 +295,7 @@ def search_products(
                 f"""
                 SELECT {PRODUCT_SELECT_COLS}
                 FROM gold.mart_product_verdicts
-                WHERE SPLIT_PART(
-                    SPLIT_PART(
-                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
-                        '?',
-                        1
-                    ),
-                    '/',
-                    1
-                ) = 'amazon.eg'
+                WHERE store_name = 'amazon_eg'
                   AND LOWER(product_url) ~ :asin_pattern
                 ORDER BY product_sk ASC
                 LIMIT :limit
@@ -307,15 +314,7 @@ def search_products(
                 f"""
                 SELECT {PRODUCT_SELECT_COLS}
                 FROM gold.mart_product_verdicts
-                WHERE SPLIT_PART(
-                    SPLIT_PART(
-                        REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
-                        '?',
-                        1
-                    ),
-                    '/',
-                    1
-                ) = 'jumia.com.eg'
+                WHERE store_name = 'jumia_eg'
                   AND LOWER(product_url) ~ :jumia_pattern
                 ORDER BY product_sk ASC
                 LIMIT :limit
@@ -330,11 +329,18 @@ def search_products(
         # Deterministic fallback 6: `(host, ref)` when `ref` query param is present
         if not rows and netloc and ref_param:
             ref_pattern = rf"(^|[?&])ref={re.escape(ref_param)}(&|$)"
+            ref_params: dict[str, object] = {
+                "netloc": netloc,
+                "ref_pattern": ref_pattern,
+                "limit": limit,
+            }
+            if inferred_store:
+                ref_params["inferred_store"] = inferred_store
             ref_sql = text(
                 f"""
                 SELECT {PRODUCT_SELECT_COLS}
                 FROM gold.mart_product_verdicts
-                WHERE SPLIT_PART(
+                WHERE {store_scope_sql}SPLIT_PART(
                     SPLIT_PART(
                         REGEXP_REPLACE(LOWER(product_url), '^https?://(www\\.)?', ''),
                         '?',
@@ -348,18 +354,7 @@ def search_products(
                 LIMIT :limit
                 """
             )
-            rows = (
-                db.execute(
-                    ref_sql,
-                    {
-                        "netloc": netloc,
-                        "ref_pattern": ref_pattern,
-                        "limit": limit,
-                    },
-                )
-                .mappings()
-                .all()
-            )
+            rows = db.execute(ref_sql, ref_params).mappings().all()
         if rows:
             items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
             res = SearchResponse(match_type="url_exact", items=items, total=len(items))
@@ -446,29 +441,44 @@ def get_product_detail(
 
     variants: list[ProductVariantItem] = []
     if product.parent_product_key:
-        variants_sql = text(
-            """
-            SELECT
-                product_sk,
-                variant_label,
-                product_title AS title,
-                current_price,
-                claimed_original_price,
-                discount_verdict AS verdict,
-                in_stock,
-                product_url
-            FROM gold.mart_product_verdicts
-            WHERE parent_product_key = :parent_key
-            ORDER BY current_price ASC, in_stock DESC, product_sk ASC
-            LIMIT 50
-            """
-        )
-        variant_rows = (
-            db.execute(variants_sql, {"parent_key": product.parent_product_key})
-            .mappings()
-            .all()
-        )
-        variants = [ProductVariantItem.model_validate(dict(r)) for r in variant_rows]
+        if not product.has_multiple_variants and product.variant_count <= 1:
+            # Skip redundant DB round-trip for single-variant products (~79% of catalog)
+            variants = [
+                ProductVariantItem(
+                    product_sk=product.product_sk,
+                    variant_label=product.variant_label,
+                    title=product.product_title,
+                    current_price=product.current_price,
+                    claimed_original_price=product.claimed_original_price,
+                    verdict=product.discount_verdict,
+                    in_stock=product.in_stock,
+                    product_url=product.product_url,
+                )
+            ]
+        else:
+            variants_sql = text(
+                """
+                SELECT
+                    product_sk,
+                    variant_label,
+                    product_title AS title,
+                    current_price,
+                    claimed_original_price,
+                    discount_verdict AS verdict,
+                    in_stock,
+                    product_url
+                FROM gold.mart_product_verdicts
+                WHERE parent_product_key = :parent_key
+                ORDER BY current_price ASC, in_stock DESC, product_sk ASC
+                LIMIT 50
+                """
+            )
+            variant_rows = (
+                db.execute(variants_sql, {"parent_key": product.parent_product_key})
+                .mappings()
+                .all()
+            )
+            variants = [ProductVariantItem.model_validate(dict(r)) for r in variant_rows]
 
     similar_alternatives: list[SimilarAlternativeItem] = []
     if not alternatives:

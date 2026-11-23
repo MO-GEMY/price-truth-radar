@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, BellRing, ExternalLink } from "lucide-react";
 import type { ProductDetailResponse } from "@/types/contract";
 import { ApiError, fetchProductDetail, type ApiResult } from "@/lib/api";
 import { categoryLabelKey, productHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
-import { formatDateTime, formatNumber, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { isStaleObservation, observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
 import { retailerHref } from "@/lib/offers";
@@ -17,7 +18,6 @@ import { AlternativesTable } from "@/components/AlternativesTable";
 import { AttributesPanel } from "@/components/AttributesPanel";
 import { MockBanner } from "@/components/MockBanner";
 import { PriceAlertModal } from "@/components/PriceAlertModal";
-import { PriceChart } from "@/components/PriceChart";
 import { ProductImage } from "@/components/ProductImage";
 import { ShareButton } from "@/components/ShareButton";
 import { SimilarAlternativesList } from "@/components/SimilarAlternativesList";
@@ -25,6 +25,16 @@ import { DetailSkeleton, ErrorState } from "@/components/states";
 import { StoreBadge } from "@/components/StoreBadge";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import MissingProduct from "./not-found";
+
+const PriceChart = dynamic(
+  () => import("@/components/PriceChart").then((m) => m.PriceChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="skeleton h-[260px] w-full rounded-lg" role="status" aria-hidden="true" />
+    ),
+  },
+);
 
 export function ProductReceipt({ productSk, initial }: {
   productSk: string;
@@ -251,7 +261,27 @@ export function ProductReceipt({ productSk, initial }: {
       </section>
       <section className="surface ptr-section">
         <h2>{t("detail.history")}</h2>
-        <PriceChart history={history} />
+        {history.length === 0 ? (
+          <p className="ptr-muted text-sm">{t("ui.noHistory")}</p>
+        ) : history.length === 1 ? (
+          <div className="ptr-notice ptr-baseline">
+            <p className="font-semibold">
+              {t("detail.baselineTitle", { date: formatDate(history[0].snapshot_date, lang) })}
+            </p>
+            <p>
+              {t("detail.baselineRecordedPrice")} · <bdi>{formatPrice(history[0].price, lang)}</bdi>
+            </p>
+            {history[0].claimed_original_price !== null && (
+              <p>
+                {t("detail.baselineClaimedPrice")} ·{" "}
+                <bdi>{formatPrice(history[0].claimed_original_price, lang)}</bdi>
+              </p>
+            )}
+            <p className="ptr-muted">{t("detail.baselineBody")}</p>
+          </div>
+        ) : (
+          <PriceChart history={history} />
+        )}
         {hasHistory && <dl className="ptr-history-extremes">
           <div><dt>{t("detail.allTimeLow")}</dt><dd className="ptr-price"><bdi>{formatPrice(product.min_historical_price, lang)}</bdi></dd></div>
           <div><dt>{t("detail.allTimeHigh")}</dt><dd className="ptr-price"><bdi>{formatPrice(product.max_historical_price, lang)}</bdi></dd></div>

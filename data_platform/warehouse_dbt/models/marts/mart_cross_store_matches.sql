@@ -1,7 +1,11 @@
 {{
     config(
         schema='gold',
-        materialized='table'
+        materialized='table',
+        post_hook=[
+            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_cross_store_canonical_key",
+            "CREATE UNIQUE INDEX idx_mart_cross_store_canonical_key ON {{ this }} (canonical_product_key)"
+        ]
     )
 }}
 
