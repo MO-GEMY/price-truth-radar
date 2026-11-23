@@ -16,6 +16,7 @@ import re
 from typing import Any, Optional
 
 from .base import RawProductSnapshot, normalize_snake_slug
+from .units import parse_unit_spec
 
 GROCERY_SUB_CATEGORIES: tuple[str, ...] = (
     "oils_ghee",
@@ -158,6 +159,153 @@ _GROCERY_BRAND_PATTERNS: tuple[tuple[str, str], ...] = (
     ("داوني", "Downy"),
     ("comfort", "Comfort"),
     ("finish", "Finish"),
+    ("shaheen", "Shaheen"),
+    ("شاهين", "Shaheen"),
+    ("imtenan", "Imtenan"),
+    ("امتنان", "Imtenan"),
+    ("إمتنان", "Imtenan"),
+    ("isis", "Isis"),
+    ("إيزيس", "Isis"),
+    ("ايزيس", "Isis"),
+    ("el rashidi", "El Rashidi El Mizan"),
+    ("الرشيدي", "El Rashidi El Mizan"),
+    ("halwani", "Halwani"),
+    ("حلواني", "Halwani"),
+    ("lavazza", "Lavazza"),
+    ("لافاتزا", "Lavazza"),
+    ("davidoff", "Davidoff"),
+    ("دافيدوف", "Davidoff"),
+    ("jacobs", "Jacobs"),
+    ("جاكوبس", "Jacobs"),
+    ("starbucks", "Starbucks"),
+    ("ستاربكس", "Starbucks"),
+    ("illy", "Illy"),
+    ("knorr", "Knorr"),
+    ("كنور", "Knorr"),
+    ("maggi", "Maggi"),
+    ("ماجي", "Maggi"),
+    ("indomie", "Indomie"),
+    ("إندومي", "Indomie"),
+    ("اندومي", "Indomie"),
+    ("nido", "Nido"),
+    ("نيدو", "Nido"),
+    ("lurpak", "Lurpak"),
+    ("لورباك", "Lurpak"),
+    ("puck", "Puck"),
+    ("بوك", "Puck"),
+    ("red bull", "Red Bull"),
+    ("ريد بول", "Red Bull"),
+    ("شويبس", "Schweppes"),
+    ("فيروز", "Fayrouz"),
+    ("كوكاكولا", "Coca-Cola"),
+    ("سبرايت", "Sprite"),
+    ("فانتا", "Fanta"),
+    ("ميرندا", "Mirinda"),
+    ("7up", "7Up"),
+    ("سفن اب", "7Up"),
+    ("alpro", "Alpro"),
+    ("twinings", "Twinings"),
+    ("tilda", "Tilda"),
+    ("el bawab", "El Bawab"),
+    ("البواب", "El Bawab"),
+    ("أطياب", "Atyab"),
+    ("اطياب", "Atyab"),
+    ("atyab", "Atyab"),
+    ("nutella", "Nutella"),
+    ("نوتيلا", "Nutella"),
+    ("ferrero", "Ferrero"),
+    ("cadbury", "Cadbury"),
+    ("كادبوري", "Cadbury"),
+    ("galaxy", "Galaxy"),
+    ("جلاكسي", "Galaxy"),
+    ("lindt", "Lindt"),
+    ("kitkat", "KitKat"),
+    ("oreo", "Oreo"),
+    ("أوريو", "Oreo"),
+    ("اوريو", "Oreo"),
+    ("pringles", "Pringles"),
+    ("برينجلز", "Pringles"),
+    ("lays", "Lays"),
+    ("ليز", "Lays"),
+    ("doritos", "Doritos"),
+    ("دوريتوس", "Doritos"),
+    ("chipsy", "Chipsy"),
+    ("شيبسي", "Chipsy"),
+    ("bisco misr", "Bisco Misr"),
+    ("بسكو مصر", "Bisco Misr"),
+    ("corona", "Corona"),
+    ("كورونا", "Corona"),
+    ("molto", "Molto"),
+    ("مولتو", "Molto"),
+    ("todo", "Todo"),
+    ("تودو", "Todo"),
+    ("el shamadan", "El Shamadan"),
+    ("الشمعدان", "El Shamadan"),
+    ("mcvities", "McVities"),
+    ("loacker", "Loacker"),
+    ("kelloggs", "Kelloggs"),
+    ("كيلوجز", "Kelloggs"),
+    ("quaker", "Quaker"),
+    ("كويكر", "Quaker"),
+    ("dobella", "Dobella"),
+    ("دوبلا", "Dobella"),
+    ("lino", "Lino"),
+    ("لينو", "Lino"),
+    ("hero", "Hero"),
+    ("هيرو", "Hero"),
+    ("good france", "Good France"),
+    ("president", "President"),
+    ("بريزيدن", "President"),
+    ("الضحي", "El Doha"),
+    ("الملكه", "El Maleka"),
+    ("العروسه", "El Arosa"),
+    ("جهينه", "Juhayna"),
+    ("عافيه", "Afia"),
+    ("جنه", "Ganna"),
+    ("حلوه", "Helwa"),
+    ("بركه", "Baraka"),
+    ("نستله", "Nestle"),
+    ("فيبا", "Feba"),
+    ("اوكسي", "Oxi"),
+    # Pet care major brands (enables exact weight-strict matching across happet / amin_pet_shop / supermarkets)
+    ("royal canin", "Royal Canin"),
+    ("purina pro plan", "Purina Pro Plan"),
+    ("pro plan", "Purina Pro Plan"),
+    ("friskies", "Friskies"),
+    ("felix", "Felix"),
+    ("whiskas", "Whiskas"),
+    ("sheba", "Sheba"),
+    ("josera", "Josera"),
+    ("monge", "Monge"),
+    ("gemon", "Gemon"),
+    ("oasy", "Oasy"),
+    ("schesir", "Schesir"),
+    ("farmina", "Farmina"),
+    ("reflex", "Reflex"),
+    ("bonacibo", "BonaCibo"),
+    ("miglior", "Miglior"),
+    ("leonardo", "Leonardo"),
+    ("happy cat", "Happy Cat"),
+    ("happy dog", "Happy Dog"),
+    ("beaphar", "Beaphar"),
+    ("mera", "Mera"),
+    ("brit", "Brit"),
+    ("pedigree", "Pedigree"),
+    ("applaws", "Applaws"),
+    ("carnilove", "Carnilove"),
+    ("dr clauder", "Dr Clauder"),
+    ("dr. clauder", "Dr Clauder"),
+    ("taste of the wild", "Taste Of The Wild"),
+    ("acana", "Acana"),
+    ("orijen", "Orijen"),
+    ("sanabelle", "Sanabelle"),
+    ("hills", "Hills"),
+    ("hill's", "Hills"),
+    ("vitakraft", "Vitakraft"),
+    ("biokat", "Biokat"),
+    ("ever clean", "Ever Clean"),
+    ("cat's best", "Cats Best"),
+    ("cats best", "Cats Best"),
     ("lurpak", "Lurpak"),
     ("nido", "Nido"),
     ("نيدو", "Nido"),
@@ -429,6 +577,24 @@ def parse_grocery_packaging(
                         pack_count = val
                         break
 
+    # 3. Fallback to shared bilingual unit parser (handles Arabic fractions like
+    #    `ربع كيلو`, `نص كيلو`, `ثمن كيلو`, `نص لتر`, `دستة`, `باوند`, URL-encoded variants)
+    if unit_kind is None:
+        uspec = parse_unit_spec(title, variant_label=extra_text or None)
+        if not uspec.has_ambiguous_multi_size:
+            if uspec.weight_g:
+                unit_kind = "g"
+                unit_amount = uspec.weight_g
+                if pack_count == 1 and uspec.pack_count > 1:
+                    pack_count = uspec.pack_count
+            elif uspec.volume_ml:
+                unit_kind = "ml"
+                unit_amount = uspec.volume_ml
+                if pack_count == 1 and uspec.pack_count > 1:
+                    pack_count = uspec.pack_count
+            elif pack_count == 1 and uspec.pack_count > 1:
+                pack_count = uspec.pack_count
+
     if unit_kind == "g" and unit_amount is not None:
         total_g = unit_amount * pack_count
         result["net_weight_g"] = total_g
@@ -503,13 +669,19 @@ def refine_grocery_sub_category(title: str, default_sub: str) -> str:
 
 
 def compute_grocery_barcode_key(record: RawProductSnapshot) -> Optional[str]:
-    """Return `grocery_gtin_<digits>` if a valid 8–14 digit EAN/GTIN barcode is present."""
+    """Return `grocery_gtin_<digits>` if a valid 8–14 digit EAN/GTIN barcode is present.
+
+    Rejects GS1 in-store restricted circulation / variable-weight PLU barcodes
+    (prefix `20`–`29`) that collide across unrelated deli/nuts items between stores.
+    """
     attrs = record.attributes_json or {}
     for key in ("ean", "gtin", "gtin13", "gtin14"):
         raw_code = attrs.get(key)
         if raw_code is not None:
             digits = re.sub(r"\D", "", str(raw_code).strip())
             if _EAN_GTIN_RE.match(digits):
+                if len(digits) == 13 and digits[:2] in {f"2{d}" for d in range(10)}:
+                    continue
                 return f"grocery_gtin_{digits}"
     return None
 
@@ -528,7 +700,8 @@ def compute_grocery_size_key(record: RawProductSnapshot) -> Optional[str]:
     if not brand_slug or brand_slug == "unknown":
         return None
 
-    parsed = parse_grocery_packaging(record.product_title)
+    vlabel = str(attrs.get("variant_label") or "")
+    parsed = parse_grocery_packaging(record.product_title, extra_text=vlabel)
     weight_g = attrs.get("net_weight_g") if isinstance(attrs.get("net_weight_g"), int) else parsed.get("net_weight_g")
     volume_ml = attrs.get("net_volume_ml") if isinstance(attrs.get("net_volume_ml"), int) else parsed.get("net_volume_ml")
     pack_count = attrs.get("pack_count") if isinstance(attrs.get("pack_count"), int) else parsed.get("pack_count", 1)
@@ -606,6 +779,9 @@ _GROCERY_TYPE_AR: tuple[tuple[str, str], ...] = (
     ("ماء", "water"),
     ("شاي", "tea"),
     ("قهوة", "coffee"),
+    ("قهوه", "coffee"),
+    ("بن", "coffee"),
+    ("البن", "coffee"),
     ("نسكافيه", "coffee"),
     ("زيت", "oil"),
     ("سمنة", "ghee"),
@@ -667,6 +843,9 @@ _FLAVOR_WORDS: frozenset[str] = frozenset(
         "lactose", "fat", "express", "smoked", "pickle", "olive",
         "bukhoor", "downy", "light", "medium", "dark", "green", "black",
         "charcoal", "snowy", "crystal_clean", "vegan", "white", "yellow",
+        "hazelnut", "caramel", "cinnamon", "cardamom", "spiced", "gold",
+        "decaf", "espresso", "french",
+        "sunflower", "corn", "canola", "olive", "mixed", "vegetable",
     }
 )
 
@@ -674,26 +853,56 @@ _FLAVOR_WORDS: frozenset[str] = frozenset(
 _EN_FLAVOR_SYNONYMS: dict[str, str] = {
     "xpress": "express",
     "chilli": "chili",
+    "mahaweg": "spiced",
+    "mehaweg": "spiced",
+    "sada": "plain",
 }
 
 _AR_FLAVOR_TO_EN: dict[str, str] = {
     "لافندر": "lavender",
     "باللافندر": "lavender",
     "فانيلا": "vanilla",
+    "فانيليا": "vanilla",
     "نعنع": "mint",
+    "نعناع": "mint",
     "تفاح": "apple",
     "مانجو": "mango",
+    "جوافة": "guava",
+    "جوافه": "guava",
     "برتقال": "orange",
     "عنب": "grape",
     "فراولة": "strawberry",
+    "فراوله": "strawberry",
     "موز": "banana",
     "ليمون": "lemon",
+    "اناناس": "pineapple",
+    "أناناس": "pineapple",
     "خوخ": "peach",
     "كمثرى": "pear",
     "جزر": "carrot",
     "روز": "rose",
     "ياسمين": "jasmine",
     "زهر": "orange_blossom",
+    "بندق": "hazelnut",
+    "بالبندق": "hazelnut",
+    "كراميل": "caramel",
+    "قرفة": "cinnamon",
+    "حبهان": "cardamom",
+    "سادة": "plain",
+    "ساده": "plain",
+    "محوج": "spiced",
+    "محوجة": "spiced",
+    "فاتح": "light",
+    "وسط": "medium",
+    "غامق": "dark",
+    "عباد": "sunflower",
+    "دوار": "sunflower",
+    "ذرة": "corn",
+    "ذره": "corn",
+    "زيتون": "olive",
+    "تركي": "turkish",
+    "فرنساوي": "french",
+    "اسبريسو": "espresso",
 }
 
 
@@ -722,7 +931,8 @@ def compute_grocery_type_key(record: RawProductSnapshot) -> Optional[str]:
     if not brand_slug or brand_slug == "unknown":
         return None
 
-    parsed = parse_grocery_packaging(record.product_title)
+    vlabel = str(attrs.get("variant_label") or "")
+    parsed = parse_grocery_packaging(record.product_title, extra_text=vlabel)
     weight_g = attrs.get("net_weight_g") if isinstance(attrs.get("net_weight_g"), int) else parsed.get("net_weight_g")
     volume_ml = attrs.get("net_volume_ml") if isinstance(attrs.get("net_volume_ml"), int) else parsed.get("net_volume_ml")
     pack_count = attrs.get("pack_count") if isinstance(attrs.get("pack_count"), int) else parsed.get("pack_count", 1)

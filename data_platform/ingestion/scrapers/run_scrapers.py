@@ -174,7 +174,8 @@ def _print_match_summary(summary: MatchSummary) -> None:
         f"CROSS-STORE MATCHING | matched_groups={summary.matched_groups} "
         f"| matched_products={summary.matched_products} "
         f"| tiers=(T1:{summary.tier1_groups}, T2:{summary.tier2_groups}, "
-        f"T3:{summary.tier3_groups}, Grocery:{summary.grocery_groups})"
+        f"T3:{summary.tier3_groups}, Grocery:{summary.grocery_groups}, "
+        f"HealthBeauty:{summary.health_beauty_groups}, Footwear:{summary.footwear_groups})"
     )
     print("=" * 72)
     if not summary.group_details:
@@ -204,7 +205,7 @@ def _print_delta_preview(stats: DeltaStats) -> None:
 
 
 def _run_match_db(dry_run: bool) -> int:
-    snap_date, records = fetch_latest_snapshots_from_neon()
+    snap_date, records = fetch_latest_snapshots_from_neon(for_matching=True)
     if not records or snap_date is None:
         print("No rows found in raw.raw_product_snapshots to match.")
         return 0
@@ -214,15 +215,30 @@ def _run_match_db(dry_run: bool) -> int:
         f"Loaded {len(records)} rows for snapshot_date={snap_date.isoformat()} "
         f"across {len(stores_counter)} stores: {dict(sorted(stores_counter.items()))}"
     )
+    prev_keys = {
+        (r.store_name, r.external_id, r.snapshot_date): r.canonical_product_key
+        for r in records
+    }
     match_summary = assign_canonical_keys(records)
     _print_match_summary(match_summary)
 
+    changed_records = [
+        r for r in records
+        if prev_keys.get((r.store_name, r.external_id, r.snapshot_date)) != r.canonical_product_key
+    ]
+
     if dry_run:
-        print("\nDry-run complete (--match-db). Zero writes made to Neon.")
+        print(
+            f"\nDry-run complete (--match-db). Zero writes made to Neon "
+            f"({len(changed_records)}/{len(records)} rows would change)."
+        )
         return 0
 
-    updated = update_canonical_keys_in_neon(records)
-    print(f"\nUpdated canonical_product_key across {updated} rows for {snap_date.isoformat()} in Neon.")
+    updated = update_canonical_keys_in_neon(changed_records)
+    print(
+        f"\nUpdated canonical_product_key across {updated} changed rows "
+        f"(out of {len(records)} latest snapshots) for {snap_date.isoformat()} in Neon."
+    )
     return 0
 
 

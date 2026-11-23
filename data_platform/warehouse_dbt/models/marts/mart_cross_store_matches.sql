@@ -17,6 +17,9 @@ WITH candidates AS (
                     WHEN canonical_product_key LIKE 'grocery_gtin_%'
                         THEN canonical_product_key
                     WHEN canonical_product_key IS NOT NULL
+                         AND canonical_product_key ~ '_(w[0-9]+g|v[0-9]+ml|c[0-9]+[a-z]*)_x[0-9]+$'
+                        THEN canonical_product_key
+                    WHEN canonical_product_key IS NOT NULL
                          AND (
                              ((attributes_json ->> 'net_weight_g') ~ '^[0-9]+$' AND (attributes_json ->> 'net_weight_g')::INTEGER > 0)
                              OR ((attributes_json ->> 'net_volume_ml') ~ '^[0-9]+$' AND (attributes_json ->> 'net_volume_ml')::INTEGER > 0)

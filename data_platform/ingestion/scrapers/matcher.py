@@ -23,7 +23,21 @@ from .groceries import (
     compute_grocery_candidate_key,
     compute_grocery_size_key,
     compute_grocery_type_key,
+    extract_grocery_brand,
 )
+from .matcher_verticals import (
+    compute_footwear_keys,
+    compute_health_beauty_key,
+    effective_category,
+    extract_footwear_features,
+    extract_health_beauty_features,
+    is_accessory_listing,
+    is_collapsed_multiprice_variant,
+    is_footwear_record,
+    resolve_footwear_brand,
+    resolve_hb_brand,
+)
+from .units import parse_unit_spec, units_conflict
 
 # Brands normalized to canonical lowercase slugs
 _BRAND_ALIASES: dict[str, str] = {
@@ -143,6 +157,169 @@ _BRAND_ALIASES: dict[str, str] = {
     "اسوس": "asus",
     "ايسر": "acer",
     "سوني": "sony",
+    # Expanded Egyptian Home Appliances, Small Appliances & Personal Care Brands
+    "sokany": "sokany",
+    "سوكاني": "sokany",
+    "mienta": "mienta",
+    "مينتا": "mienta",
+    "ariete": "ariete",
+    "ارييتي": "ariete",
+    "tank": "tank",
+    "تانك": "tank",
+    "ido": "ido",
+    "ايدو": "ido",
+    "ata": "ata",
+    "jac": "jac",
+    "جاك": "jac",
+    "panasonic": "panasonic",
+    "باناسونيك": "panasonic",
+    "sonai": "sonai",
+    "سوناي": "sonai",
+    "korkmaz": "korkmaz",
+    "gastroback": "gastroback",
+    "sencor": "sencor",
+    "rowenta": "rowenta",
+    "karcher": "karcher",
+    "rush brush": "rush_brush",
+    "رش برش": "rush_brush",
+    "babyliss": "babyliss",
+    "بيبي ليس": "babyliss",
+    "remington": "remington",
+    "siemens": "siemens",
+    "whirlpool": "whirlpool",
+    "frigidaire": "frigidaire",
+    "gorenje": "gorenje",
+    "candy": "candy",
+    "skyworth": "skyworth",
+    "syinix": "syinix",
+    "contex": "contex",
+    "black and decker": "black_decker",
+    "بلاك اند ديكر": "black_decker",
+    "braun home appliances": "braun",
+    # Expanded PC, Gaming, Peripherals, Networking, Audio & Accessories Brands
+    "corsair": "corsair",
+    "steelseries": "steelseries",
+    "cooler master": "cooler_master",
+    "coolermaster": "cooler_master",
+    "deepcool": "deepcool",
+    "nzxt": "nzxt",
+    "thermaltake": "thermaltake",
+    "be quiet": "be_quiet",
+    "be quiet!": "be_quiet",
+    "evga": "evga",
+    "seasonic": "seasonic",
+    "antec": "antec",
+    "aerocool": "aerocool",
+    "xigmatek": "xigmatek",
+    "cougar": "cougar",
+    "lian li": "lian_li",
+    "lian-li": "lian_li",
+    "id-cooling": "id_cooling",
+    "id cooling": "id_cooling",
+    "arctic": "arctic",
+    "noctua": "noctua",
+    "thermalright": "thermalright",
+    "fractal design": "fractal",
+    "montech": "montech",
+    "phanteks": "phanteks",
+    "hyte": "hyte",
+    "galax": "galax",
+    "palit": "palit",
+    "zotac": "zotac",
+    "pny": "pny",
+    "sapphire": "sapphire",
+    "powercolor": "powercolor",
+    "xfx": "xfx",
+    "asrock": "asrock",
+    "biostar": "biostar",
+    "benq": "benq",
+    "viewsonic": "viewsonic",
+    "iiyama": "iiyama",
+    "tp-link": "tp_link",
+    "tp link": "tp_link",
+    "tplink": "tp_link",
+    "d-link": "d_link",
+    "d link": "d_link",
+    "mikrotik": "mikrotik",
+    "ubiquiti": "ubiquiti",
+    "mercusys": "mercusys",
+    "tenda": "tenda",
+    "hikvision": "hikvision",
+    "ezviz": "ezviz",
+    "imou": "imou",
+    "epson": "epson",
+    "canon": "canon",
+    "brother": "brother",
+    "lexmark": "lexmark",
+    "gopro": "gopro",
+    "dji": "dji",
+    "garmin": "garmin",
+    "amazfit": "amazfit",
+    "mibro": "mibro",
+    "haylou": "haylou",
+    "qcy": "qcy",
+    "soundpeats": "soundpeats",
+    "edifier": "edifier",
+    "marshall": "marshall",
+    "bose": "bose",
+    "beats": "beats",
+    "sennheiser": "sennheiser",
+    "jabra": "jabra",
+    "soundcore": "soundcore",
+    "oraimo": "oraimo",
+    "ugreen": "ugreen",
+    "baseus": "baseus",
+    "joyroom": "joyroom",
+    "remax": "remax",
+    "hoco": "hoco",
+    "ldnio": "ldnio",
+    "belkin": "belkin",
+    "promate": "promate",
+    "wiwu": "wiwu",
+    "porodo": "porodo",
+    "green lion": "green_lion",
+    "lenyes": "lenyes",
+    "fantech": "fantech",
+    "marvo": "marvo",
+    "bloody": "bloody",
+    "a4tech": "a4tech",
+    "rapoo": "rapoo",
+    "havit": "havit",
+    "ajazz": "ajazz",
+    "attack shark": "attack_shark",
+    "aula": "aula",
+    "royal kludge": "royal_kludge",
+    "keychron": "keychron",
+    "akko": "akko",
+    "glorious": "glorious",
+    "elgato": "elgato",
+    "fifine": "fifine",
+    "boya": "boya",
+    "maono": "maono",
+    "lexar": "lexar",
+    "adata": "adata",
+    "xpg": "xpg",
+    "teamgroup": "teamgroup",
+    "team group": "teamgroup",
+    "patriot": "patriot",
+    "apacer": "apacer",
+    "hiksemi": "hiksemi",
+    "transcend": "transcend",
+    "seagate": "seagate",
+    "sk hynix": "sk_hynix",
+    "kioxia": "kioxia",
+    "g.skill": "gskill",
+    "gskill": "gskill",
+    "netac": "netac",
+    "twinmos": "twinmos",
+    "silicon power": "silicon_power",
+    "apc": "apc",
+    "schneider": "schneider",
+    "nintendo": "nintendo",
+    "xbox": "xbox",
+    "playstation": "playstation",
+    "logitech g": "logitech",
+    "hp inc": "hp",
 }
 
 _STORE_SUFFIX_NOISE_RE = re.compile(
@@ -172,7 +349,10 @@ _PHONE_SPEC_NOISE_RE = re.compile(
 
 def _strip_marketplace_noise(title: str) -> str:
     """Strip Amazon pipe suffixes, Noon/Jumia version tags, normalize Arabic & translate retail terms."""
-    cleaned = translate_arabic_retail_terms(title)
+    # Separate glued Arabic + ASCII/digit runs (e.g. `موديلSK-16052` -> `موديل SK-16052`)
+    spaced = re.sub(r"([\u0600-\u06FF])([A-Za-z0-9])", r"\1 \2", title or "")
+    spaced = re.sub(r"([A-Za-z0-9])([\u0600-\u06FF])", r"\1 \2", spaced)
+    cleaned = translate_arabic_retail_terms(spaced)
     cleaned = re.sub(r"[\u200b\u200c\u200d®™]", "", cleaned)
     cleaned = _STORE_SUFFIX_NOISE_RE.sub(" ", cleaned)
     # Remove any remaining trailing "| ..." marketplace marketing clauses after the core title
@@ -477,25 +657,27 @@ def _strip_leading_size(code_norm: str, size: Optional[int]) -> str:
 
 
 def _variant_token_after(cleaned_title: str, code_raw: str) -> Optional[str]:
-    """Product-line word directly after the model code (G502 **HERO** vs
-    G502 **X** Plus). Only ALL-CAPS or canonical product-line words count —
-    lowercase marketing/spec words ("LaserJet", "Wireless", "Black") are
-    ignored so printer/tv titles don't drift."""
+    """Product-line sub-variant word directly after the model code (G502 **HERO** vs
+    G502 **X** Plus, FX360 **LCD** vs FX360 **TD**). Restricted strictly to canonical
+    sub-variant markers so marketing nicknames ("TRIDENT", "FORGE", "HYLAS") don't
+    split identical SKUs across stores."""
     idx = cleaned_title.lower().find(code_raw.lower())
     if idx == -1:
         return None
     tail = cleaned_title[idx + len(code_raw):]
-    line_words = {"pro", "max", "plus", "x", "ultra", "hero", "lite", "note",
-                  "mini", "se", "fe", "ti", "neo", "gt"}
+    line_words = {
+        "pro", "max", "plus", "x", "ultra", "hero", "lite", "note",
+        "mini", "se", "fe", "ti", "neo", "gt", "lcd", "td", "super",
+        "xt", "air", "fold", "flip", "slim", "nc", "anc",
+    }
     for tok in re.split(r"[^A-Za-z0-9]+", tail):
         if not tok:
             continue
         if any(c.isdigit() for c in tok):  # part numbers (7MD68A) aren't variants
             continue
-        if tok.isupper() and len(tok) >= 1:
-            return tok.lower()
-        if tok.lower() in line_words:
-            return tok.lower()
+        low = tok.lower()
+        if low in line_words:
+            return low
         return None  # first non-qualifying word ends the variant window
     return None
 
@@ -509,6 +691,17 @@ class MatchSummary:
     tier2_groups: int = 0
     tier3_groups: int = 0
     grocery_groups: int = 0
+    health_beauty_groups: int = 0
+    footwear_groups: int = 0
+
+
+_STORE_PLACEHOLDER_BRANDS: frozenset[str] = frozenset({
+    "unknown", "generic", "other", "none", "null", "brand", "unbranded", "my_store",
+    "kaufen_egypt_online_store", "shamy_stores", "shamystores", "el_araby_group",
+    "ehab_center", "btech", "raneen", "rayashop", "compumarts", "sigma",
+    "hardware_market", "smartkoshk", "dream2000", "dubaiphone", "ennap",
+    "up_to_date_eg", "ahw_store", "alfrensia", "kimostore", "myxprs",
+})
 
 
 def _canonical_brand(brand: str, title: str = "") -> str:
@@ -518,15 +711,18 @@ def _canonical_brand(brand: str, title: str = "") -> str:
     slug = normalize_snake_slug(cleaned, fallback="unknown", max_len=32)
     if slug != "unknown" and slug in _BRAND_ALIASES:
         return _BRAND_ALIASES[slug]
-    if slug != "unknown" and not re.search(r"[\u0600-\u06FF]", cleaned):
+    if slug not in _STORE_PLACEHOLDER_BRANDS and not re.search(r"[\u0600-\u06FF]", cleaned):
         return slug
-    # Fallback: infer known brand from bilingual-normalized title (e.g. Arabic titles with brand="Unknown")
+    # Fallback: infer known brand from bilingual-normalized title (e.g. Arabic titles or store placeholder brand)
     if title:
-        norm_title = translate_arabic_retail_terms(title).lower()
+        norm_title = normalize_arabic(translate_arabic_retail_terms(title)).lower()
         for alias, canon in _BRAND_ALIASES.items():
-            if not re.search(r"[\u0600-\u06FF]", alias) and re.search(rf"\b{re.escape(alias)}\b", norm_title):
+            if re.search(r"[\u0600-\u06FF]", alias):
+                if re.search(rf"(?:^|[^a-z\u0621-\u064a]){re.escape(alias)}(?=$|[^a-z\u0621-\u064a])", norm_title):
+                    return canon
+            elif re.search(rf"\b{re.escape(alias)}\b", norm_title):
                 return canon
-    return slug
+    return "unknown" if slug in _STORE_PLACEHOLDER_BRANDS else slug
 
 
 def _extract_ram_storage(record: RawProductSnapshot) -> tuple[Optional[int], Optional[int]]:
@@ -602,16 +798,26 @@ def _smartphone_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[
     text = _PHONE_NOISE_RE.sub(" ", text)
     text = re.sub(r"[^a-zA-Z0-9\s]", " ", text)
 
+    # Strip Apple regional MPN suffixes (e.g. MYEC3ZD/A, MFYN4AF/A) and finish words
+    # so iPhone listings match across stores regardless of regional SKU code.
+    if brand == "apple":
+        text = re.sub(r"\b[a-z]{1,2}[a-z0-9]{4,7}(?:/[a-z]{1,2})?\b", lambda m: (
+            " " if (any(c.isdigit() for c in m.group(0)) and len(m.group(0)) >= 6 and not m.group(0).lower().startswith("iphone")) else m.group(0)
+        ), text, flags=re.I)
+
     tokens = [tok.lower() for tok in text.split() if tok]
     # Remove leading brand token(s)
     brand_tokens = set(brand.split("_"))
+    apple_extra_colors = {"ultramarine", "sage", "teal", "desert", "natural", "soft", "lavender", "mist"} if brand == "apple" else set()
     filtered: list[str] = []
     for tok in tokens:
         if not filtered and tok in brand_tokens:
             continue
-        if tok in _COLOR_WORDS:
+        if tok in _COLOR_WORDS or tok in apple_extra_colors:
             continue
         if tok.isdigit() and int(tok) in {ram_gb, storage_gb}:
+            continue
+        if brand == "apple" and tok == "a" and filtered:
             continue
         filtered.append(tok)
 
@@ -624,7 +830,9 @@ def _smartphone_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[
         return None
 
     parts = [brand, model_slug, f"{storage_gb}gb"]
-    if ram_gb is not None:
+    # Apple iPhone RAM is fixed per model (and omitted by half of Egyptian stores),
+    # whereas Android phones ship multiple RAM configs (4GB vs 6GB vs 8GB) for the same storage.
+    if ram_gb is not None and brand != "apple":
         parts.append(f"{ram_gb}gb")
     return normalize_snake_slug("_".join(parts), max_len=160)
 
@@ -723,7 +931,13 @@ def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> 
         title,
         flags=re.I,
     )
-    cleaned = re.sub(r"\b(?:ddr[345]|pcie|sata|nvme|fhd|qhd|uhd|4k|8k|rgb|argb|pwm|atx|matx|ips|va|oled|qled|usb\d?)\b", " ", cleaned, flags=re.I)
+    cleaned = re.sub(
+        r"\b(?:ddr[345]|pcie\d?|sata\d?|nvme|fhd|qhd|uhd|4k|8k|rgb|argb|pwm|atx|matx|ips|va|oled|qled|"
+        r"hdr\d+\+?|ip\d{2}|wifi\d[a-z]?|bt\d(?:\.\d)?|hdmi\d(?:\.\d)?|usb\d(?:\.\d)?|dp\d(?:\.\d)?|pd\d+|qc\d)\b",
+        " ",
+        cleaned,
+        flags=re.I,
+    )
 
     codes_norm, first_raw = _collect_model_codes(cleaned, min_len=4)
     if not codes_norm:
@@ -743,9 +957,29 @@ def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> 
     # G502 X Plus) — only when the title carries a SINGLE model code; multi-code
     # titles (indoor + outdoor AC units) are matched on their primary code.
     if len(codes_norm) == 1:
-        variant = _variant_token_after(cleaned, first_raw) if first_raw else None
+        variant = _variant_token_after(record.product_title, first_raw) if first_raw else None
         if variant and len(variant) <= 24:
             parts.append(variant)
+
+    # Motherboard chipset sub-model guard: `A520M K V2` != `A520M S2H` != `A520M DS3H`
+    if family == "motherboard" or re.search(r"\b(?:motherboard|mainboard|am[45]|lga\s*1[127]\d{2}|m-?atx|micro[\s-]?atx)\b", title, re.I) or re.fullmatch(r"[abhxz]\d{3}m?", primary):
+        if first_raw:
+            idx_mb = record.product_title.lower().find(first_raw.lower())
+            if idx_mb != -1:
+                mb_tail = record.product_title[idx_mb + len(first_raw):]
+                mb_sub_tokens: list[str] = []
+                for tok in re.split(r"[^A-Za-z0-9]+", mb_tail):
+                    low_t = tok.lower()
+                    if not low_t:
+                        continue
+                    if low_t in {"ddr4", "ddr5", "am4", "am5", "motherboard", "socket", "micro", "atx", "matx", "rev", "amd", "intel", "black", "white", "gaming"}:
+                        break
+                    if low_t in {"k", "h", "a", "m", "e", "f", "s2h", "ds3h", "ud", "pro", "plus", "prime", "tuf", "mortar", "tomahawk", "bazooka", "eagle", "aorus", "hdv", "pro4", "steel", "legend", "elite", "wifi", "ax", "ac", "ii", "v2"}:
+                        if low_t not in parts and low_t not in mb_sub_tokens:
+                            mb_sub_tokens.append(low_t)
+                    if len(mb_sub_tokens) >= 2:
+                        break
+                parts.extend(mb_sub_tokens)
 
     # Strict size guard for screens (a 50-inch TV is never a 55-inch TV).
     # Applied only when a size is actually present — titles without one are
@@ -775,7 +1009,7 @@ def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[s
         flags=re.I,
     )
     cleaned = re.sub(
-        r"\b(?:4k|8k|fhd|uhd|qled|oled|led|hdr10|wifi|wi-fi|smart|inverter|digital|frost|nofrost)\b",
+        r"\b(?:4k|8k|fhd|uhd|qled|oled|led|hdr\d+\+?|ip\d{2}|wifi\d?[a-z]?|wi-fi|smart|inverter|digital|frost|nofrost|bt\d(?:\.\d)?)\b",
         " ",
         cleaned,
         flags=re.I,
@@ -796,20 +1030,23 @@ def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[s
         if size is not None:
             primary = _strip_leading_size(primary, size)
 
-    parts = [brand, family, primary]
+    # Omit store-dependent `family` slug (except size-embedded TVs/monitors) so
+    # identical appliances filed under `small_appliances` vs `blenders` vs `home_appliances`
+    # match cleanly on exact `(brand, model_code, capacity/HP/inch)`.
+    parts = [brand, family, primary] if size is not None else [brand, primary]
     if size is not None:
         parts.append(f"{size}in")
 
     # Variant token (product-line word right after the code) — single-code
     # titles only, same rationale as the electronics path.
     if len(codes_norm) == 1:
-        variant = _variant_token_after(cleaned, first_raw) if first_raw else None
+        variant = _variant_token_after(record.product_title, first_raw) if first_raw else None
         if variant and len(variant) <= 24 and variant not in {p.split("_")[-1] for p in parts}:
             parts.append(variant)
 
     # Strict capacity / power guards — 1.5 HP vs 2.25 HP and 8 kg vs 6 kg are
     # different SKUs, never the same canonical product.
-    if family == "air_conditioner":
+    if family == "air_conditioner" or _HP_BTU_RE.search(title):
         if hm := _HP_BTU_RE.search(title):
             parts.append(f"{hm.group(1)}hp")
         elif bm := _BTU_RE.search(title):
@@ -823,26 +1060,85 @@ def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[s
     return normalize_snake_slug("_".join(parts), max_len=160)
 
 
+_TITLE_EAN13_RE = re.compile(r"(?:^|[^0-9])(\d{13})(?=$|[^0-9])")
+
+
+def _valid_ean13(digits: str) -> bool:
+    if len(digits) != 13 or not digits.isdigit():
+        return False
+    # Reject trivial fake IDs AND GS1 in-store variable-weight PLU barcodes (20..29)
+    if len(set(digits)) <= 2 or digits.startswith("00000") or digits[0] == "2":
+        return False
+    total = sum(int(d) * (1 if idx % 2 == 0 else 3) for idx, d in enumerate(digits[:12]))
+    return ((10 - (total % 10)) % 10) == int(digits[12])
+
+
+def _extract_global_ean_key(record: RawProductSnapshot) -> Optional[str]:
+    """Return `ean_<13digits>` if a checksum-verified EAN-13 barcode exists in attributes or title."""
+    attrs = record.attributes_json or {}
+    for k in ("ean", "gtin13", "gtin", "barcode"):
+        val = attrs.get(k)
+        if val is not None:
+            digits = re.sub(r"\D", "", str(val))
+            if _valid_ean13(digits):
+                cat = effective_category(record)
+                prefix = "grocery_gtin" if cat == "groceries" else "ean"
+                return f"{prefix}_{digits}"
+    for m in _TITLE_EAN13_RE.finditer(record.product_title or ""):
+        digits = m.group(1)
+        if _valid_ean13(digits):
+            cat = effective_category(record)
+            prefix = "grocery_gtin" if cat == "groceries" else "ean"
+            return f"{prefix}_{digits}"
+    return None
+
+
+def _looks_like_smartphone_or_laptop(record: RawProductSnapshot) -> Optional[str]:
+    """Detect smartphones/laptops listed inside appliance stores (e.g. ehab_center)."""
+    sub = (record.sub_category or "").strip().lower()
+    if sub in ("smartphones", "mobiles", "mobile_phones", "phones", "tablets"):
+        return "smartphone"
+    if sub in ("laptops", "notebooks"):
+        return "laptop"
+    low = (record.product_title or "").lower()
+    if re.search(r"\b(?:iphone|galaxy\s+[asmz]\d|redmi\s+note|poco\s+[xfmc]\d|honor\s+x\d|oppo\s+[ar]\d|realme\s+\d|infinix\s+(?:hot|note|smart)|tecno\s+(?:spark|camon|pova))\b", low):
+        if not is_accessory_listing(record):
+            return "smartphone"
+    if re.search(r"\b(?:macbook|thinkpad|ideapad|vivobook|zenbook|legion\s+\d|pavilion|elitebook|probook|inspiron|latitude|vostro|nitro\s+\d|aspire\s+\d|victus|omen\s+\d)\b", low):
+        if not is_accessory_listing(record):
+            return "laptop"
+    return None
+
+
 def compute_candidate_key(record: RawProductSnapshot) -> Optional[str]:
-    """Compute a deterministic candidate canonical key for electronics, appliances, & groceries."""
-    if record.category == "groceries":
+    """Compute a deterministic candidate canonical key across all supported verticals."""
+    cat = effective_category(record)
+    if cat == "groceries":
         return compute_grocery_candidate_key(record)
 
-    if record.category not in ("electronics", "home_appliances"):
+    if cat in ("health", "beauty"):
+        return compute_health_beauty_key(record)
+
+    if cat in ("fashion", "sports") and is_footwear_record(record):
+        style_key, model_key = compute_footwear_keys(record)
+        return style_key or model_key
+
+    if cat not in ("electronics", "home_appliances"):
         return None
 
     brand = _canonical_brand(record.brand, record.product_title)
     if not brand or brand == "unknown":
         return None
 
-    if record.category == "home_appliances":
+    device_hint = _looks_like_smartphone_or_laptop(record)
+    if device_hint == "smartphone":
+        return _smartphone_fingerprint(record, brand)
+    if device_hint == "laptop":
+        return _laptop_fingerprint(record, brand)
+
+    if cat == "home_appliances":
         return _appliance_fingerprint(record, brand)
 
-    sub = record.sub_category.lower()
-    if sub in ("smartphones", "tablets"):
-        return _smartphone_fingerprint(record, brand)
-    if sub == "laptops":
-        return _laptop_fingerprint(record, brand)
     return _electronics_generic_fingerprint(record, brand)
 
 
@@ -1030,6 +1326,126 @@ def _cosine_similarity(v1: Counter[str], v2: Counter[str]) -> float:
     return dot / (n1 * n2)
 
 
+def _resolve_guard_brand(rec: RawProductSnapshot, eff_cat: str) -> Optional[str]:
+    """Resolve canonical brand for cross-store Brand Conflict Blocker."""
+    if eff_cat in ("electronics", "home_appliances"):
+        b = _canonical_brand(rec.brand, rec.product_title)
+        return None if (not b or b == "unknown") else b
+    if eff_cat in ("health", "beauty"):
+        return resolve_hb_brand(rec)
+    if eff_cat in ("fashion", "sports"):
+        return resolve_footwear_brand(rec)
+    if eff_cat == "groceries":
+        b = normalize_snake_slug(extract_grocery_brand(rec.product_title, rec.brand), fallback="unknown", max_len=32)
+        return None if (not b or b == "unknown") else b
+    return None
+
+
+def _filter_group_guardrails(
+    group: list[RawProductSnapshot],
+    *,
+    price_ratio_cap: float,
+    check_units: bool,
+    check_accessory: bool,
+) -> list[RawProductSnapshot]:
+    """Enforce mandatory anti-false-positive guardrails on every candidate group.
+
+    1. Distinct stores >= 2.
+    2. Brand conflict blocker (never mix two conflicting canonical brands).
+    3. Accessory vs. Main Product blocker (never mix accessory with main device).
+    4. Unit/Quantity conflict blocker (weight/volume/count/pack/dosage must agree).
+    5. Price ratio sanity guard with median-based single-outlier pruning for >= 3 stores.
+    """
+    if len({r.store_name for r in group}) < 2:
+        return []
+
+    filtered = list(group)
+
+    # 1. Accessory vs. Main Product separation (electronics & home_appliances)
+    if check_accessory:
+        acc_flags = [is_accessory_listing(r) for r in filtered]
+        if any(acc_flags) and not all(acc_flags):
+            # Keep the majority side if it still spans >= 2 distinct stores; else reject
+            non_acc = [r for r, flag in zip(filtered, acc_flags) if not flag]
+            acc_only = [r for r, flag in zip(filtered, acc_flags) if flag]
+            if len({r.store_name for r in non_acc}) >= 2:
+                filtered = non_acc
+            elif len({r.store_name for r in acc_only}) >= 2:
+                filtered = acc_only
+            else:
+                return []
+
+    # 2. Brand Conflict Blocker
+    brand_counts: Counter[str] = Counter()
+    rec_brands: list[Optional[str]] = []
+    for r in filtered:
+        b = _resolve_guard_brand(r, effective_category(r))
+        rec_brands.append(b)
+        if b:
+            brand_counts[b] += 1
+    if len(brand_counts) > 1:
+        # Keep only the dominant brand if it has >= 2 distinct stores; else hard-reject
+        dominant_brand = brand_counts.most_common(1)[0][0]
+        dom_recs = [r for r, b in zip(filtered, rec_brands) if b is None or b == dominant_brand]
+        if len({r.store_name for r in dom_recs}) >= 2:
+            filtered = dom_recs
+        else:
+            return []
+
+    # 3. Unit / Quantity Conflict Blocker (groceries, health, beauty, pet_care)
+    if check_units:
+        specs = [
+            parse_unit_spec(
+                r.product_title,
+                variant_label=(r.attributes_json or {}).get("variant_label")
+                if isinstance((r.attributes_json or {}).get("variant_label"), str)
+                else None,
+                attributes=r.attributes_json or {},
+            )
+            for r in filtered
+        ]
+        # Verify pairwise unit compatibility; if a single outlier conflicts, drop it
+        consistent: list[RawProductSnapshot] = []
+        for idx, rec in enumerate(filtered):
+            if specs[idx].has_ambiguous_multi_size:
+                continue
+            conflicts = sum(
+                1 for jdx, sp_j in enumerate(specs)
+                if jdx != idx and not sp_j.has_ambiguous_multi_size and units_conflict(specs[idx], sp_j)
+            )
+            if conflicts == 0:
+                consistent.append(rec)
+        if len({r.store_name for r in consistent}) < 2:
+            return []
+        filtered = consistent
+
+    # 4. Price Ratio Sanity Guard (with median-based outlier trimming when >= 3 stores)
+    prices = [float(r.current_price) for r in filtered]
+    if not prices or min(prices) <= 0:
+        return []
+    if (max(prices) / min(prices)) > price_ratio_cap:
+        if len({r.store_name for r in filtered}) >= 3:
+            sorted_p = sorted(prices)
+            med = sorted_p[len(sorted_p) // 2]
+            band = math.sqrt(price_ratio_cap)
+            trimmed = [
+                r for r in filtered
+                if (med / band) <= float(r.current_price) <= (med * band)
+            ]
+            if len({r.store_name for r in trimmed}) >= 2:
+                t_prices = [float(r.current_price) for r in trimmed]
+                if min(t_prices) > 0 and (max(t_prices) / min(t_prices)) <= price_ratio_cap:
+                    filtered = trimmed
+                else:
+                    return []
+            else:
+                return []
+        else:
+            return []
+
+    return filtered
+
+
 def assign_canonical_keys(
     records: list[RawProductSnapshot],
     *,
@@ -1037,32 +1453,48 @@ def assign_canonical_keys(
     tier3_similarity_threshold: float = 0.72,
     tier3_max_price_ratio: float = 1.75,
 ) -> MatchSummary:
-    """Assign `canonical_product_key` in-place via a 3-tier hybrid matcher (`>= 2` stores).
+    """Assign `canonical_product_key` in-place via a precision-first multi-vertical hybrid matcher.
 
-    - Tier 1: Exact normalized model/MPN + brand match (now bilingual AR <-> EN)
-              plus 3-pass grocery matching (EAN -> size -> bilingual type).
-    - Tier 2: Spec-blocked structured match `(brand, family, spec_block, core_tokens)`
-              preventing mismatched storage/size/tonnage/capacity pairs.
-    - Tier 3: Lightweight local token/character-ngram vector cosine similarity
-              strictly within `(brand, family, spec_block)` with shared series
-              digit consistency and tight `tier3_max_price_ratio` cap.
+    Covers:
+    - Pass 0: Checksum-verified EAN-13 barcode matching (attributes or embedded title EANs)
+    - Core Electronics & Home Appliances:
+        * Tier 1: Exact normalized model/MPN + brand (bilingual AR <-> EN)
+        * Tier 2: Spec-blocked structured match `(brand, family, spec_block, core_tokens)`
+        * Tier 3: Local token/character-ngram vector similarity inside strict spec blocks
+    - Groceries: 3-pass matcher (EAN -> Exact Size -> Bilingual Type + Arabic fractions)
+    - Health & Beauty: Exact Brand+ProductLine+ExactSize/Dosage/Conc + strict spec-blocked similarity
+    - Footwear (`fashion` & `sports`): Style-Code Pass -> Parent Model-Name Pass (stripping shoe sizes)
+
+    Every emitted group passes mandatory guardrails: >=2 distinct stores, brand consistency,
+    accessory-vs-main-product separation, unit/quantity conflict blocking, and category price-ratio caps.
     """
     for rec in records:
         rec.canonical_product_key = None
 
-    buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    grocery_records: list[RawProductSnapshot] = []
+    strict_cap_22 = 2.2 if max_price_ratio <= 2.5 else max_price_ratio
+    strict_cap_25 = 2.5 if max_price_ratio <= 2.5 else max_price_ratio
+
     core_records: list[RawProductSnapshot] = []
+    grocery_records: list[RawProductSnapshot] = []
+    hb_records: list[RawProductSnapshot] = []
+    footwear_records: list[RawProductSnapshot] = []
+    global_ean_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
 
     for rec in records:
-        if rec.category == "groceries":
+        eff_cat = effective_category(rec)
+        if eff_cat in ("groceries", "pet_care"):
             grocery_records.append(rec)
             continue
-        if rec.category in ("electronics", "home_appliances"):
+        if eff_cat in ("electronics", "home_appliances"):
             core_records.append(rec)
-        cand = compute_candidate_key(rec)
-        if cand:
-            buckets[cand].append(rec)
+        elif eff_cat in ("health", "beauty"):
+            hb_records.append(rec)
+        elif eff_cat in ("fashion", "sports") and is_footwear_record(rec):
+            footwear_records.append(rec)
+
+        ean_key = _extract_global_ean_key(rec)
+        if ean_key:
+            global_ean_buckets[ean_key].append(rec)
 
     matched_groups = 0
     matched_products = 0
@@ -1070,32 +1502,37 @@ def assign_canonical_keys(
     tier2_groups = 0
     tier3_groups = 0
     grocery_groups = 0
+    health_beauty_groups = 0
+    footwear_groups = 0
     group_details: dict[str, list[tuple[str, float, str]]] = {}
 
     def _commit_buckets(
         candidate_buckets: dict[str, list[RawProductSnapshot]],
         *,
-        price_ratio_cap: float = max_price_ratio,
+        price_ratio_cap: float = strict_cap_22,
         tier_counter: str = "tier1",
+        check_units: bool = False,
+        check_accessory: bool = False,
     ) -> set[int]:
-        nonlocal matched_groups, matched_products, tier1_groups, tier2_groups, tier3_groups, grocery_groups
+        nonlocal matched_groups, matched_products, tier1_groups, tier2_groups
+        nonlocal tier3_groups, grocery_groups, health_beauty_groups, footwear_groups
         assigned_ids: set[int] = set()
         for key, group in sorted(candidate_buckets.items()):
-            distinct_stores = {r.store_name for r in group}
-            if len(distinct_stores) < 2:
+            clean_group = _filter_group_guardrails(
+                group,
+                price_ratio_cap=price_ratio_cap,
+                check_units=check_units,
+                check_accessory=check_accessory,
+            )
+            if not clean_group:
                 continue
 
-            prices = [float(r.current_price) for r in group]
-            min_p, max_p = min(prices), max(prices)
-            if min_p <= 0 or (max_p / min_p) > price_ratio_cap:
-                continue
-
-            for rec in group:
+            for rec in clean_group:
                 rec.canonical_product_key = key
                 assigned_ids.add(id(rec))
 
             matched_groups += 1
-            matched_products += len(group)
+            matched_products += len(clean_group)
             if tier_counter == "tier1":
                 tier1_groups += 1
             elif tier_counter == "tier2":
@@ -1104,17 +1541,45 @@ def assign_canonical_keys(
                 tier3_groups += 1
             elif tier_counter == "grocery":
                 grocery_groups += 1
+            elif tier_counter == "health_beauty":
+                health_beauty_groups += 1
+            elif tier_counter == "footwear":
+                footwear_groups += 1
 
             group_details[key] = sorted(
-                [(r.store_name, float(r.current_price), r.product_title) for r in group],
+                [(r.store_name, float(r.current_price), r.product_title) for r in clean_group],
                 key=lambda x: (x[1], x[0]),
             )
         return assigned_ids
 
     # ------------------------------------------------------------------
+    # PASS 0: Global Checksum-Verified EAN-13 Barcodes (non-grocery)
+    # ------------------------------------------------------------------
+    matched_global_ids = _commit_buckets(
+        global_ean_buckets,
+        price_ratio_cap=strict_cap_22,
+        tier_counter="tier1",
+        check_units=True,
+        check_accessory=True,
+    )
+
+    # ------------------------------------------------------------------
     # TIER 1: Exact Model / MPN + Brand (core electronics & appliances)
     # ------------------------------------------------------------------
-    matched_core_ids = _commit_buckets(buckets, tier_counter="tier1")
+    tier1_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    for rec in core_records:
+        if id(rec) in matched_global_ids:
+            continue
+        cand = compute_candidate_key(rec)
+        if cand:
+            tier1_buckets[cand].append(rec)
+
+    matched_core_ids = matched_global_ids | _commit_buckets(
+        tier1_buckets,
+        price_ratio_cap=strict_cap_22,
+        tier_counter="tier1",
+        check_accessory=True,
+    )
 
     # ------------------------------------------------------------------
     # TIER 2: Spec-Blocked Match (brand + family + strict spec_block + core tokens)
@@ -1124,10 +1589,15 @@ def assign_canonical_keys(
     tier2_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
 
     for rec in unmatched_core:
+        if is_accessory_listing(rec):
+            continue
         brand = _canonical_brand(rec.brand, rec.product_title)
         if not brand or brand == "unknown":
             continue
         family = _family_of(rec.sub_category)
+        hint = _looks_like_smartphone_or_laptop(rec)
+        if hint in ("smartphone", "laptop"):
+            family = hint
         norm_title = _strip_marketplace_noise(rec.product_title)
         spec_sig = _extract_spec_block(rec, brand, family, norm_title)
         if not spec_sig:
@@ -1137,7 +1607,6 @@ def assign_canonical_keys(
             continue
         spec_blocks[(brand, family, spec_sig)].append((rec, core_toks))
 
-        # Tier-2 deterministic spec-blocked key (brand + family + spec + sorted top core tokens)
         series_toks = sorted(t for t in core_toks if any(c.isdigit() for c in t))[:3]
         word_toks = [t for t in core_toks if not any(c.isdigit() for c in t)][:2]
         key_tokens = series_toks + word_toks if series_toks else core_toks[:3]
@@ -1150,8 +1619,9 @@ def assign_canonical_keys(
 
     matched_t2_ids = _commit_buckets(
         tier2_buckets,
-        price_ratio_cap=min(max_price_ratio, 2.2),
+        price_ratio_cap=min(strict_cap_22, 2.2) if max_price_ratio <= 2.5 else max_price_ratio,
         tier_counter="tier2",
+        check_accessory=True,
     )
     matched_core_ids |= matched_t2_ids
 
@@ -1159,7 +1629,7 @@ def assign_canonical_keys(
     # TIER 3: Lightweight Local Semantic / Token-Vector Similarity inside strict spec blocks
     # ------------------------------------------------------------------
     tier3_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    effective_t3_ratio = min(max_price_ratio, tier3_max_price_ratio)
+    effective_t3_ratio = min(max_price_ratio, tier3_max_price_ratio) if max_price_ratio <= 2.5 else max_price_ratio
 
     for (brand, family, spec_sig), entries in sorted(spec_blocks.items()):
         remaining = [(rec, toks) for rec, toks in entries if id(rec) not in matched_core_ids]
@@ -1184,7 +1654,6 @@ def assign_canonical_keys(
                 rec_j, _ = remaining[j]
                 if rec_j.store_name in cluster_stores:
                     continue
-                # Strict series number consistency (e.g. A17 != A16, S24 != S23)
                 if series_sigs[i] and series_sigs[j] and not (series_sigs[i] & series_sigs[j]):
                     continue
                 sim = _cosine_similarity(vectors[i], vectors[j])
@@ -1209,6 +1678,7 @@ def assign_canonical_keys(
         tier3_buckets,
         price_ratio_cap=effective_t3_ratio,
         tier_counter="tier3",
+        check_accessory=True,
     )
 
     # ------------------------------------------------------------------
@@ -1216,28 +1686,267 @@ def assign_canonical_keys(
     # ------------------------------------------------------------------
     barcode_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     for rec in grocery_records:
+        if is_collapsed_multiprice_variant(rec):
+            continue
         bkey = compute_grocery_barcode_key(rec)
         if bkey:
             barcode_buckets[bkey].append(rec)
-    matched_grocery_ids = _commit_buckets(barcode_buckets, tier_counter="grocery")
+    matched_grocery_ids = _commit_buckets(
+        barcode_buckets,
+        price_ratio_cap=strict_cap_22,
+        tier_counter="grocery",
+        check_units=True,
+    )
 
     size_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     for rec in grocery_records:
-        if id(rec) in matched_grocery_ids:
+        if id(rec) in matched_grocery_ids or is_collapsed_multiprice_variant(rec):
             continue
         skey = compute_grocery_size_key(rec)
         if skey:
             size_buckets[skey].append(rec)
-    matched_grocery_ids |= _commit_buckets(size_buckets, tier_counter="grocery")
+    matched_grocery_ids |= _commit_buckets(
+        size_buckets,
+        price_ratio_cap=strict_cap_22,
+        tier_counter="grocery",
+        check_units=True,
+    )
 
     type_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
     for rec in grocery_records:
-        if id(rec) in matched_grocery_ids:
+        if id(rec) in matched_grocery_ids or is_collapsed_multiprice_variant(rec):
             continue
         tkey = compute_grocery_type_key(rec)
         if tkey:
             type_buckets[tkey].append(rec)
-    _commit_buckets(type_buckets, tier_counter="grocery")
+    _commit_buckets(
+        type_buckets,
+        price_ratio_cap=strict_cap_22,
+        tier_counter="grocery",
+        check_units=True,
+    )
+
+    # ------------------------------------------------------------------
+    # Health & Beauty 3-Pass Matcher:
+    #   Pass 1: Exact Sized Key `(brand, tokens, conc, dosage, size)`
+    #   Pass 2: Strict Size/Dosage/Form-Blocked Similarity (`>= 0.78`)
+    #   Pass 3: High-Specificity Sizeless Line (`>= 3` core tokens, tight `<= 1.65x`, units_conflict guarded)
+    # ------------------------------------------------------------------
+    hb_exact_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    hb_sizeless_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    hb_blocks: dict[str, list[tuple[RawProductSnapshot, list[str]]]] = defaultdict(list)
+
+    for rec in hb_records:
+        if id(rec) in matched_global_ids:
+            continue
+        feats = extract_health_beauty_features(rec)
+        if not feats:
+            continue
+        exact_key, sizeless_key, block_id, core_toks = feats
+        if exact_key:
+            hb_exact_buckets[exact_key].append(rec)
+        if block_id:
+            hb_blocks[block_id].append((rec, core_toks))
+        if sizeless_key:
+            hb_sizeless_buckets[sizeless_key].append(rec)
+
+    matched_hb_ids = matched_global_ids | _commit_buckets(
+        hb_exact_buckets,
+        price_ratio_cap=strict_cap_22,
+        tier_counter="health_beauty",
+        check_units=True,
+    )
+
+    # Pass 2 for Health & Beauty: high-threshold cosine similarity (>= 0.78) strictly
+    # inside identical `(brand, quantized_size, dosage, perfume_conc, form, gender)` blocks
+    hb_sim_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    hb_sim_ratio = min(strict_cap_22, 2.0) if max_price_ratio <= 2.5 else max_price_ratio
+
+    for block_id, entries in sorted(hb_blocks.items()):
+        remaining = [(rec, toks) for rec, toks in entries if id(rec) not in matched_hb_ids]
+        if len(remaining) < 2 or len({r.store_name for r, _ in remaining}) < 2:
+            continue
+
+        vectors = [_token_ngram_vector(toks) for _, toks in remaining]
+        token_sets = [set(toks) for _, toks in remaining]
+        num_sigs = [_series_number_signature(toks) for _, toks in remaining]
+        used = [False] * len(remaining)
+
+        for i in range(len(remaining)):
+            if used[i]:
+                continue
+            rec_i, toks_i = remaining[i]
+            cluster = [rec_i]
+            cluster_stores = {rec_i.store_name}
+            used[i] = True
+
+            for j in range(i + 1, len(remaining)):
+                if used[j]:
+                    continue
+                rec_j, _ = remaining[j]
+                if rec_j.store_name in cluster_stores:
+                    continue
+                shared = token_sets[i] & token_sets[j]
+                min_needed = min(2, len(token_sets[i]), len(token_sets[j]))
+                if len(shared) < min_needed:
+                    continue
+                if num_sigs[i] and num_sigs[j] and not (num_sigs[i] & num_sigs[j]):
+                    continue
+                if _cosine_similarity(vectors[i], vectors[j]) < 0.78:
+                    continue
+                pi, pj = float(rec_i.current_price), float(rec_j.current_price)
+                if min(pi, pj) <= 0 or (max(pi, pj) / min(pi, pj)) > hb_sim_ratio:
+                    continue
+                cluster.append(rec_j)
+                cluster_stores.add(rec_j.store_name)
+                used[j] = True
+
+            if len(cluster_stores) >= 2:
+                b_slug = normalize_snake_slug(block_id.replace("|", "_"), max_len=90)
+                anchor = "_".join(sorted(toks_i[:3])) or "sim"
+                sim_key = normalize_snake_slug(f"hbs_{b_slug}_{anchor}", max_len=160)
+                hb_sim_buckets[sim_key].extend(cluster)
+
+    matched_hb_ids |= _commit_buckets(
+        hb_sim_buckets,
+        price_ratio_cap=hb_sim_ratio,
+        tier_counter="health_beauty",
+        check_units=True,
+    )
+
+    # Pass 3 for Health & Beauty: high-specificity sizeless product lines (e.g. when
+    # one store omits `ml`/`caps` on standard SKUs like `Eucerin Even Pigment Perfector Night Cream`)
+    # guarded by tight `<= 1.65x` price ratio + `check_units=True` (so 30ml vs 50ml STILL blocked!).
+    hb_sizeless_rem: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    for k, grp in hb_sizeless_buckets.items():
+        rem = [r for r in grp if id(r) not in matched_hb_ids]
+        if len({r.store_name for r in rem}) >= 2:
+            hb_sizeless_rem[k] = rem
+    hb_sizeless_cap = 1.65 if max_price_ratio <= 2.5 else max_price_ratio
+    matched_hb_ids |= _commit_buckets(
+        hb_sizeless_rem,
+        price_ratio_cap=hb_sizeless_cap,
+        tier_counter="health_beauty",
+        check_units=True,
+    )
+
+    # ------------------------------------------------------------------
+    # Footwear 4-Pass Matcher:
+    #   Pass 1: Exact Manufacturer Style Code
+    #   Pass 2: Exact Gender + Parent Model Name
+    #   Pass 3: Adult Neutral Model Name (allows unstated gender to match men/women,
+    #           while strictly blocking men-vs-women and kids-vs-adult conflicts!)
+    #   Pass 4: High-threshold similarity (`>= 0.80`) inside `(brand, age_guard, ftype)`
+    # ------------------------------------------------------------------
+    fw_style_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    fw_exact_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    fw_neutral_buckets: dict[str, list[tuple[RawProductSnapshot, str]]] = defaultdict(list)
+    fw_blocks: dict[str, list[tuple[RawProductSnapshot, str, list[str]]]] = defaultdict(list)
+
+    for rec in footwear_records:
+        if id(rec) in matched_global_ids:
+            continue
+        feats = extract_footwear_features(rec)
+        if not feats:
+            continue
+        style_key, exact_key, neutral_key, gender, block_id, core_toks = feats
+        if style_key:
+            fw_style_buckets[style_key].append(rec)
+        if exact_key:
+            fw_exact_buckets[exact_key].append(rec)
+        if neutral_key:
+            fw_neutral_buckets[neutral_key].append((rec, gender))
+        if len(core_toks) >= 2:
+            fw_blocks[block_id].append((rec, gender, core_toks))
+
+    matched_fw_ids = matched_global_ids | _commit_buckets(
+        fw_style_buckets,
+        price_ratio_cap=strict_cap_25,
+        tier_counter="footwear",
+    )
+
+    fw_exact_rem: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    for k, grp in fw_exact_buckets.items():
+        rem = [r for r in grp if id(r) not in matched_fw_ids]
+        if rem:
+            fw_exact_rem[k] = rem
+    matched_fw_ids |= _commit_buckets(
+        fw_exact_rem,
+        price_ratio_cap=strict_cap_25,
+        tier_counter="footwear",
+    )
+
+    # Pass 3: Adult neutral model name (rejects any group with BOTH explicit `men` and `women`)
+    fw_neutral_rem: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    for k, entries in fw_neutral_buckets.items():
+        rem = [(r, g) for r, g in entries if id(r) not in matched_fw_ids]
+        genders = {g for _, g in rem}
+        if "men" in genders and "women" in genders:
+            continue
+        if len({r.store_name for r, _ in rem}) >= 2:
+            fw_neutral_rem[k] = [r for r, _ in rem]
+    matched_fw_ids |= _commit_buckets(
+        fw_neutral_rem,
+        price_ratio_cap=min(strict_cap_25, 2.2) if max_price_ratio <= 2.5 else max_price_ratio,
+        tier_counter="footwear",
+    )
+
+    # Pass 4: Strict `(brand, age_guard, ftype)` footwear similarity (`>= 0.80`)
+    fw_sim_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
+    fw_sim_ratio = min(strict_cap_25, 2.2) if max_price_ratio <= 2.5 else max_price_ratio
+    for block_id, entries in sorted(fw_blocks.items()):
+        remaining = [(rec, g, toks) for rec, g, toks in entries if id(rec) not in matched_fw_ids]
+        if len(remaining) < 2 or len({r.store_name for r, _, _ in remaining}) < 2:
+            continue
+        vectors = [_token_ngram_vector(toks) for _, _, toks in remaining]
+        tok_sets = [set(toks) for _, _, toks in remaining]
+        num_sigs = [frozenset(t for t in toks if any(c.isdigit() for c in t)) for _, _, toks in remaining]
+        used = [False] * len(remaining)
+
+        for i in range(len(remaining)):
+            if used[i]:
+                continue
+            rec_i, gi, toks_i = remaining[i]
+            cluster = [rec_i]
+            cluster_stores = {rec_i.store_name}
+            cluster_genders = {gi}
+            used[i] = True
+
+            for j in range(i + 1, len(remaining)):
+                if used[j]:
+                    continue
+                rec_j, gj, _ = remaining[j]
+                if rec_j.store_name in cluster_stores:
+                    continue
+                # Never mix explicit men & women shoes
+                if (gj == "men" and "women" in cluster_genders) or (gj == "women" and "men" in cluster_genders):
+                    continue
+                # Exact version number equality (Downshifter 13 != 14, Cumulus 26 != 27)
+                if num_sigs[i] != num_sigs[j]:
+                    continue
+                if len(tok_sets[i] & tok_sets[j]) < 2:
+                    continue
+                if _cosine_similarity(vectors[i], vectors[j]) < 0.80:
+                    continue
+                pi, pj = float(rec_i.current_price), float(rec_j.current_price)
+                if min(pi, pj) <= 0 or (max(pi, pj) / min(pi, pj)) > fw_sim_ratio:
+                    continue
+                cluster.append(rec_j)
+                cluster_stores.add(rec_j.store_name)
+                cluster_genders.add(gj)
+                used[j] = True
+
+            if len(cluster_stores) >= 2:
+                b_slug = normalize_snake_slug(block_id.replace("|", "_"), max_len=60)
+                anchor = "_".join(toks_i[:3])
+                sim_key = normalize_snake_slug(f"fws_{b_slug}_{anchor}", max_len=140)
+                fw_sim_buckets[sim_key].extend(cluster)
+
+    _commit_buckets(
+        fw_sim_buckets,
+        price_ratio_cap=fw_sim_ratio,
+        tier_counter="footwear",
+    )
 
     return MatchSummary(
         matched_groups=matched_groups,
@@ -1247,4 +1956,6 @@ def assign_canonical_keys(
         tier2_groups=tier2_groups,
         tier3_groups=tier3_groups,
         grocery_groups=grocery_groups,
+        health_beauty_groups=health_beauty_groups,
+        footwear_groups=footwear_groups,
     )
