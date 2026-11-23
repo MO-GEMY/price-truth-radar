@@ -150,10 +150,9 @@ jobs:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
         run: python data_platform/ingestion/scrapers/run_scrapers.py --match-db
 
-      - name: Run dbt snapshot, models, and data tests
+      - name: Run dbt models and data tests
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
         run: |
-          python data_platform/run_dbt.py snapshot
           python data_platform/run_dbt.py run
           python data_platform/run_dbt.py test

@@ -19,7 +19,7 @@
     .\scripts\run_local_scrapers.ps1 -Discovery
 
 .EXAMPLE
-    # Run daily scrape + dbt snapshot/run/test
+    # Run daily scrape + dbt run/test
     .\scripts\run_local_scrapers.ps1 -RunDbt
 
 .EXAMPLE
@@ -33,7 +33,13 @@
 
 [CmdletBinding()]
 param(
-    [string[]]$Stores = @("2b", "sigma"),
+    [string[]]$Stores = @(
+        "2b", "sigma",
+        "jumia", "elghazawy", "homzmart", "decathlon_eg",
+        "misr_pharmacies", "tdawi",
+        "elnekhely", "maximum_hardware", "gamesworldegypt",
+        "hedeya"
+    ),
     [switch]$IncludeFallback,
     [ValidateSet("daily", "discover", "discovery")]
     [string]$Mode = "daily",
@@ -55,7 +61,7 @@ if ($Discovery) {
 }
 
 $FallbackStores = @("egyptlaptop", "dubaiphone", "elaraby", "dalydress")
-$FashionOnlyStores = @("town_team", "dejavu", "dalydress", "activ", "carina", "khotwh", "concrete", "mobaco")
+$FashionOnlyStores = @("town_team", "dejavu", "dalydress", "activ", "carina", "khotwh", "concrete", "mobaco", "hedeya")
 $GroceriesOnlyStores = @("spinneys", "hyperone", "seoudi", "abu_auf", "gourmet", "imtenan", "metro_market")
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -181,7 +187,7 @@ $SucceededStores = @()
 try {
     foreach ($store in $NormalizedStores) {
         $vertical = Resolve-Vertical -StoreSlug $store
-        $ArgsList = @($RunnerScript, "--store", $store, "--vertical", $vertical, "--mode", $Mode)
+        $ArgsList = @($RunnerScript, "--store", $store, "--vertical", $vertical, "--mode", $Mode, "--delta")
         if ($Limit -gt 0) {
             $ArgsList += @("--limit", "$Limit")
         }
@@ -226,7 +232,7 @@ try {
         if (-not (Test-Path $DbtRunnerScript)) {
             Write-Log "WARNING: dbt runner not found at $DbtRunnerScript; skipping dbt."
         } else {
-            foreach ($dbtCmd in @("snapshot", "run", "test")) {
+            foreach ($dbtCmd in @("run", "test")) {
                 Write-Log "Running dbt $dbtCmd ..."
                 & $PythonExe $DbtRunnerScript $dbtCmd 2>&1 | ForEach-Object {
                     $text = $_.ToString()

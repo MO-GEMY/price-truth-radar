@@ -25,6 +25,7 @@ from typing import Any, Optional
 from ..base import (
     BaseScraper,
     Category,
+    ImpersonatedHttpClient,
     RawProductSnapshot,
     ScrapeVertical,
     normalize_snake_slug,
@@ -243,6 +244,7 @@ class ShopifyBaseScraper(BaseScraper):
     collection_handles: tuple[tuple[str, Category, str], ...] = ()  # (sub_category, category, handle)
     min_delay_seconds: float = 1.2
     request_timeout: float = 25.0
+    use_impersonation: bool = False
     per_page: int = 250
 
     def _resolve_sub_category(self, title: str, product_type: str, default_sub: Optional[str], cat: Category) -> str:
@@ -472,11 +474,7 @@ class ShopifyBaseScraper(BaseScraper):
             return None
         return next((r for r in recs if r.in_stock), recs[0])
 
-    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
-        target_limit = self.get_target_limit() if limit is None else limit
-        if target_limit <= 0:
-            return []
-
+    def _scrape_with_fetcher(self, fetcher: Any, target_limit: int) -> list[RawProductSnapshot]:
         snapshot_date = datetime.now(timezone.utc).date()
         scraped_at = utc_now_naive()
         collected: list[RawProductSnapshot] = []
@@ -504,12 +502,14 @@ class ShopifyBaseScraper(BaseScraper):
             while len(collected) < target_limit and ep_collected < per_ep_cap and page <= max_pages:
                 logger.info("[%s] Fetching Shopify JSON page %d (%s)", self.store_name, page, endpoint)
                 try:
-                    resp = self.http.get(
-                        endpoint,
-                        params={"limit": min(self.per_page, max(20, per_ep_cap)), "page": page},
-                        min_delay_seconds=effective_delay,
-                        timeout=self.request_timeout,
-                    )
+                    get_kwargs: dict[str, Any] = {
+                        "params": {"limit": min(self.per_page, max(20, per_ep_cap)), "page": page},
+                        "min_delay_seconds": effective_delay,
+                        "timeout": self.request_timeout,
+                    }
+                    if self.use_impersonation:
+                        get_kwargs["check_throttle"] = False
+                    resp = fetcher.get(endpoint, **get_kwargs)
                     payload = resp.json()
                 except Exception as exc:
                     logger.warning("[%s] Error fetching %s page %d: %s", self.store_name, endpoint, page, exc)
@@ -547,3 +547,21 @@ class ShopifyBaseScraper(BaseScraper):
             self.category_counts[default_sub or cat] = self.category_counts.get(default_sub or cat, 0) + ep_collected
 
         return collected
+
+    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
+        target_limit = self.get_target_limit() if limit is None else limit
+        if target_limit <= 0:
+            return []
+
+        if self.use_impersonation:
+            with ImpersonatedHttpClient(
+                impersonate="chrome",
+                timeout=self.request_timeout or 25.0,
+                max_retries=3,
+                backoff_base=2.0,
+                min_delay_seconds=max(self.min_delay_seconds, self.http.min_delay_seconds),
+                jitter_range=(0.25, 0.8),
+            ) as client:
+                return self._scrape_with_fetcher(client, target_limit)
+
+        return self._scrape_with_fetcher(self.http, target_limit)

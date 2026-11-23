@@ -1,21 +1,3 @@
-# =============================================================================
-# Price Truth Radar — Egyptian E-Commerce Stores Registry (257 Stores)
-# =============================================================================
-# Platforms: shopify | woocommerce | magento_graphql | custom
-# Region modes:
-#   - cloud      : Safe for GitHub Actions datacenter runners
-#   - local_only : Blocks datacenter IPs; runs locally via scripts/run_local_scrapers.ps1
-# Enabled flag:
-#   - 150 live-verified active stores (`enabled: true, verified: true`):
-#       * 148 cloud stores balanced across 23 batches (max 10 stores/batch)
-#       * 2 local_only stores (`2b`, `sigma`)
-#   - 107 staged stores (`enabled: false, verified: false`) annotated with
-#     live probe `notes` from `verify_registry.py`.
-# Safety cap:
-#   - Expansion stores enforce `max_products: 650` in discovery mode to keep
-#     Neon PostgreSQL storage safely within the 512 MB tier at 150 stores.
-# =============================================================================
-
 version: 1
 stores:
 - store_key: btech
@@ -372,43 +354,35 @@ stores:
   category: electronics
   vertical: core
   region_mode: local_only
-  enabled: false
-  verified: false
+  enabled: true
+  verified: true
   batch: local_core
-  notes: 403 Cloudflare challenge
-- store_key: xprs
-  display_name: XPRS Egypt
-  platform: shopify
-  base_url: https://xprsegypt.com
-  category: electronics
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: DNS lookup failed
+  notes: Verified live SSR+GA4 scraper (local Egypt IP fallback for cloud WAF)
+  extra_verticals:
+  - groceries
+  - fashion
 - store_key: elnekhely
   display_name: El Nekhely Technology
-  platform: woocommerce
+  platform: custom
   base_url: https://elnekhelytechnology.com
   category: electronics
   vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: 404 no store API
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_electronics
+  notes: Verified OpenCart SSR .product-thumb scraper (PC hardware)
 - store_key: maximum_hardware
   display_name: Maximum Hardware
   platform: custom
   base_url: https://maximumhardware.store
   category: electronics
   vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: 404 no store API
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_electronics
+  notes: Verified OpenCart SSR .product-thumb scraper (PC hardware)
 - store_key: baraka_computer
   display_name: Baraka Computer
   platform: woocommerce
@@ -628,15 +602,15 @@ stores:
   notes: 404 no store API
 - store_key: elghazawy
   display_name: El Ghazawy Home
-  platform: woocommerce
+  platform: custom
   base_url: https://elghazawy.com
   category: home_appliances
   vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_appliances
-  notes: woo HTTP 404; shopify non-JSON
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_appliances
+  notes: Verified public Laravel JSON API (/api/search) with EAN/model_number
 - store_key: hyper_techno
   display_name: Hyper Techno
   platform: woocommerce
@@ -782,7 +756,7 @@ stores:
   notes: 404 no store API
 - store_key: rdna_store
   display_name: RDNA Organic Store
-  platform: shopify
+  platform: woocommerce
   base_url: https://rdnastore.com
   category: groceries
   vertical: groceries
@@ -790,7 +764,7 @@ stores:
   enabled: false
   verified: false
   batch: expansion_groceries
-  notes: 404 no store API
+  notes: WooCommerce API minor_unit bug (returns 0.06 EGP instead of 60 EGP)
 - store_key: fresh_farm_eg
   display_name: Fresh Farm Egypt
   platform: shopify
@@ -892,15 +866,15 @@ stores:
   notes: 404 no store API
 - store_key: misr_pharmacies
   display_name: Misr Pharmacies
-  platform: magento_graphql
+  platform: custom
   base_url: https://misr-online.com
   category: health
   vertical: groceries
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: 403 Cloudflare challenge
+  enabled: true
+  verified: true
+  batch: local_pharma
+  notes: Verified Magento SSR .product-item scraper (local Egypt IP)
 - store_key: roshdy_pharmacies
   display_name: Roshdy Pharmacies
   platform: woocommerce
@@ -1088,28 +1062,6 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: 403 Cloudflare challenge
-- store_key: cottonil
-  display_name: Cottonil Egypt
-  platform: shopify
-  base_url: https://cottonil.com
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: Connection refused/reset
-- store_key: dice_eg
-  display_name: Dice Underwear
-  platform: shopify
-  base_url: https://dice.com.eg
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: DNS lookup failed
 - store_key: adidas_eg
   display_name: Adidas Egypt
   platform: custom
@@ -1121,17 +1073,6 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: 403 Forbidden/WAF
-- store_key: skechers_eg
-  display_name: Skechers Egypt
-  platform: shopify
-  base_url: https://skechers.com.eg
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: DNS lookup failed
 - store_key: aldo_eg
   display_name: ALDO Egypt
   platform: shopify
@@ -1192,11 +1133,11 @@ stores:
   base_url: https://homzmart.com/en
   category: home_furniture
   vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_home
-  notes: shopify non-JSON; woo HTTP 404
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_home
+  notes: Verified Next.js __NEXT_DATA__ scraper (furniture & home appliances)
 - store_key: hub_furniture
   display_name: Hub Furniture
   platform: magento_graphql
@@ -2521,10 +2462,10 @@ stores:
   category: sports
   vertical: fashion
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_sports
-  notes: 403 Cloudflare challenge
+  enabled: true
+  verified: true
+  batch: local_sports
+  notes: Verified SSR product-card scraper (local Egypt IP fallback for cloud Cloudflare)
 - store_key: diwan_books
   display_name: Diwan Bookstore
   platform: woocommerce
@@ -2538,15 +2479,17 @@ stores:
   notes: 403 Cloudflare challenge
 - store_key: hedeya
   display_name: Hedeya Stores
-  platform: magento_graphql
+  platform: shopify
   base_url: https://www.hedeya.com
   category: baby_kids
   vertical: fashion
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_baby_kids
-  notes: 403 Cloudflare challenge
+  enabled: true
+  verified: true
+  batch: local_baby_kids
+  notes: Verified Shopify /products.json via local Egypt IP (cloud Cloudflare 403)
+  config:
+    use_impersonation: true
 - store_key: pets_egypt
   display_name: PetsEgypt
   platform: shopify
@@ -2582,15 +2525,15 @@ stores:
   notes: 403 Cloudflare challenge
 - store_key: tdawi
   display_name: Tdawi Pharmacy
-  platform: woocommerce
+  platform: custom
   base_url: https://tdawi.com
   category: health
   vertical: groceries
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: 403 Cloudflare
+  enabled: true
+  verified: true
+  batch: local_pharma
+  notes: Verified Magento SSR .product-item scraper (local Egypt IP)
 - store_key: albaraka_optical
   display_name: Baraka Optical
   platform: shopify
@@ -2648,15 +2591,15 @@ stores:
   notes: shopify HTTP 404; woo HTTP 404
 - store_key: gamesworldegypt
   display_name: Games World Egypt
-  platform: woocommerce
+  platform: custom
   base_url: https://www.gamesworldegypt.com
   category: electronics
   vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: woo HTTP 404; shopify HTTP 404
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_electronics
+  notes: Verified OpenCart SSR .product-thumb scraper (gaming & peripherals)
 - store_key: happy_vision
   display_name: Happy Vision
   platform: shopify
@@ -2722,8 +2665,7 @@ stores:
   enabled: false
   verified: false
   batch: expansion_home_appliances
-  notes: 'DNS/ConnectError ([SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
-    )'
+  notes: 'DNS/ConnectError ([SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: )'
 - store_key: mobile_masr
   display_name: Mobile Masr
   platform: custom
@@ -2961,12 +2903,15 @@ stores:
   base_url: https://mobilaty.com
   category: electronics
   vertical: core
-  region_mode: cloud
+  region_mode: local_only
   enabled: false
   verified: false
-  batch: expansion_electronics
+  batch: local_electronics
   max_products: 1200
-  notes: Rate-limited/blocked on larger pagination during Wave 2
+  notes: WAF / HTTP 403 throttling on /wp-json/wc/store/v1/products from local IP; disabled to avoid silent failures
+  config:
+    use_impersonation: true
+    min_delay_seconds: 2.0
 - store_key: grow_eg
   display_name: Grow Egypt
   platform: shopify

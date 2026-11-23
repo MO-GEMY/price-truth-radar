@@ -28,6 +28,7 @@ from .base import (
     upsert_snapshots_to_neon,
 )
 from .btech import BTechScraper
+from .expansion_stores import EXPANSION_SCRAPER_CLASSES
 from .groceries import (
     GROCERY_SUB_CATEGORIES,
     compute_grocery_barcode_key,
@@ -91,6 +92,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     TownTeamScraper.store_name: TownTeamScraper,
     TwoBScraper.store_name: TwoBScraper,
     **{cls.store_name: cls for cls in PLATFORM_SCRAPER_CLASSES},
+    **{cls.store_name: cls for cls in EXPANSION_SCRAPER_CLASSES},
 }
 
 # Dynamically register any enabled platform stores declared in `stores_registry.yaml`
