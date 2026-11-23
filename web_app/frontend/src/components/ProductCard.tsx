@@ -8,6 +8,7 @@ import type { DataSource } from "@/lib/api";
 import { categoryLabelKey, productHref } from "@/lib/browse-state";
 import { formatNumber, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
+import { hasSufficientPriceHistory } from "@/lib/verdicts";
 import { PriceAlertModal } from "./PriceAlertModal";
 import { ProductImage } from "./ProductImage";
 import { StoreBadge } from "./StoreBadge";
@@ -24,8 +25,9 @@ export function ProductCard({ product, from, source }: { product: Product; from:
     ? formatSubCategory(product.sub_category, lang)
     : null;
   const delta = product.real_discount_pct;
-  const evidence = product.rolling_60d_median <= 0 ? null : Math.abs(delta) < 0.05
-    ? t(product.min_historical_price === product.max_historical_price ? "ui.limitedEvidence" : "ui.same")
+  const sufficientHistory = hasSufficientPriceHistory(product);
+  const evidence = !sufficientHistory || product.rolling_60d_median <= 0 ? null : Math.abs(delta) < 0.05
+    ? t("ui.same")
     : t(delta > 0 ? "ui.below" : "ui.above", { pct: formatPctPlain(Math.abs(delta), lang) });
   const variantCount = Math.max(1, product.variant_count ?? 1);
   const hasMultipleVariants = Boolean(product.has_multiple_variants || variantCount > 1);
@@ -76,7 +78,11 @@ export function ProductCard({ product, from, source }: { product: Product; from:
           {!product.in_stock && <p className="ptr-muted text-xs">{t("card.outOfStock")}</p>}
         </div>
         <div className="ptr-result-evidence">
-          <VerdictBadge verdict={product.discount_verdict} size="sm" />
+          {sufficientHistory ? (
+            <VerdictBadge verdict={product.discount_verdict} size="sm" />
+          ) : (
+            <span className="ptr-badge">{t("detail.baselineBadge")}</span>
+          )}
           {evidence && <p className="ptr-muted text-xs">{evidence}</p>}
         </div>
         <span className="ptr-result-action">{t("deals.viewTruth")} <ArrowUpRight size={14} aria-hidden="true" /></span>

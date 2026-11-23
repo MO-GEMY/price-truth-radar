@@ -170,6 +170,17 @@ metrics AS (
         COALESCE(hs.max_historical_price, cp.current_price)::NUMERIC(12,2) AS max_historical_price,
         COALESCE(hs.history_days, 1)::INTEGER AS history_days,
         hs.prior_45d_median,
+        -- Minimum historical evidence gate:
+        -- Require at least 3 distinct snapshot dates OR an observed price change across >= 2 dates
+        -- before emitting any historical verdict (FAKE_DISCOUNT, GENUINE_DEAL, ALL_TIME_LOW, PRESALE_HIKE).
+        (
+            COALESCE(hs.history_days, 1) >= 3
+            OR (
+                COALESCE(hs.history_days, 1) >= 2
+                AND COALESCE(hs.min_historical_price, cp.current_price)
+                    <> COALESCE(hs.max_historical_price, cp.current_price)
+            )
+        )::BOOLEAN AS has_sufficient_history,
         -- Automated variant-mixing anomaly guardrail:
         -- Suppresses false discount verdicts on legacy unsplit multi-variant SKUs exhibiting:
         --   1) Extreme historical price oscillation on the same product_sk (max/min >= 1.8), OR
@@ -264,7 +275,7 @@ SELECT
     claimed_discount_pct::NUMERIC(5,2) AS claimed_discount_pct,
     real_discount_pct::NUMERIC(5,2) AS real_discount_pct,
     CASE
-        WHEN variant_anomaly_flag
+        WHEN variant_anomaly_flag OR NOT has_sufficient_history
             THEN 'NORMAL_PRICE'
         WHEN claimed_discount_pct >= 10 AND real_discount_pct < 3
             THEN 'FAKE_DISCOUNT'

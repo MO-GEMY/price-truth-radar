@@ -12,6 +12,7 @@ import { useLanguage } from "@/lib/i18n";
 import { retailerHref } from "@/lib/offers";
 import { absoluteUrl } from "@/lib/site";
 import { storeDisplayName } from "@/lib/stores";
+import { hasSufficientPriceHistory } from "@/lib/verdicts";
 import { AlternativesTable } from "@/components/AlternativesTable";
 import { AttributesPanel } from "@/components/AttributesPanel";
 import { MockBanner } from "@/components/MockBanner";
@@ -65,7 +66,8 @@ export function ProductReceipt({ productSk, initial }: {
   const storeUrl = retailerHref(product.product_url);
   const compareReady = alternatives.some((offer) => offer.in_stock);
   const hasHistory = history.length > 1;
-  const median = hasHistory && product.rolling_60d_median > 0 ? product.rolling_60d_median : null;
+  const sufficientHistory = hasSufficientPriceHistory(product, history);
+  const median = sufficientHistory && product.rolling_60d_median > 0 ? product.rolling_60d_median : null;
   const delta = product.real_discount_pct;
   const takeaway = median === null ? null : Math.abs(delta) < 0.05 ? t("ui.same")
     : t(delta > 0 ? "ui.below" : "ui.above", { pct: formatPctPlain(Math.abs(delta), lang) });
@@ -165,7 +167,7 @@ export function ProductReceipt({ productSk, initial }: {
           <p className="ptr-price ptr-current-price"><bdi>{price}</bdi></p>
           {unit && <p className="text-sm ptr-muted"><bdi>{unit}</bdi></p>}
           {median !== null ? <VerdictBadge verdict={product.discount_verdict} /> : <span className="ptr-badge">
-            {t(history.length === 1 ? "detail.baselineBadge" : "ui.noHistory")}
+            {t(history.length >= 1 ? "detail.baselineBadge" : "ui.noHistory")}
           </span>}
           {timestamp && live && <p className="text-xs ptr-muted">{t("ui.lastChecked", { time: formatDateTime(timestamp, lang) })}</p>}
           {!product.in_stock && compareReady && <p className="text-sm">{t("ui.outOfStockHint")}</p>}
@@ -210,7 +212,15 @@ export function ProductReceipt({ productSk, initial }: {
             <summary className="ptr-link">{t("detail.whatMeans")}</summary>
             <p className="ptr-muted text-sm mt-2">{t(`explain.${product.discount_verdict}`)}</p>
           </details>}
-          {!hasHistory && <p className="text-sm ptr-muted">{t(history.length === 1 ? "detail.baselineBody" : "ui.noHistory")}</p>}
+          {!sufficientHistory && (
+            <p className="text-sm ptr-muted">
+              {history.length === 0
+                ? t("ui.noHistory")
+                : history.length === 1
+                  ? t("detail.baselineBody")
+                  : t("detail.baselineBodyFew", { count: formatNumber(history.length, lang) })}
+            </p>
+          )}
         </section>
       </div>
       <section id="alternatives" className="surface ptr-section">

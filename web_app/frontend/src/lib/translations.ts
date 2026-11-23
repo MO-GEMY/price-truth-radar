@@ -277,6 +277,8 @@ export const translations = {
     "detail.baselineTitle": "Tracking started on {date}",
     "detail.baselineBody":
       "There’s one recorded price so far. The trend will appear as more observations are recorded.",
+    "detail.baselineBodyFew":
+      "Price history is still building ({count} unchanged snapshots so far). Discount verdicts unlock once at least 3 days or a price change are observed.",
     "detail.baselineRecordedPrice": "First recorded price",
     "detail.baselineClaimedPrice": "Claimed original",
     "detail.baselineNextSnapshot": "Refresh cadence",
@@ -620,6 +622,8 @@ export const translations = {
     "detail.baselineTitle": "بدأ التتبع في {date}",
     "detail.baselineBody":
       "رصدنا سعر واحد لحد دلوقتي. مسار السعر هيظهر لما يتسجل عدد أكبر من الأسعار.",
+    "detail.baselineBodyFew":
+      "جاري تجميع سجل الأسعار (رصدنا نفس السعر في {count} لقطات لحد دلوقتي). تقييم الخصم بيتفعّل بعد ٣ أيام رصد على الأقل أو رصد تغيّر فعلي في السعر.",
     "detail.baselineRecordedPrice": "أول سعر مرصود",
     "detail.baselineClaimedPrice": "السعر المشطوب المعلن",
     "detail.baselineNextSnapshot": "وتيرة التحديث",
