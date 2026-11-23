@@ -78,6 +78,28 @@ models:
       - name: last_updated_at
         tests:
           - not_null
+      - name: parent_product_key
+        description: "Deterministic parent product identifier (store_name::parent_id) grouping sibling variants."
+        tests:
+          - not_null
+      - name: variant_label
+        description: "Human-readable variant/size label when available (e.g. '160x230 cm', '190x90')."
+      - name: variant_count
+        description: "Total known variants for the parent product (>= 1)."
+        tests:
+          - not_null
+      - name: has_multiple_variants
+        description: "TRUE when parent product has more than 1 variant."
+        tests:
+          - not_null
+      - name: min_variant_price
+        description: "Lowest EGP price across variants of the parent product."
+        tests:
+          - not_null
+      - name: max_variant_price
+        description: "Highest EGP price across variants of the parent product."
+        tests:
+          - not_null
 
   - name: fct_price_history
     description: "Daily price history time-series in gold schema with rolling 60-day median."

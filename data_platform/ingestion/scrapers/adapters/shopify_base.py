@@ -184,6 +184,48 @@ def _extract_fashion_sizes(raw_product: dict[str, Any]) -> tuple[list[str], int]
     return avail_sizes, len(all_sizes)
 
 
+_DEFAULT_VARIANT_TITLES = frozenset({"default title", "default", "title", ""})
+
+
+def _clean_variant_label(raw_variant: dict[str, Any]) -> Optional[str]:
+    """Build a concise human-readable variant label (e.g. '160x230 cm' or 'Beige / 150*80 سم')."""
+    raw_title = re.sub(r"\s+", " ", str(raw_variant.get("title") or "")).strip()
+    if raw_title and raw_title.lower() not in _DEFAULT_VARIANT_TITLES:
+        return raw_title[:80]
+    parts: list[str] = []
+    for pos in (1, 2, 3):
+        val = re.sub(r"\s+", " ", str(raw_variant.get(f"option{pos}") or "")).strip()
+        if val and val.lower() not in _DEFAULT_VARIANT_TITLES and val not in parts:
+            parts.append(val)
+    if not parts:
+        return None
+    return " / ".join(parts)[:80]
+
+
+def _append_variant_to_title(base_title: str, variant_label: Optional[str]) -> str:
+    if not variant_label:
+        return base_title
+    if variant_label.lower() in base_title.lower():
+        return base_title
+    return f"{base_title} — {variant_label}"
+
+
+def _sample_price_variants(
+    candidates: list[tuple[dict[str, Any], Decimal, Optional[str]]],
+    max_variants: int,
+) -> list[tuple[dict[str, Any], Decimal, Optional[str]]]:
+    """Keep all distinct price-bearing variants up to `max_variants`, preserving min & max tiers."""
+    if len(candidates) <= max_variants:
+        return candidates
+    # Sort deterministically by (price, variant_id) and sample evenly including min and max
+    ordered = sorted(candidates, key=lambda item: (item[1], str(item[0].get("id") or "")))
+    if max_variants <= 1:
+        return [ordered[0]]
+    step = (len(ordered) - 1) / (max_variants - 1)
+    picked_indices = sorted({round(i * step) for i in range(max_variants)})
+    return [ordered[idx] for idx in picked_indices]
+
+
 class ShopifyBaseScraper(BaseScraper):
     """Config-driven Shopify `/products.json` & `/collections/{handle}/products.json` scraper."""
 
@@ -196,6 +238,7 @@ class ShopifyBaseScraper(BaseScraper):
     discover_limit: int = 950
     groceries_limit: int = 180
     discover_groceries_limit: int = 750
+    max_variants_per_product: int = 12
     supported_verticals: tuple[ScrapeVertical, ...] = ("fashion",)
     collection_handles: tuple[tuple[str, Category, str], ...] = ()  # (sub_category, category, handle)
     min_delay_seconds: float = 1.2
@@ -226,87 +269,60 @@ class ShopifyBaseScraper(BaseScraper):
                 return mapped
         return default_sub or (normalize_snake_slug(product_type, fallback="accessories", max_len=60) if product_type else "accessories")
 
-    def _parse_product(
+    def _parse_product_variants(
         self,
         raw: dict[str, Any],
         cat: Category,
         default_sub: Optional[str],
         snapshot_date: Any,
         scraped_at: datetime,
-    ) -> Optional[RawProductSnapshot]:
+    ) -> list[RawProductSnapshot]:
+        """Parse a Shopify product JSON object into one or more variant-safe snapshots.
+
+        - Price-differentiated multi-variant products (e.g. rugs 120x180 vs 200x300,
+          mattresses, perfumes 50ml vs 100ml, pet food 300g vs 15kg) emit one
+          deterministic `RawProductSnapshot` per distinct variant (`{pid}__v{vid}`),
+          pairing `current_price` and `compare_at_price` strictly from that same variant.
+        - Single-variant and uniform-price multi-variant products (e.g. apparel S/M/L
+          at the exact same EGP price) emit one consolidated snapshot preserving
+          `available_sizes` / `total_sizes` and full variant rollup metadata.
+        """
         pid = raw.get("id")
         handle = str(raw.get("handle") or "").strip()
         title = re.sub(r"\s+", " ", str(raw.get("title") or "")).strip()
         if not pid or not handle or len(title) < 3:
-            return None
+            return []
 
         variants = raw.get("variants") if isinstance(raw.get("variants"), list) else []
         if not variants:
-            return None
+            return []
 
-        # Strict single-variant pairing: pick ONE representative variant (prefer the first
-        # in-stock variant with a valid EGP price; fallback to the first valid variant if all
-        # are OOS) and extract BOTH current_price AND compare_at_price from THAT SAME variant.
-        # Never mix min(price) across variants with max(compare_at_price) from a larger variant.
-        selected_variant: Optional[dict[str, Any]] = None
-        selected_price: Optional[Decimal] = None
-        fallback_variant: Optional[dict[str, Any]] = None
-        fallback_price: Optional[Decimal] = None
+        valid_variants: list[tuple[dict[str, Any], Decimal, Optional[str]]] = []
         any_available = False
-
         for v in variants:
             if not isinstance(v, dict):
                 continue
             p = parse_egp_price(v.get("price"))
             if p is None:
                 continue
-            is_avail = bool(v.get("available"))
-            if is_avail:
+            if bool(v.get("available")):
                 any_available = True
-                if selected_variant is None:
-                    selected_variant = v
-                    selected_price = p
-            if fallback_variant is None:
-                fallback_variant = v
-                fallback_price = p
+            valid_variants.append((v, p, _clean_variant_label(v)))
 
-        if selected_variant is None:
-            selected_variant = fallback_variant
-            selected_price = fallback_price
+        if not valid_variants:
+            return []
 
-        if selected_variant is None or selected_price is None:
-            return None
+        all_prices = [p for _, p, _ in valid_variants]
+        min_variant_price = min(all_prices)
+        max_variant_price = max(all_prices)
+        variant_count = len(valid_variants)
+        parent_product_key = f"{self.store_name}::{pid}"
+        split_by_variant = variant_count > 1 and max_variant_price > min_variant_price
 
-        current_price = selected_price
-        raw_compare = parse_egp_price(selected_variant.get("compare_at_price"))
-        claimed_original = (
-            raw_compare
-            if (raw_compare is not None and raw_compare > current_price)
-            else None
-        )
-
-        first_sku = str(selected_variant.get("sku") or "").strip()
-        first_barcode = ""
-        raw_bc = str(selected_variant.get("barcode") or "").strip()
-        if raw_bc:
-            cand_bc = re.sub(r"\D", "", raw_bc)
-            if _EAN_RE.match(cand_bc):
-                first_barcode = cand_bc
-        if not first_sku or not first_barcode:
-            for v in variants:
-                if not isinstance(v, dict):
-                    continue
-                if not first_sku and v.get("sku"):
-                    first_sku = str(v["sku"]).strip()
-                if not first_barcode and v.get("barcode"):
-                    cand_bc = re.sub(r"\D", "", str(v["barcode"]).strip())
-                    if _EAN_RE.match(cand_bc):
-                        first_barcode = cand_bc
-
-        image_url: Optional[str] = None
+        base_image_url: Optional[str] = None
         images = raw.get("images")
         if isinstance(images, list) and images and isinstance(images[0], dict) and images[0].get("src"):
-            image_url = str(images[0]["src"]).strip()
+            base_image_url = str(images[0]["src"]).strip()
 
         vendor = str(raw.get("vendor") or "").strip()
         product_type = str(raw.get("product_type") or "").strip()
@@ -319,40 +335,142 @@ class ShopifyBaseScraper(BaseScraper):
             brand = vendor or self.default_brand or "Unknown"
 
         sub_category = self._resolve_sub_category(title, product_type, default_sub, cat)
-        attrs: dict[str, Any] = {}
-        if product_type:
-            attrs["shopify_product_type"] = product_type
-        if first_sku:
-            attrs["sku"] = first_sku
-        if first_barcode:
-            attrs["ean"] = first_barcode
+        base_product_url = f"{self.base_url.rstrip('/')}/products/{handle}"
 
-        if cat == "fashion":
-            avail_sizes, total_sizes = _extract_fashion_sizes(raw)
-            attrs["available_sizes"] = avail_sizes
-            attrs["total_sizes"] = total_sizes
-        elif cat == "groceries":
-            attrs.update(parse_grocery_packaging(title, raw_payload={"ean": first_barcode} if first_barcode else None))
+        if split_by_variant:
+            # Deduplicate variants that share identical (price, normalized_label) so
+            # e.g. 5 colors of the same rug size at the same price don't bloat snapshots,
+            # preferring in-stock representatives first.
+            deduped: list[tuple[dict[str, Any], Decimal, Optional[str]]] = []
+            seen_tier: set[tuple[Decimal, str]] = set()
+            for v, p, lbl in valid_variants:
+                tier_key = (p, (lbl or "").lower())
+                if tier_key in seen_tier:
+                    continue
+                seen_tier.add(tier_key)
+                deduped.append((v, p, lbl))
 
-        return self.validate_record(
-            {
-                "store_name": self.store_name,
-                "external_id": str(pid)[:120],
-                "canonical_product_key": None,
-                "category": cat,
-                "sub_category": sub_category,
-                "brand": brand[:100],
-                "product_title": title,
-                "product_url": f"{self.base_url.rstrip('/')}/products/{handle}",
-                "image_url": image_url,
-                "attributes_json": attrs,
-                "current_price": current_price,
-                "claimed_original_price": claimed_original,
-                "in_stock": any_available,
-                "snapshot_date": snapshot_date,
-                "scraped_at": scraped_at,
+            # If multiple distinct variants exist with distinct labels/prices, emit up to cap
+            emitted_variants = _sample_price_variants(deduped, self.max_variants_per_product)
+        else:
+            # Single-variant or uniform-price multi-variant: prefer first in-stock variant
+            chosen = next(
+                (item for item in valid_variants if bool(item[0].get("available"))),
+                valid_variants[0],
+            )
+            emitted_variants = [chosen]
+
+        records: list[RawProductSnapshot] = []
+        for v, current_price, variant_label in emitted_variants:
+            raw_vid = v.get("id")
+            vid_str = str(raw_vid).strip() if raw_vid is not None else ""
+            raw_compare = parse_egp_price(v.get("compare_at_price"))
+            claimed_original = (
+                raw_compare
+                if (raw_compare is not None and raw_compare > current_price)
+                else None
+            )
+
+            sku = str(v.get("sku") or "").strip()
+            barcode = ""
+            raw_bc = str(v.get("barcode") or "").strip()
+            if raw_bc:
+                cand_bc = re.sub(r"\D", "", raw_bc)
+                if _EAN_RE.match(cand_bc):
+                    barcode = cand_bc
+            if not split_by_variant and (not sku or not barcode):
+                for other_v, _, _ in valid_variants:
+                    if not sku and other_v.get("sku"):
+                        sku = str(other_v["sku"]).strip()
+                    if not barcode and other_v.get("barcode"):
+                        cand_bc = re.sub(r"\D", "", str(other_v["barcode"]).strip())
+                        if _EAN_RE.match(cand_bc):
+                            barcode = cand_bc
+
+            variant_img = base_image_url
+            feat_img = v.get("featured_image")
+            if isinstance(feat_img, dict) and feat_img.get("src"):
+                cand_img = str(feat_img["src"]).strip()
+                if cand_img.startswith("http"):
+                    variant_img = cand_img
+
+            if split_by_variant:
+                if vid_str:
+                    ext_id = f"{pid}__v{vid_str}"[:120]
+                    product_url = f"{base_product_url}?variant={vid_str}"
+                else:
+                    slug_lbl = normalize_snake_slug(variant_label or str(current_price), fallback="var", max_len=40)
+                    ext_id = f"{pid}__v_{slug_lbl}"[:120]
+                    product_url = base_product_url
+                rec_title = _append_variant_to_title(title, variant_label)
+                rec_in_stock = bool(v.get("available"))
+            else:
+                ext_id = str(pid)[:120]
+                product_url = base_product_url
+                rec_title = title
+                rec_in_stock = any_available
+
+            attrs: dict[str, Any] = {
+                "parent_product_key": parent_product_key,
+                "variant_count": variant_count,
+                "variant_min_price": float(min_variant_price),
+                "variant_max_price": float(max_variant_price),
             }
-        )
+            if vid_str:
+                attrs["variant_id"] = vid_str
+            if variant_label:
+                attrs["variant_label"] = variant_label
+            if product_type:
+                attrs["shopify_product_type"] = product_type
+            if sku:
+                attrs["sku"] = sku
+            if barcode:
+                attrs["ean"] = barcode
+
+            if cat == "fashion":
+                avail_sizes, total_sizes = _extract_fashion_sizes(raw)
+                attrs["available_sizes"] = avail_sizes
+                attrs["total_sizes"] = total_sizes
+            elif cat == "groceries":
+                attrs.update(parse_grocery_packaging(rec_title, raw_payload={"ean": barcode} if barcode else None))
+
+            rec = self.validate_record(
+                {
+                    "store_name": self.store_name,
+                    "external_id": ext_id,
+                    "canonical_product_key": None,
+                    "category": cat,
+                    "sub_category": sub_category,
+                    "brand": brand[:100],
+                    "product_title": rec_title,
+                    "product_url": product_url,
+                    "image_url": variant_img,
+                    "attributes_json": attrs,
+                    "current_price": current_price,
+                    "claimed_original_price": claimed_original,
+                    "in_stock": rec_in_stock,
+                    "snapshot_date": snapshot_date,
+                    "scraped_at": scraped_at,
+                }
+            )
+            if rec is not None:
+                records.append(rec)
+
+        return records
+
+    def _parse_product(
+        self,
+        raw: dict[str, Any],
+        cat: Category,
+        default_sub: Optional[str],
+        snapshot_date: Any,
+        scraped_at: datetime,
+    ) -> Optional[RawProductSnapshot]:
+        """Single-record helper returning the first in-stock (or first) parsed variant."""
+        recs = self._parse_product_variants(raw, cat, default_sub, snapshot_date, scraped_at)
+        if not recs:
+            return None
+        return next((r for r in recs if r.in_stock), recs[0])
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
         target_limit = self.get_target_limit() if limit is None else limit
@@ -406,9 +524,9 @@ class ShopifyBaseScraper(BaseScraper):
                 for raw in products:
                     if not isinstance(raw, dict):
                         continue
-                    rec = self._parse_product(raw, cat, default_sub, snapshot_date, scraped_at)
-                    if rec is not None and rec.external_id not in seen_ids:
-                        page_records.append(rec)
+                    for rec in self._parse_product_variants(raw, cat, default_sub, snapshot_date, scraped_at):
+                        if rec.external_id not in seen_ids:
+                            page_records.append(rec)
 
                 page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
                 added = 0

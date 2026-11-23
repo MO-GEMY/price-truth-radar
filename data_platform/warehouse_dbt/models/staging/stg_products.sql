@@ -185,6 +185,30 @@ cleaned AS (
         TRIM(product_url)::TEXT AS product_url,
         NULLIF(TRIM(image_url), '')::TEXT AS image_url,
         attributes_json::JSONB AS attributes_json,
+        COALESCE(
+            NULLIF(TRIM(attributes_json::JSONB ->> 'parent_product_key'), ''),
+            store_name || '::' || REGEXP_REPLACE(external_id, '__v.*$', '')
+        )::VARCHAR AS parent_product_key,
+        NULLIF(TRIM(attributes_json::JSONB ->> 'variant_id'), '')::VARCHAR AS variant_id,
+        NULLIF(TRIM(attributes_json::JSONB ->> 'variant_label'), '')::VARCHAR AS variant_label,
+        CASE
+            WHEN (attributes_json::JSONB ->> 'variant_count') ~ '^[0-9]+$'
+                 AND (attributes_json::JSONB ->> 'variant_count')::INTEGER > 0
+                THEN (attributes_json::JSONB ->> 'variant_count')::INTEGER
+            ELSE NULL::INTEGER
+        END AS attr_variant_count,
+        CASE
+            WHEN (attributes_json::JSONB ->> 'variant_min_price') ~ '^[0-9]+(\.[0-9]+)?$'
+                 AND (attributes_json::JSONB ->> 'variant_min_price')::NUMERIC > 0
+                THEN (attributes_json::JSONB ->> 'variant_min_price')::NUMERIC(12,2)
+            ELSE NULL::NUMERIC(12,2)
+        END AS attr_variant_min_price,
+        CASE
+            WHEN (attributes_json::JSONB ->> 'variant_max_price') ~ '^[0-9]+(\.[0-9]+)?$'
+                 AND (attributes_json::JSONB ->> 'variant_max_price')::NUMERIC > 0
+                THEN (attributes_json::JSONB ->> 'variant_max_price')::NUMERIC(12,2)
+            ELSE NULL::NUMERIC(12,2)
+        END AS attr_variant_max_price,
         current_price::NUMERIC(12,2) AS current_price,
         CASE
             WHEN claimed_original_price IS NOT NULL
@@ -275,6 +299,12 @@ SELECT
     product_url,
     image_url,
     attributes_json,
+    parent_product_key,
+    variant_id,
+    variant_label,
+    attr_variant_count,
+    attr_variant_min_price,
+    attr_variant_max_price,
     current_price,
     claimed_original_price,
     in_stock,

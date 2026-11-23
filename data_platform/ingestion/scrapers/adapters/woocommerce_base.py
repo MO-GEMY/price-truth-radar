@@ -81,6 +81,35 @@ def _parse_wc_minor_price(raw_val: Any, minor_unit: int) -> Optional[Decimal]:
     return val
 
 
+def _format_wc_variation_label(variation: dict[str, Any]) -> Optional[str]:
+    """Build a concise variant label from WooCommerce variation `attributes`."""
+    raw_attrs = variation.get("attributes")
+    if not isinstance(raw_attrs, list):
+        return None
+    parts: list[str] = []
+    for attr in raw_attrs:
+        if not isinstance(attr, dict):
+            continue
+        val = html_lib.unescape(str(attr.get("value") or "")).strip()
+        if val and val not in parts:
+            parts.append(val)
+    if not parts:
+        return None
+    # Join numeric dimensions cleanly (e.g. Length=190, Width=90 -> "190x90")
+    if len(parts) == 2 and all(re.fullmatch(r"\d+(?:\.\d+)?", p) for p in parts):
+        return f"{parts[0]}x{parts[1]}"[:80]
+    return " / ".join(parts)[:80]
+
+
+def _extract_wc_price_range(prices: dict[str, Any], minor_unit: int) -> tuple[Optional[Decimal], Optional[Decimal]]:
+    price_range = prices.get("price_range")
+    if not isinstance(price_range, dict):
+        return None, None
+    min_amt = _parse_wc_minor_price(price_range.get("min_amount"), minor_unit)
+    max_amt = _parse_wc_minor_price(price_range.get("max_amount"), minor_unit)
+    return min_amt, max_amt
+
+
 def _extract_wc_paired_prices(item: dict[str, Any]) -> tuple[Optional[Decimal], Optional[Decimal]]:
     """Extract (current_price, claimed_original_price) without cross-variant mixing.
 
@@ -211,27 +240,39 @@ class WooCommerceBaseScraper(BaseScraper):
     discover_limit: int = 800
     groceries_limit: int = 180
     discover_groceries_limit: int = 750
+    max_variants_per_product: int = 12
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds: float = 1.5
     request_timeout: float = 25.0
     per_page: int = 40
 
-    def _parse_item(
+    def _parse_item_variants(
         self,
         item: dict[str, Any],
         snapshot_date: Any,
         scraped_at: datetime,
-    ) -> Optional[RawProductSnapshot]:
+    ) -> list[RawProductSnapshot]:
+        """Parse a WooCommerce Store API product into variant-safe snapshots.
+
+        - When variations include embedded per-variation `prices` with distinct price tiers,
+          emits one deterministic snapshot per variation (`{pid}__v{vid}`) with strict
+          single-variation `(price, regular_price)` pairing.
+        - For standard Store API variable products (which expose `price_range` + `variations`
+          metadata without per-variation prices), emits a deterministic base-tier snapshot
+          with `claimed_original_price = None` whenever `max_amount > min_amount`, plus full
+          structured variant rollup metadata in `attributes_json`.
+        """
         pid = item.get("id")
         permalink = str(item.get("permalink") or "").strip()
         raw_name = html_lib.unescape(str(item.get("name") or ""))
         title = re.sub(r"\s+", " ", raw_name).strip()
         if not pid or not permalink.startswith("http") or len(title) < 3:
-            return None
+            return []
 
-        current_price, claimed_original = _extract_wc_paired_prices(item)
-        if current_price is None:
-            return None
+        prices = item.get("prices") if isinstance(item.get("prices"), dict) else {}
+        raw_minor = prices.get("currency_minor_unit")
+        minor_unit = int(raw_minor) if raw_minor is not None else 2
+        range_min, range_max = _extract_wc_price_range(prices, minor_unit)
 
         image_url: Optional[str] = None
         images = item.get("images")
@@ -263,7 +304,112 @@ class WooCommerceBaseScraper(BaseScraper):
             brand = (self.default_brand if self.override_brand else None) or raw_brand or self.default_brand or (title.split(" ", 1)[0][:100] if title else "Unknown")
         sub_category = _infer_wc_sub_category(cat, title, cat_names)
 
-        attrs: dict[str, Any] = {}
+        parent_product_key = f"{self.store_name}::{pid}"
+        variations = item.get("variations") if isinstance(item.get("variations"), list) else []
+        dict_variations = [v for v in variations if isinstance(v, dict)]
+        priced_vars = [
+            v for v in dict_variations
+            if isinstance(v.get("prices"), dict) and v["prices"].get("price") is not None
+        ]
+
+        # Path 1: Embedded per-variation prices with price differentiation
+        if priced_vars:
+            parsed_vars: list[tuple[dict[str, Any], Decimal, Optional[Decimal], Optional[str]]] = []
+            for v in priced_vars:
+                vp = v["prices"]
+                v_minor = int(vp["currency_minor_unit"]) if vp.get("currency_minor_unit") is not None else minor_unit
+                cur = _parse_wc_minor_price(vp.get("price"), v_minor)
+                if cur is None:
+                    continue
+                reg = _parse_wc_minor_price(vp.get("regular_price"), v_minor)
+                on_sale = v.get("on_sale")
+                claimed = reg if (reg is not None and reg > cur and on_sale is not False) else None
+                parsed_vars.append((v, cur, claimed, _format_wc_variation_label(v)))
+
+            if parsed_vars:
+                v_prices = [x[1] for x in parsed_vars]
+                v_min, v_max = min(v_prices), max(v_prices)
+                v_count = max(len(dict_variations), len(parsed_vars))
+                split_vars = len(parsed_vars) > 1 and v_max > v_min
+                emitted = parsed_vars[: self.max_variants_per_product] if split_vars else [
+                    next((x for x in parsed_vars if x[0].get("is_in_stock", True) is not False), parsed_vars[0])
+                ]
+                out: list[RawProductSnapshot] = []
+                for v, cur, claimed, vlabel in emitted:
+                    vid_str = str(v.get("id") or "").strip()
+                    ext_id = f"{pid}__v{vid_str}"[:120] if (split_vars and vid_str) else (ean or str(pid))[:120]
+                    rec_title = f"{title} — {vlabel}" if (split_vars and vlabel and vlabel.lower() not in title.lower()) else title
+                    attrs: dict[str, Any] = {
+                        "parent_product_key": parent_product_key,
+                        "variant_count": v_count,
+                        "variant_min_price": float(v_min),
+                        "variant_max_price": float(v_max),
+                    }
+                    if vid_str:
+                        attrs["variant_id"] = vid_str
+                    if vlabel:
+                        attrs["variant_label"] = vlabel
+                    if cat_names:
+                        attrs[f"{self.store_name}_category"] = cat_names[0]
+                    v_sku = str(v.get("sku") or sku).strip()
+                    if v_sku:
+                        attrs["sku"] = v_sku
+                    if ean:
+                        attrs["ean"] = ean
+                    if cat == "groceries":
+                        attrs.update(parse_grocery_packaging(rec_title, raw_payload={"ean": ean} if ean else None))
+                    rec = self.validate_record(
+                        {
+                            "store_name": self.store_name,
+                            "external_id": ext_id,
+                            "canonical_product_key": None,
+                            "category": cat,
+                            "sub_category": sub_category,
+                            "brand": brand[:100],
+                            "product_title": rec_title,
+                            "product_url": permalink,
+                            "image_url": image_url,
+                            "attributes_json": attrs,
+                            "current_price": cur,
+                            "claimed_original_price": claimed,
+                            "in_stock": bool(v.get("is_in_stock", item.get("is_in_stock", True))),
+                            "snapshot_date": snapshot_date,
+                            "scraped_at": scraped_at,
+                        }
+                    )
+                    if rec is not None:
+                        out.append(rec)
+                return out
+
+        # Path 2: Standard Store API simple or variable product
+        current_price, claimed_original = _extract_wc_paired_prices(item)
+        if current_price is None:
+            return []
+
+        item_type = str(item.get("type") or "").strip().lower()
+        has_spread = range_min is not None and range_max is not None and range_max > range_min
+        variant_count = max(1, len(dict_variations))
+        variant_min = range_min if range_min is not None else current_price
+        variant_max = range_max if range_max is not None else current_price
+        first_var = dict_variations[0] if dict_variations else None
+        first_vid = str(first_var.get("id") or "").strip() if first_var else str(pid)
+        first_vlabel = _format_wc_variation_label(first_var) if first_var else None
+
+        if (item_type == "variable" or has_spread) and first_var is not None and has_spread:
+            ext_id = f"{pid}__v{first_vid}"[:120] if first_vid else f"{pid}__min"[:120]
+        else:
+            ext_id = (ean or str(pid))[:120]
+
+        attrs = {
+            "parent_product_key": parent_product_key,
+            "variant_count": variant_count,
+            "variant_min_price": float(variant_min),
+            "variant_max_price": float(variant_max),
+        }
+        if first_vid:
+            attrs["variant_id"] = first_vid
+        if first_vlabel:
+            attrs["variant_label"] = first_vlabel
         if cat_names:
             attrs[f"{self.store_name}_category"] = cat_names[0]
         if sku:
@@ -275,10 +421,10 @@ class WooCommerceBaseScraper(BaseScraper):
 
         in_stock = bool(item.get("is_in_stock", True))
 
-        return self.validate_record(
+        rec = self.validate_record(
             {
                 "store_name": self.store_name,
-                "external_id": (ean or str(pid))[:120],
+                "external_id": ext_id,
                 "canonical_product_key": None,
                 "category": cat,
                 "sub_category": sub_category,
@@ -294,6 +440,16 @@ class WooCommerceBaseScraper(BaseScraper):
                 "scraped_at": scraped_at,
             }
         )
+        return [rec] if rec is not None else []
+
+    def _parse_item(
+        self,
+        item: dict[str, Any],
+        snapshot_date: Any,
+        scraped_at: datetime,
+    ) -> Optional[RawProductSnapshot]:
+        recs = self._parse_item_variants(item, snapshot_date, scraped_at)
+        return recs[0] if recs else None
 
     def _parse_wp_rest_item(
         self,
@@ -414,13 +570,14 @@ class WooCommerceBaseScraper(BaseScraper):
             for raw in payload:
                 if not isinstance(raw, dict):
                     continue
-                rec = (
-                    self._parse_wp_rest_item(raw, snapshot_date, scraped_at)
-                    if use_wp_fallback
-                    else self._parse_item(raw, snapshot_date, scraped_at)
-                )
-                if rec is not None and rec.external_id not in seen_ids:
-                    page_records.append(rec)
+                if use_wp_fallback:
+                    rec = self._parse_wp_rest_item(raw, snapshot_date, scraped_at)
+                    if rec is not None and rec.external_id not in seen_ids:
+                        page_records.append(rec)
+                else:
+                    for rec in self._parse_item_variants(raw, snapshot_date, scraped_at):
+                        if rec.external_id not in seen_ids:
+                            page_records.append(rec)
 
             page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
             added = 0
