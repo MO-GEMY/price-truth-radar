@@ -82,9 +82,10 @@ export async function fetchJson<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
   signal?: AbortSignal,
+  timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const onOuterAbort = () => controller.abort();
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener("abort", onOuterAbort, { once: true });
@@ -192,6 +193,7 @@ export async function fetchSearch(
 export async function fetchProductDetail(
   productSk: string,
   signal?: AbortSignal,
+  timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<ApiResult<ProductDetailResponse>> {
   if (!isApiConfigured()) {
     const mock = mockProductDetail(productSk);
@@ -199,7 +201,10 @@ export async function fetchProductDetail(
     return { data: mock, source: "mock" };
   }
   const data = await fetchJson<ProductDetailResponse>(
-    `/api/v1/products/${encodeURIComponent(productSk)}`, undefined, signal,
+    `/api/v1/products/${encodeURIComponent(productSk)}`,
+    undefined,
+    signal,
+    timeoutMs,
   );
   return { data, source: "api" };
 }
@@ -394,12 +399,21 @@ export interface SitemapEntry {
  * Returns null when the endpoint is missing (sitemap.ts falls back to the
  * core static routes).
  */
-export async function fetchSitemapEntries(signal?: AbortSignal): Promise<SitemapEntry[] | null> {
+export async function fetchSitemapEntries(
+  signal?: AbortSignal,
+  timeoutMs = 4500,
+): Promise<SitemapEntry[] | null> {
   if (!isApiConfigured()) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onOuterAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onOuterAbort, { once: true });
+
   try {
     const res = await fetch(`${API_BASE}/api/seo/sitemap-entries`, {
       headers: { Accept: "application/json" },
-      signal,
+      signal: controller.signal,
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -407,7 +421,7 @@ export async function fetchSitemapEntries(signal?: AbortSignal): Promise<Sitemap
     const list = Array.isArray(body) ? body : body?.products ?? body?.entries ?? body?.items;
     if (!Array.isArray(list)) return null;
     const entries: SitemapEntry[] = [];
-    for (const item of list.slice(0, 5000)) {
+    for (const item of list.slice(0, 1000)) {
       if (typeof item === "string") {
         entries.push({ loc: item });
         continue;
@@ -427,5 +441,8 @@ export async function fetchSitemapEntries(signal?: AbortSignal): Promise<Sitemap
     return entries;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onOuterAbort);
   }
 }

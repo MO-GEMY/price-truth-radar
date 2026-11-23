@@ -1,26 +1,36 @@
 import type { Metadata } from "next";
-import { SITE_NAME, absoluteUrl } from "@/lib/site";
+import {
+  LAUNCH_PRODUCT_COUNT,
+  LAUNCH_STORE_COUNT,
+  SITE_NAME_AR,
+  SITE_NAME_BILINGUAL,
+  absoluteUrl,
+} from "@/lib/site";
 
-const title = "Price highlights";
-const description = "Selected listings with recorded price evidence from tracked retailers in Egypt.";
+const title = `عروض حقيقية وكشف الخصومات الوهمية — Verified Deals & Fake Discounts`;
+const description = `اكتشف الخصومات الحقيقية واكشف العروض الوهمية مقابل سجل الأسعار لآخر 60 يوم عبر ${LAUNCH_STORE_COUNT} متجر مصري و${LAUNCH_PRODUCT_COUNT} منتج بالجنيه المصري — Verified real deals vs. inflated discounts across ${LAUNCH_STORE_COUNT} Egyptian stores.`;
+const url = absoluteUrl("/deals");
+const ogImage = absoluteUrl("/deals/opengraph-image");
 
 export const metadata: Metadata = {
   title,
   description,
-  alternates: { canonical: absoluteUrl("/deals") },
+  alternates: { canonical: url },
   openGraph: {
-    title,
+    title: `${title} | ${SITE_NAME_AR}`,
     description,
-    url: absoluteUrl("/deals"),
-    siteName: SITE_NAME,
-    locale: "en_EG",
-    alternateLocale: ["ar_EG"],
+    url,
+    siteName: SITE_NAME_BILINGUAL,
+    locale: "ar_EG",
+    alternateLocale: ["en_EG", "en_US"],
     type: "website",
+    images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
   },
   twitter: {
     card: "summary_large_image",
-    title,
+    title: `${title} | ${SITE_NAME_AR}`,
     description,
+    images: [ogImage],
   },
 };
 

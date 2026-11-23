@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
+import { buildProductJsonLd, serializeJsonLd } from "@/lib/jsonld";
 import { loadProduct } from "@/lib/product-server";
-import { productMetadata } from "./metadata";
+import { absoluteUrl } from "@/lib/site";
+import { buildProductDescription, productMetadata } from "./metadata";
 import { ProductReceipt } from "./receipt";
 
 interface ProductPageProps {
@@ -17,5 +19,31 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const [{ product_sk }, { sample }] = await Promise.all([params, searchParams]);
   const load = await loadProduct(product_sk, sample === "1");
   if (load.status === "missing") notFound();
-  return <ProductReceipt key={product_sk} productSk={product_sk} initial={load.status === "ready" ? load.result : null} />;
+
+  const jsonLd =
+    load.status === "ready" && load.result.source === "api"
+      ? serializeJsonLd(
+          buildProductJsonLd(
+            load.result.data,
+            absoluteUrl(`/products/${encodeURIComponent(product_sk)}`),
+            buildProductDescription(load.result.data),
+          ),
+        )
+      : null;
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
+      )}
+      <ProductReceipt
+        key={product_sk}
+        productSk={product_sk}
+        initial={load.status === "ready" ? load.result : null}
+      />
+    </>
+  );
 }

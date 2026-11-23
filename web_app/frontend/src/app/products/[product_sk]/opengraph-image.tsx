@@ -1,14 +1,12 @@
 import { makeOgResponse } from "@/lib/og";
-import { isStaleObservation, observedTimestamp } from "@/lib/highlights";
 import { loadProduct } from "@/lib/product-server";
+import { LAUNCH_PRODUCT_COUNT, LAUNCH_STORE_COUNT } from "@/lib/site";
 import { storeDisplayName } from "@/lib/stores";
 
-export const alt = "Price Truth Radar — product price truth card";
+export const alt = "Price Truth Radar — Product Price Receipt";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const runtime = "nodejs";
-
-
 
 export default async function OgImage({
   params,
@@ -18,18 +16,36 @@ export default async function OgImage({
   const { product_sk } = await params;
 
   const load = await loadProduct(product_sk);
-  const fallback = () => makeOgResponse({ title: "Check this price", footer: "Price history and matched offers in Egypt" });
+  const fallback = () =>
+    makeOgResponse({
+      eyebrow: "EGYPT · PRICE RECEIPT",
+      title: "Check Real Price History in Egypt",
+      subtitle: `Compare EGP prices across ${LAUNCH_STORE_COUNT} verified stores and ${LAUNCH_PRODUCT_COUNT} tracked products.`,
+    });
+
   if (load.status !== "ready" || load.result.source !== "api") return fallback();
   const { product } = load.result.data;
   const title = product.product_title.trim();
-  // The image renderer's bundled font cannot shape Arabic. The page and
-  // Open Graph text carry the complete listing name.
-  if (!title || !/^[\x20-\x7E\u00A0-\u024F\u2000-\u206F]+$/u.test(title)) return fallback();
-  const timestamp = observedTimestamp(product.last_updated_at);
-  const price = timestamp && !isStaleObservation(timestamp)
-    ? `EGP ${product.current_price.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : undefined;
+
+  // Bundled Satori font only shapes Latin characters; Arabic titles fall back cleanly
+  // while OG/Twitter tags carry the full Arabic title and verified HTTPS product photo.
+  if (!title || !/^[\x20-\x7E\u00A0-\u024F\u2000-\u206F]+$/u.test(title)) {
+    return fallback();
+  }
+
+  const price =
+    Number.isFinite(product.current_price) && product.current_price > 0
+      ? `EGP ${product.current_price.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
+      : undefined;
+
   try {
-    const image = makeOgResponse({ title, store: storeDisplayName(product.store_name, "en"), price });
+    const image = makeOgResponse({
+      eyebrow: "LIVE PRICE RECEIPT · EGP",
+      title,
+      store: storeDisplayName(product.store_name, "en"),
+      price,
+      footer: "Verified against recorded price history & matched Egyptian stores",
+    });
     return new Response(await image.arrayBuffer(), { headers: image.headers });
   } catch {
     return fallback();

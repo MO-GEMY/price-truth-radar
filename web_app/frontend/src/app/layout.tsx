@@ -2,7 +2,15 @@ import type { Metadata, Viewport } from "next";
 import { Inter, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
-import { SITE_URL } from "@/lib/site";
+import {
+  DEFAULT_OG_IMAGE_PATH,
+  LAUNCH_PRODUCT_COUNT,
+  LAUNCH_STORE_COUNT,
+  SITE_NAME_AR,
+  SITE_NAME_BILINGUAL,
+  SITE_URL,
+  absoluteUrl,
+} from "@/lib/site";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -19,14 +27,65 @@ const plexArabic = IBM_Plex_Sans_Arabic({
   display: "swap",
 });
 
+const HOME_TITLE = `${SITE_NAME_AR} — اكشف الخصومات الوهمية وقارن أسعار ${LAUNCH_STORE_COUNT} متجر مصري | Price Truth Radar`;
+const HOME_DESCRIPTION = `تابع سجل الأسعار الحقيقي وقارن العروض بالجنيه المصري عبر ${LAUNCH_STORE_COUNT} متجر مصري وأكثر من ${LAUNCH_PRODUCT_COUNT} منتج في الإلكترونيات والأجهزة المنزلية والأزياء والهايبرماركت — Track real EGP price history across ${LAUNCH_STORE_COUNT} Egyptian stores and ${LAUNCH_PRODUCT_COUNT} products.`;
+const DEFAULT_OG_IMAGE = absoluteUrl(DEFAULT_OG_IMAGE_PATH);
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Price Truth Radar — Check a price",
-    template: "%s · Price Truth Radar",
+    default: HOME_TITLE,
+    template: `%s | ${SITE_NAME_AR}`,
   },
-  description:
-    "Check an Egyptian retailer’s price against its recorded price history and compare matched offers in EGP.",
+  description: HOME_DESCRIPTION,
+  applicationName: SITE_NAME_BILINGUAL,
+  keywords: [
+    "رادار الحقيقة السعرية",
+    "Price Truth Radar",
+    "مقارنة أسعار مصر",
+    "سجل الأسعار مصر",
+    "كشف الخصومات الوهمية",
+    "عروض البلاك فرايداي مصر",
+    "مقارنة أسعار أمازون ونون وبي تك",
+    "Egypt price tracker",
+    "EGP price history",
+  ],
+  alternates: {
+    canonical: absoluteUrl("/"),
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    url: absoluteUrl("/"),
+    siteName: SITE_NAME_BILINGUAL,
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    locale: "ar_EG",
+    alternateLocale: ["en_EG", "en_US"],
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: HOME_TITLE,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
+  },
 };
 
 export const viewport: Viewport = {
