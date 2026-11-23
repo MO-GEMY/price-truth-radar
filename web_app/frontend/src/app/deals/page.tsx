@@ -145,7 +145,7 @@ export default function DealsPage() {
       {current?.limited && <p className="ptr-notice">{t("deals.limited")}</p>}
       {stale && <p className="ptr-notice ptr-warning">{t("ui.stale")}</p>}
       {failed && <ErrorState onRetry={() => setAttempt((value) => value + 1)} />}
-      <section className="space-y-3" aria-busy={loading}>
+      <section className="min-w-0 space-y-3" aria-busy={loading}>
         {loading && <div role="status"><span className="sr-only">{t("common.loading")}</span>
           {[0, 1, 2].map((index) => <div key={index} className="skeleton my-3 h-32 rounded-lg" />)}</div>}
         {!loading && !failed && items.length === 0 && <p className="surface p-5" role="status">{t("deals.empty")}</p>}

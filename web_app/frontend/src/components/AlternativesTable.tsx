@@ -30,11 +30,11 @@ export function AlternativesTable({
         const storeUrl = retailerHref(offer.product_url);
         return (
           <li key={offer.product_sk} className="ptr-offer">
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <StoreBadge name={offer.store_name} size="sm" />
               <p className="ptr-muted text-xs">{t(offer.in_stock ? "detail.inStock" : "card.outOfStock")}</p>
             </div>
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <p className="ptr-price"><bdi>{formatPrice(offer.price, lang)}</bdi></p>
               {offer.unit_price_egp != null && offer.unit_price_unit && (
                 <p className="text-xs ptr-muted"><bdi>{formatPrice(offer.unit_price_egp, lang)} / {offer.unit_price_unit}</bdi></p>

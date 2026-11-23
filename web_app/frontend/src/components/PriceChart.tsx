@@ -53,15 +53,15 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
   const pad = Math.max((maximum - minimum) * 0.08, minimum * 0.02, 1);
 
   return (
-    <div className="space-y-4">
-      {ranges.length > 1 && <label className="ptr-control-label inline-grid">{t("ui.historyRange")}
+    <div className="min-w-0 max-w-full space-y-4">
+      {ranges.length > 1 && <label className="ptr-control-label inline-grid max-w-full">{t("ui.historyRange")}
         <select className="ptr-field" value={days} onChange={(event) => {
           setRange(ranges.find((option) => option === Number(event.target.value)) ?? 0);
         }}>
           {ranges.map((option) => <option value={option} key={option}>{t(rangeLabels[option])}</option>)}
         </select>
       </label>}
-      {visible.length > 1 && <figure aria-label={t("detail.history")}>
+      {visible.length > 1 && <figure className="min-w-0 max-w-full" aria-label={t("detail.history")}>
         <figcaption className="ptr-controls ptr-muted text-xs mb-3">
           {active.map((entry) => <span key={entry.key} className="inline-flex items-center gap-2">
             <span className="w-5 border-t-2" style={{ borderColor: entry.color, borderTopStyle: "dash" in entry ? "dashed" : "solid" }} aria-hidden="true" />
@@ -70,17 +70,19 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
         </figcaption>
         <div dir="ltr" className="ptr-chart">
           <ResponsiveContainer width="100%" height={260} minWidth={0}>
-            <LineChart data={visible} margin={{ top: 10, right: 14, bottom: 5, left: 4 }} accessibilityLayer>
+            <LineChart data={visible} margin={{ top: 10, right: 12, bottom: 5, left: 4 }} accessibilityLayer>
               <CartesianGrid stroke="#dcded4" vertical={false} />
               <XAxis dataKey="time" type="number" domain={["dataMin", "dataMax"]} scale="time"
                 tickFormatter={(value) => dayLabel(Number(value), lang)} tick={{ fill: "#52605a", fontSize: 11 }}
                 tickLine={false} minTickGap={35} />
-              <YAxis domain={[Math.max(0, minimum - pad), maximum + pad]} width={50}
+              <YAxis domain={[Math.max(0, minimum - pad), maximum + pad]} width={lang === "ar" ? 60 : 48}
                 tick={{ fill: "#52605a", fontSize: 11 }} tickLine={false} axisLine={false}
                 tickFormatter={(value) => new Intl.NumberFormat(lang === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
                   notation: "compact", maximumFractionDigits: 1,
                 }).format(Number(value))} />
-              <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #dcded4", borderRadius: 8 }}
+              <Tooltip
+                wrapperStyle={{ maxWidth: "calc(100vw - 48px)", whiteSpace: "normal", zIndex: 10 }}
+                contentStyle={{ backgroundColor: "#fff", border: "1px solid #dcded4", borderRadius: 8 }}
                 labelFormatter={(value) => dayLabel(Number(value), lang)}
                 formatter={(value) => formatPrice(Number(value), lang)} />
               {active.map((entry) => <Line key={entry.key} type="linear" dataKey={entry.key} name={t(entry.label)}
@@ -91,16 +93,18 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
           </ResponsiveContainer>
         </div>
       </figure>}
-      <details open={visible.length === 1 || undefined}>
+      <details open={visible.length === 1 || undefined} className="min-w-0 max-w-full">
         <summary className="ptr-link">{t("ui.recordedPrices")}</summary>
-        <table className="ptr-history-table">
-          <thead><tr><th scope="col">{t("ui.date")}</th>
-            {active.map((entry) => <th scope="col" key={entry.key}>{t(entry.label)}</th>)}</tr></thead>
-          <tbody>{visible.map((point, index) => <tr key={`${point.date}-${index}`}>
-            <th scope="row">{formatDate(point.date, lang)}</th>
-            {active.map((entry) => <td key={entry.key}><bdi>{formatPrice(point[entry.key], lang)}</bdi></td>)}
-          </tr>)}</tbody>
-        </table>
+        <div className="ptr-table-scroll">
+          <table className="ptr-history-table">
+            <thead><tr><th scope="col">{t("ui.date")}</th>
+              {active.map((entry) => <th scope="col" key={entry.key}>{t(entry.label)}</th>)}</tr></thead>
+            <tbody>{visible.map((point, index) => <tr key={`${point.date}-${index}`}>
+              <th scope="row">{formatDate(point.date, lang)}</th>
+              {active.map((entry) => <td key={entry.key}><bdi>{formatPrice(point[entry.key], lang)}</bdi></td>)}
+            </tr>)}</tbody>
+          </table>
+        </div>
       </details>
     </div>
   );

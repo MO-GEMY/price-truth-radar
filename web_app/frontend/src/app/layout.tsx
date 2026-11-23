@@ -30,6 +30,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
   themeColor: "#F7F5EF",
 };
 
@@ -54,9 +56,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen antialiased">
         <LanguageProvider>
-          <div className="flex min-h-screen flex-col">
+          <div className="flex min-h-screen min-w-0 flex-col">
             <Header />
-            <main id="main-content" tabIndex={-1} className="flex-1">{children}</main>
+            <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">{children}</main>
             <Footer />
           </div>
         </LanguageProvider>

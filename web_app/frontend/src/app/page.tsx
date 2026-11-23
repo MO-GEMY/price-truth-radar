@@ -132,7 +132,7 @@ export default function HomePage() {
               {t(`verdict.${value}`)} · <bdi>{formatNumber(count, lang)}</bdi>
             </button>)}
           </div>
-          <div className="ptr-controls">
+          <div className="ptr-controls ptr-stores-scroll">
             {storedStats.available_stores.map((name) => <button className="ptr-chip" type="button" key={name}
               onClick={() => { search.clear(); updateFilters({ category, verdict, sort, store: name }); scrollToResults(); }}>
               {storeDisplayName(name, lang)}
@@ -142,7 +142,7 @@ export default function HomePage() {
         {checked && <p className="ptr-muted">{t("ui.lastChecked", { time: formatDateTime(checked, lang) })}</p>}
       </div>
 
-      <section id="radar-results" className="space-y-3" aria-busy={searchState ? searchState.status === "loading" : loading}>
+      <section id="radar-results" className="min-w-0 space-y-3" aria-busy={searchState ? searchState.status === "loading" : loading}>
         <div className="ptr-toolbar ptr-result-heading">
           <h2>{t(searchState ? searchResult?.data.match_type === "fuzzy_trgm" ? "search.similar" : "search.results" : "feed.title")}</h2>
           {searchState && <button type="button" className="ptr-link" onClick={search.clear}>{t("search.close")}</button>}

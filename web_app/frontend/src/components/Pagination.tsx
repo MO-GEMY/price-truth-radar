@@ -36,7 +36,7 @@ export function Pagination({
   return (
     <nav
       aria-label={t("feed.pageInfo", { page, totalPages })}
-      className="flex flex-wrap items-center justify-center gap-2"
+      className="flex min-w-0 max-w-full flex-wrap items-center justify-center gap-2"
     >
       <button
         type="button"
@@ -76,7 +76,7 @@ export function Pagination({
         <ChevronRight className="size-4 rtl:rotate-180" aria-hidden="true" />
       </button>
 
-      <span className="num ms-2 text-xs ptr-muted">
+      <span className="num basis-full text-center text-xs ptr-muted sm:ms-2 sm:basis-auto">
         {t("feed.pageInfo", { page, totalPages })}
       </span>
     </nav>

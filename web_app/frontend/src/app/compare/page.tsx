@@ -122,7 +122,7 @@ export default function ComparePage() {
       )}
       <MockBanner source={current?.source ?? null} onRetry={() => setAttempt((value) => value + 1)} />
       {failed === key && <ErrorState onRetry={() => setAttempt((value) => value + 1)} />}
-      <section aria-busy={loading} className="space-y-3" id="compare-results">
+      <section aria-busy={loading} className="min-w-0 space-y-3" id="compare-results">
         {loading && <div role="status"><span className="sr-only">{t("common.loading")}</span><CompareCardSkeletons /></div>}
         {current && <p className="text-sm ptr-muted" role="status">{t("filters.showing", { total: formatNumber(current.data.total, lang) })}</p>}
         {current && current.data.items.length === 0 && (

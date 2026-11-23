@@ -46,7 +46,7 @@ export function FeedFilters({ value, stores, categoryCounts, onChange }: {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 max-w-full space-y-2">
       <div className="ptr-toolbar">
         <div className="ptr-category-bar" role="group" aria-label={t("filters.category")}>
           {shownCategories.map((category) => {
