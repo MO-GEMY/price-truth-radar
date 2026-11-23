@@ -23,12 +23,17 @@
     'faces_eg', 'mazaya_eg', 'amanda_milano', 'telofill_eg', 'cleo_labs'
 ] %}
 
+{% set home_appliances_stores = [
+    'ehab_center', 'kaufen_eg', 'elalfy_eg', 'sokany_eg', 'unionaire_eg', 'zanussi_eg'
+] %}
+
 {% set health_stores = [
     'beseha', 'bloom_pharmacy', 'egysupps', 'house_of_supplements', 'ifit_eg',
     'limitless_naturals', 'max_muscle_eg', 'nowfoods_eg', 'organic_nation',
     'el_ezaby', 'seif_pharmacies', 'misr_pharmacies', 'roshdy_pharmacies',
     'delmar_attalla', 'fouda_pharmacy', 'tarshouby', 'chefaa', 'yodawy',
-    'soukare_eg', 'tdawi', 'super_supplements'
+    'soukare_eg', 'tdawi', 'super_supplements',
+    'gofit_eg', 'mfsupps_eg', 'powerstore_eg', 'mr_vitamins_eg', 'protein_house_eg'
 ] %}
 
 {% set sports_stores = [
@@ -59,6 +64,8 @@ WITH normalized_source AS (
                 THEN 'pet_care'
             WHEN LOWER(TRIM(store_name)) IN ({{ "'" ~ beauty_stores | join("', '") ~ "'" }})
                 THEN 'beauty'
+            WHEN LOWER(TRIM(store_name)) IN ({{ "'" ~ home_appliances_stores | join("', '") ~ "'" }})
+                THEN 'home_appliances'
             WHEN LOWER(TRIM(store_name)) IN ({{ "'" ~ home_furniture_stores | join("', '") ~ "'" }})
                 THEN 'home_furniture'
             WHEN LOWER(TRIM(store_name)) IN ({{ "'" ~ health_stores | join("', '") ~ "'" }})

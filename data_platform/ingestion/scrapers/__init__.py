@@ -8,6 +8,7 @@ from .adapters import (
     WooCommerceBaseScraper,
 )
 from .amazon_eg import AmazonEgScraper
+from .aswaq_mozhela import AswaqMozhelaScraper
 from .base import (
     BaseScraper,
     Category,
@@ -76,6 +77,7 @@ from .two_b import TwoBScraper
 
 SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     AmazonEgScraper.store_name: AmazonEgScraper,
+    AswaqMozhelaScraper.store_name: AswaqMozhelaScraper,
     BTechScraper.store_name: BTechScraper,
     DalydressScraper.store_name: DalydressScraper,
     DejavuScraper.store_name: DejavuScraper,
@@ -98,6 +100,7 @@ __all__ = [
     "AbuAufScraper",
     "ActivScraper",
     "AmazonEgScraper",
+    "AswaqMozhelaScraper",
     "BaseScraper",
     "BTechScraper",
     "CairoSalesScraper",

@@ -2889,3 +2889,180 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+- store_key: ehab_center
+  display_name: Ehab Center
+  platform: woocommerce
+  base_url: https://ehabcenter.com
+  category: home_appliances
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_4
+  max_products: 1500
+- store_key: kaufen_eg
+  display_name: Kaufen Egypt
+  platform: shopify
+  base_url: https://www.kaufenegypt.com
+  category: home_appliances
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_4
+  max_products: 1000
+- store_key: elalfy_eg
+  display_name: El-Alfy Appliances
+  platform: woocommerce
+  base_url: https://elalfyeg.com
+  category: home_appliances
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_4
+  max_products: 1000
+- store_key: sokany_eg
+  display_name: Sokany Egypt
+  platform: woocommerce
+  base_url: https://sokany-eg.com
+  category: home_appliances
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_4
+  max_products: 1000
+- store_key: logitech_eg
+  display_name: Logitech Egypt
+  platform: woocommerce
+  base_url: https://www.logitechegypt.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 1000
+- store_key: hardware_market
+  display_name: Hardware Market Egypt
+  platform: woocommerce
+  base_url: https://hardwaremarket.net
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: core_6
+  max_products: 1200
+- store_key: mobilaty_eg
+  display_name: Mobilaty Egypt
+  platform: woocommerce
+  base_url: https://mobilaty.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: false
+  verified: false
+  batch: expansion_electronics
+  max_products: 1200
+  notes: Rate-limited/blocked on larger pagination during Wave 2
+- store_key: grow_eg
+  display_name: Grow Egypt
+  platform: shopify
+  base_url: https://groweg.org
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 800
+- store_key: coffee_island_eg
+  display_name: Coffee Island Egypt
+  platform: shopify
+  base_url: https://www.coffeeislandeg.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 800
+- store_key: coffee_hub_eg
+  display_name: The Coffee Hub Egypt
+  platform: shopify
+  base_url: https://coffeehubeg.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: groceries_3
+  max_products: 800
+- store_key: gofit_eg
+  display_name: GoFit Egypt
+  platform: woocommerce
+  base_url: https://gofit-eg.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 1000
+- store_key: mfsupps_eg
+  display_name: MF Supplements
+  platform: woocommerce
+  base_url: https://mfsupps.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 1000
+- store_key: powerstore_eg
+  display_name: Power Store Egypt
+  platform: shopify
+  base_url: https://powerstore-eg.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 1000
+- store_key: mr_vitamins_eg
+  display_name: Mr. Vitamins Egypt
+  platform: woocommerce
+  base_url: https://mr-vitaminseg.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 1200
+- store_key: protein_house_eg
+  display_name: Protein House Egypt
+  platform: shopify
+  base_url: https://proteinhouseeg.com
+  category: health
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  max_products: 1000
+- store_key: aswaq_mozhela
+  display_name: Aswaq Mozhela
+  platform: custom
+  base_url: https://play.google.com/store/apps/details?id=com.herokuapp.aswaqmozhela
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: lifestyle_2
+  max_products: 1000
