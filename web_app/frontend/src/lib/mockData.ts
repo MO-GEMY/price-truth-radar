@@ -17,6 +17,7 @@ import type {
   PriceHistoryPoint,
   Product,
   ProductAttributes,
+  ProductVariant,
   RadarFeedParams,
   RadarFeedResponse,
   SearchParams,
@@ -172,6 +173,11 @@ interface ProductSpec {
   claimed?: number;
   attributes: ProductAttributes;
   in_stock?: boolean;
+  parent_product_key?: string;
+  variant_label?: string;
+  variant_count?: number;
+  min_variant_price?: number;
+  max_variant_price?: number;
 }
 
 const SPECS: ProductSpec[] = [
@@ -560,6 +566,79 @@ const SPECS: ProductSpec[] = [
     price: 1699.0,
     attributes: { available_sizes: ["S", "M", "L"], total_sizes: 5 },
   },
+  // ----------------- Home & Furniture (Multi-Variant) ----------------- //
+  {
+    slug: "kabbani-boho-rug-120x180",
+    store: "kabbani",
+    category: "home_furniture",
+    sub_category: "rugs",
+    brand: "Kabbani Furniture",
+    title: "سجادة بوهو عصرية — 120×180 سم",
+    canonical: null,
+    pattern: "genuine",
+    price: 2400.0,
+    claimed: 3200.0,
+    attributes: { parent_product_key: "kabbani::boho-rug", variant_label: "120×180 سم", variant_count: 3 },
+    parent_product_key: "kabbani::boho-rug",
+    variant_label: "120×180 سم",
+    variant_count: 3,
+    min_variant_price: 2400.0,
+    max_variant_price: 7200.0,
+  },
+  {
+    slug: "kabbani-boho-rug-160x230",
+    store: "kabbani",
+    category: "home_furniture",
+    sub_category: "rugs",
+    brand: "Kabbani Furniture",
+    title: "سجادة بوهو عصرية — 160×230 سم",
+    canonical: null,
+    pattern: "normal",
+    price: 4500.0,
+    claimed: 6000.0,
+    attributes: { parent_product_key: "kabbani::boho-rug", variant_label: "160×230 سم", variant_count: 3 },
+    parent_product_key: "kabbani::boho-rug",
+    variant_label: "160×230 سم",
+    variant_count: 3,
+    min_variant_price: 2400.0,
+    max_variant_price: 7200.0,
+  },
+  {
+    slug: "kabbani-boho-rug-200x300",
+    store: "kabbani",
+    category: "home_furniture",
+    sub_category: "rugs",
+    brand: "Kabbani Furniture",
+    title: "سجادة بوهو عصرية — 200×300 سم",
+    canonical: null,
+    pattern: "fake",
+    price: 7200.0,
+    claimed: 9600.0,
+    in_stock: false,
+    attributes: { parent_product_key: "kabbani::boho-rug", variant_label: "200×300 سم", variant_count: 3 },
+    parent_product_key: "kabbani::boho-rug",
+    variant_label: "200×300 سم",
+    variant_count: 3,
+    min_variant_price: 2400.0,
+    max_variant_price: 7200.0,
+  },
+  {
+    slug: "habitat-cotton-plus-mattress-25cm",
+    store: "habitat_eg",
+    category: "home_furniture",
+    sub_category: "mattresses",
+    brand: "Habitat",
+    title: "مرتبة قطن بلس ارتفاع 25 سم",
+    canonical: null,
+    pattern: "normal",
+    price: 5843.0,
+    attributes: { parent_product_key: "habitat_eg::32439", variant_label: "190×90 سم", variant_count: 30 },
+    parent_product_key: "habitat_eg::32439",
+    variant_label: "190×90 سم",
+    variant_count: 30,
+    min_variant_price: 5843.0,
+    max_variant_price: 11932.0,
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -699,6 +778,11 @@ function buildProduct(spec: ProductSpec, dates: string[]): {
     ? sizesCount / Math.max(1, (spec.attributes.total_sizes as number | undefined) ?? 1) < 0.25
     : false;
 
+  const totalSizes = isFashion ? ((spec.attributes.total_sizes as number | undefined) ?? 1) : 1;
+  const variantCount = Math.max(1, spec.variant_count ?? totalSizes);
+  const minVarPrice = spec.min_variant_price ?? currentPrice;
+  const maxVarPrice = spec.max_variant_price ?? currentPrice;
+
   const product: Product = {
     product_sk: fakeSk(spec.store, spec.slug),
     canonical_product_key: spec.canonical,
@@ -721,6 +805,12 @@ function buildProduct(spec: ProductSpec, dates: string[]): {
     scarcity_flag: scarcityFlag,
     in_stock: inStockEverywhere,
     last_updated_at: MOCK_NOW,
+    parent_product_key: spec.parent_product_key ?? `${spec.store}::${spec.slug}`,
+    variant_label: spec.variant_label ?? null,
+    variant_count: variantCount,
+    has_multiple_variants: variantCount > 1,
+    min_variant_price: round2(minVarPrice),
+    max_variant_price: round2(maxVarPrice),
   };
 
   return { product, history };
@@ -842,13 +932,26 @@ function sortFeed(items: Product[], sort: RadarFeedParams["sort"]): Product[] {
 }
 
 export function mockRadarFeed(params: RadarFeedParams): RadarFeedResponse {
-  const items = getDataset().filter((p) => {
+  const filtered = getDataset().filter((p) => {
     if (params.category !== "all" && p.category !== params.category) return false;
     if (params.verdict && p.discount_verdict !== params.verdict) return false;
     if (params.store && p.store_name !== params.store) return false;
     return true;
   });
-  const sorted = sortFeed(items, params.sort);
+  // Deduplicate split variants by parent_product_key, preferring lowest-priced in-stock
+  const byParent = new Map<string, Product>();
+  for (const item of filtered) {
+    const key = item.parent_product_key ?? `${item.store_name}::${item.product_sk}`;
+    const existing = byParent.get(key);
+    if (
+      !existing ||
+      (item.in_stock && !existing.in_stock) ||
+      (item.in_stock === existing.in_stock && item.current_price < existing.current_price)
+    ) {
+      byParent.set(key, item);
+    }
+  }
+  const sorted = sortFeed(Array.from(byParent.values()), params.sort);
   const limit = Math.max(1, params.limit);
   const total = sorted.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -1060,6 +1163,7 @@ export function mockProductDetail(productSk: string): {
   product: Product;
   history: PriceHistoryPoint[];
   alternatives: AlternativeListing[];
+  variants: ProductVariant[];
 } | null {
   const products = getDataset();
   const product = products.find((p) => p.product_sk === productSk);
@@ -1081,7 +1185,22 @@ export function mockProductDetail(productSk: string): {
       product_url: p.product_url,
       discount_verdict: p.discount_verdict,
     }));
-  return { product, history, alternatives };
+  const variants: ProductVariant[] = product.parent_product_key
+    ? products
+        .filter((p) => p.parent_product_key === product.parent_product_key)
+        .sort((a, b) => a.current_price - b.current_price)
+        .map((p) => ({
+          product_sk: p.product_sk,
+          variant_label: p.variant_label ?? null,
+          title: p.product_title,
+          current_price: p.current_price,
+          claimed_original_price: p.claimed_original_price,
+          verdict: p.discount_verdict,
+          in_stock: p.in_stock,
+          product_url: p.product_url,
+        }))
+    : [];
+  return { product, history, alternatives, variants };
 }
 
 export function mockCompare(params: CompareParams): CompareResponse {

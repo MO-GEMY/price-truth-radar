@@ -245,6 +245,16 @@ export const translations = {
     "card.updated": "Updated",
     "card.compareStores": "Compare {count} stores",
 
+    "variant.optionsCount": "{count} options",
+    "variant.optionsCountMany": "{count} options",
+    "variant.fromPrice": "From {price}",
+    "variant.priceRange": "{min} – {max}",
+    "variant.selectorTitle": "Choose size / option",
+    "variant.selectedOption": "Selected option",
+    "variant.storeRangeNote": "Available in {count} options at this store ({min} – {max}).",
+    "variant.storeRangeNoteMany": "Available in {count} options at this store ({min} – {max}).",
+    "variant.rangeLabel": "Store price range",
+
     "detail.back": "Back to results",
     "detail.openAtStore": "Open at {store}",
     "detail.openAtStoreGeneric": "Open at store",
@@ -577,6 +587,16 @@ export const translations = {
     "card.viewTruth": "التفاصيل",
     "card.updated": "تحديث",
     "card.compareStores": "قارن {count} متاجر",
+
+    "variant.optionsCount": "{count} خيارات",
+    "variant.optionsCountMany": "{count} خيار",
+    "variant.fromPrice": "يبدأ من {price}",
+    "variant.priceRange": "{min} – {max}",
+    "variant.selectorTitle": "اختر المقاس أو الخيار",
+    "variant.selectedOption": "الخيار المحدد",
+    "variant.storeRangeNote": "متوفر بـ {count} خيارات في هذا المتجر (من {min} إلى {max}).",
+    "variant.storeRangeNoteMany": "متوفر بـ {count} خيار في هذا المتجر (من {min} إلى {max}).",
+    "variant.rangeLabel": "نطاق السعر بالمتجر",
 
     "detail.back": "رجوع للنتائج",
     "detail.openAtStore": "فتح في {store}",

@@ -144,6 +144,12 @@ class ProductVerdictItem(BaseModel):
     last_updated_at: datetime
     unit_price_egp: Optional[float] = None
     unit_price_unit: Optional[UnitPriceUnit] = None
+    parent_product_key: Optional[str] = None
+    variant_label: Optional[str] = None
+    variant_count: int = 1
+    has_multiple_variants: bool = False
+    min_variant_price: Optional[float] = None
+    max_variant_price: Optional[float] = None
 
     @model_validator(mode="after")
     def _populate_unit_pricing(self) -> "ProductVerdictItem":
@@ -152,6 +158,14 @@ class ProductVerdictItem(BaseModel):
             self.unit_price_egp = derived_price
         if self.unit_price_unit is None and derived_unit is not None:
             self.unit_price_unit = derived_unit
+        if self.variant_count < 1:
+            self.variant_count = 1
+        if self.variant_count > 1:
+            self.has_multiple_variants = True
+        if self.min_variant_price is None:
+            self.min_variant_price = self.current_price
+        if self.max_variant_price is None:
+            self.max_variant_price = self.current_price
         return self
 
     @field_serializer("last_updated_at")
@@ -193,10 +207,22 @@ class AlternativeListing(BaseModel):
     unit_price_unit: Optional[UnitPriceUnit] = None
 
 
+class ProductVariantItem(BaseModel):
+    product_sk: str
+    variant_label: Optional[str] = None
+    title: str
+    current_price: float
+    claimed_original_price: Optional[float] = None
+    verdict: DiscountVerdict
+    in_stock: bool
+    product_url: str
+
+
 class ProductDetailResponse(BaseModel):
     product: ProductVerdictItem
     history: list[PriceHistoryPoint]
     alternatives: list[AlternativeListing]
+    variants: list[ProductVariantItem] = Field(default_factory=list)
 
 
 class CrossStoreMatchItem(BaseModel):
@@ -246,6 +272,12 @@ class RadarHighlightItem(BaseModel):
     inflation_pct: float
     real_drop_pct: float
     verdict: HighlightVerdict
+    parent_product_key: Optional[str] = None
+    variant_label: Optional[str] = None
+    variant_count: int = 1
+    has_multiple_variants: bool = False
+    min_variant_price: Optional[float] = None
+    max_variant_price: Optional[float] = None
 
 
 class RadarHighlightsResponse(BaseModel):

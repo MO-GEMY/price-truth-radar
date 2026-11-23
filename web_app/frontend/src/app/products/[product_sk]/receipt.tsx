@@ -6,7 +6,7 @@ import { ArrowLeft, BellRing, ExternalLink } from "lucide-react";
 import type { ProductDetailResponse } from "@/types/contract";
 import { ApiError, fetchProductDetail, type ApiResult } from "@/lib/api";
 import { categoryLabelKey, productHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
-import { formatDateTime, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
+import { formatDateTime, formatNumber, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { isStaleObservation, observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
 import { retailerHref } from "@/lib/offers";
@@ -57,7 +57,7 @@ export function ProductReceipt({ productSk, initial }: {
   const loaded = retry ? response?.result : initial;
   if (!loaded) return <div className="ptr-wrap ptr-page"><ErrorState onRetry={() => setRetry((value) => value + 1)} /></div>;
 
-  const { product, history, alternatives } = loaded.data;
+  const { product, history, alternatives, variants = [] } = loaded.data;
   const label = storeDisplayName(product.store_name, lang);
   const price = formatPrice(product.current_price, lang);
   const timestamp = observedTimestamp(product.last_updated_at);
@@ -74,6 +74,17 @@ export function ProductReceipt({ productSk, initial }: {
   const live = loaded.source === "api";
   const canVisit = live && storeUrl && product.in_stock;
   const canAlert = live && product.current_price > 0.01;
+  const variantCount = Math.max(1, product.variant_count ?? 1, variants.length);
+  const hasMultipleVariants = Boolean(product.has_multiple_variants || variantCount > 1);
+  const minVarPrice = typeof product.min_variant_price === "number" && product.min_variant_price > 0
+    ? product.min_variant_price
+    : product.current_price;
+  const maxVarPrice = typeof product.max_variant_price === "number" && product.max_variant_price > 0
+    ? product.max_variant_price
+    : product.current_price;
+  const hasPriceRange = hasMultipleVariants && maxVarPrice > minVarPrice + 0.01;
+  const showVariantSelector = variants.length > 1;
+  const showRangeNote = hasMultipleVariants && hasPriceRange && variants.length <= 1;
 
   return (
     <div className="ptr-wrap ptr-page">
@@ -92,12 +103,62 @@ export function ProductReceipt({ productSk, initial }: {
             {categoryLabelKey(product.category) && (
               <span className="ptr-badge">{t(categoryLabelKey(product.category)!)}</span>
             )}
+            {product.variant_label && (
+              <span className="ptr-badge ptr-badge-variant"><bdi>{product.variant_label}</bdi></span>
+            )}
+            {hasMultipleVariants && !product.variant_label && (
+              <span className="ptr-badge ptr-badge-variant">
+                <bdi>{t(variantCount >= 11 ? "variant.optionsCountMany" : "variant.optionsCount", { count: formatNumber(variantCount, lang) })}</bdi>
+              </span>
+            )}
             <span>{formatSubCategory(product.sub_category, lang)}</span>
           </div>
           <h1><bdi>{product.product_title}</bdi></h1>
           {(product.brand || pack) && <p className="ptr-muted"><bdi>{[product.brand, pack].filter(Boolean).join(" · ")}</bdi></p>}
         </div>
       </header>
+      {showVariantSelector && (
+        <section className="surface ptr-section ptr-variant-section" aria-label={t("variant.selectorTitle")}>
+          <div className="ptr-variant-header">
+            <h2>{t("variant.selectorTitle")}</h2>
+            <span className="ptr-badge ptr-badge-variant">
+              <bdi>{t(variantCount >= 11 ? "variant.optionsCountMany" : "variant.optionsCount", { count: formatNumber(variantCount, lang) })}</bdi>
+            </span>
+          </div>
+          <div className="ptr-variant-list" role="list">
+            {variants.map((variant) => {
+              const selected = variant.product_sk === product.product_sk;
+              const chipLabel = variant.variant_label || variant.title;
+              return (
+                <Link
+                  key={variant.product_sk}
+                  role="listitem"
+                  href={productHref(variant.product_sk, from ?? undefined, !live)}
+                  aria-current={selected ? "true" : undefined}
+                  className={`ptr-variant-chip${variant.in_stock ? "" : " ptr-variant-oos"}`}
+                >
+                  <span className="ptr-variant-chip-label"><bdi>{chipLabel}</bdi></span>
+                  <span className="ptr-variant-chip-meta">
+                    <bdi>{formatPrice(variant.current_price, lang)}</bdi>
+                    {!variant.in_stock && <span className="ptr-variant-chip-stock"> · {t("card.outOfStock")}</span>}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {showRangeNote && (
+        <p className="ptr-notice ptr-variant-range-note">
+          <bdi>
+            {t(variantCount >= 11 ? "variant.storeRangeNoteMany" : "variant.storeRangeNote", {
+              count: formatNumber(variantCount, lang),
+              min: formatPrice(minVarPrice, lang),
+              max: formatPrice(maxVarPrice, lang),
+            })}
+          </bdi>
+        </p>
+      )}
       <div className="ptr-receipt-layout">
         <aside className="surface ptr-decision">
           <p className="ptr-muted text-sm">{t("detail.current")} · {t(product.in_stock ? "detail.inStock" : "card.outOfStock")}</p>
@@ -130,6 +191,14 @@ export function ProductReceipt({ productSk, initial }: {
           <h2>{t("ui.receipt")}</h2>
           <dl className="ptr-receipt-rows">
             <div><dt>{t("detail.current")}</dt><dd><bdi>{price}</bdi></dd></div>
+            {hasPriceRange && (
+              <div>
+                <dt>{t("variant.rangeLabel")}</dt>
+                <dd className="ptr-variant-range">
+                  <bdi>{t("variant.priceRange", { min: formatPrice(minVarPrice, lang), max: formatPrice(maxVarPrice, lang) })}</bdi>
+                </dd>
+              </div>
+            )}
             {product.claimed_original_price !== null && <div><dt>{t("deals.claimedPrice")}</dt>
               <dd><bdi>{formatPrice(product.claimed_original_price, lang)}</bdi></dd></div>}
             {median !== null && <div><dt>{t("detail.median60")}</dt><dd><bdi>{formatPrice(median, lang)}</bdi></dd></div>}

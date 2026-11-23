@@ -6,7 +6,7 @@ import { ArrowUpRight, BellRing } from "lucide-react";
 import type { Product } from "@/types/contract";
 import type { DataSource } from "@/lib/api";
 import { categoryLabelKey, productHref } from "@/lib/browse-state";
-import { formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
+import { formatNumber, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { PriceAlertModal } from "./PriceAlertModal";
 import { ProductImage } from "./ProductImage";
@@ -27,6 +27,15 @@ export function ProductCard({ product, from, source }: { product: Product; from:
   const evidence = product.rolling_60d_median <= 0 ? null : Math.abs(delta) < 0.05
     ? t(product.min_historical_price === product.max_historical_price ? "ui.limitedEvidence" : "ui.same")
     : t(delta > 0 ? "ui.below" : "ui.above", { pct: formatPctPlain(Math.abs(delta), lang) });
+  const variantCount = Math.max(1, product.variant_count ?? 1);
+  const hasMultipleVariants = Boolean(product.has_multiple_variants || variantCount > 1);
+  const minVarPrice = typeof product.min_variant_price === "number" && product.min_variant_price > 0
+    ? product.min_variant_price
+    : product.current_price;
+  const maxVarPrice = typeof product.max_variant_price === "number" && product.max_variant_price > 0
+    ? product.max_variant_price
+    : product.current_price;
+  const hasPriceRange = hasMultipleVariants && maxVarPrice > minVarPrice + 0.01;
 
   return (
     <article className="ptr-list-item">
@@ -40,13 +49,29 @@ export function ProductCard({ product, from, source }: { product: Product; from:
             <div className="ptr-controls text-xs ptr-muted">
               <StoreBadge name={product.store_name} size="sm" />
               {catKey && <span className="ptr-badge">{t(catKey)}</span>}
+              {hasMultipleVariants && (
+                <span className="ptr-badge ptr-badge-variant">
+                  <bdi>{t(variantCount >= 11 ? "variant.optionsCountMany" : "variant.optionsCount", { count: formatNumber(variantCount, lang) })}</bdi>
+                </span>
+              )}
               {subLabel && <span>{subLabel}</span>}
               {pack && <bdi>{pack}</bdi>}
             </div>
           </div>
         </div>
         <div className="ptr-result-price">
-          <p className="ptr-price"><bdi>{formatPrice(product.current_price, lang)}</bdi></p>
+          {hasPriceRange ? (
+            <>
+              <p className="ptr-price">
+                <bdi>{t("variant.fromPrice", { price: formatPrice(minVarPrice, lang) })}</bdi>
+              </p>
+              <p className="ptr-muted text-xs ptr-variant-range">
+                <bdi>{t("variant.priceRange", { min: formatPrice(minVarPrice, lang), max: formatPrice(maxVarPrice, lang) })}</bdi>
+              </p>
+            </>
+          ) : (
+            <p className="ptr-price"><bdi>{formatPrice(product.current_price, lang)}</bdi></p>
+          )}
           {unit && <p className="ptr-muted text-xs"><bdi>{unit}</bdi></p>}
           {!product.in_stock && <p className="ptr-muted text-xs">{t("card.outOfStock")}</p>}
         </div>

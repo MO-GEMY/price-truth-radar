@@ -396,6 +396,87 @@ html[lang="ar"] .ptr-hero h1 { max-width: none; }
 .ptr-badge-good { background: var(--ptr-good-bg); color: var(--ptr-good); }
 .ptr-badge-warning { background: var(--ptr-warning-bg); color: var(--ptr-warning); }
 .ptr-badge-amber { background: var(--ptr-amber-bg); color: var(--ptr-amber); }
+.ptr-badge-variant {
+  background: var(--ptr-wash);
+  color: var(--ptr-teal);
+  border: 1px solid var(--ptr-line);
+}
+.ptr-variant-range {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.ptr-variant-section {
+  display: grid;
+  gap: 10px;
+}
+.ptr-variant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.ptr-variant-section .ptr-variant-header h2 {
+  margin-block-end: 0;
+  font-size: 1.05rem;
+}
+.ptr-variant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.ptr-variant-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 7px 12px;
+  border: 1px solid var(--ptr-control-line);
+  border-radius: 8px;
+  background: var(--ptr-white);
+  color: var(--ptr-ink);
+  text-align: start;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.ptr-variant-chip:hover {
+  border-color: var(--ptr-teal);
+  background: var(--ptr-wash);
+}
+.ptr-variant-chip[aria-current="true"] {
+  border-color: var(--ptr-teal);
+  background: var(--ptr-teal);
+  color: var(--ptr-white);
+}
+.ptr-variant-chip-label {
+  font-size: .84rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.ptr-variant-chip-meta {
+  font-size: .76rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: .85;
+  overflow-wrap: anywhere;
+}
+.ptr-variant-oos {
+  border-style: dashed;
+  opacity: .75;
+}
+.ptr-variant-chip[aria-current="true"].ptr-variant-oos {
+  opacity: 1;
+}
+.ptr-variant-range-note {
+  overflow-wrap: anywhere;
+}
 .ptr-store {
   display: inline-flex;
   align-items: center;
@@ -634,6 +715,8 @@ html[lang="ar"] .ptr-hero h1 { max-width: none; }
 @media (max-width: 400px) {
   .ptr-offer { grid-template-columns: minmax(0, 1fr); }
   .ptr-history-extremes { grid-template-columns: minmax(0, 1fr); }
+  .ptr-receipt-rows dd { white-space: normal; overflow-wrap: anywhere; }
+  .ptr-variant-chip { flex: 1 1 calc(50% - 4px); }
 }
 
 @media (pointer: coarse) {

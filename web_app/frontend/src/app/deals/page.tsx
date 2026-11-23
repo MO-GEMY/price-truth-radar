@@ -30,7 +30,13 @@ function HighlightCard({ item, warning, from, live, canSharePrice }: {
   const takeaway = savings === null ? null : Math.abs(savings) < 0.05
     ? t("ui.same")
     : t(savings > 0 ? "ui.below" : "ui.above", { pct: formatPctPlain(Math.abs(savings), lang) });
-  const displayPrice = item.price === null ? null : formatPrice(item.price, lang);
+  const hasPriceRange = item.hasMultipleVariants
+    && item.minVariantPrice !== null
+    && item.maxVariantPrice !== null
+    && item.maxVariantPrice > item.minVariantPrice + 0.01;
+  const displayPrice = hasPriceRange && item.minVariantPrice !== null
+    ? t("variant.fromPrice", { price: formatPrice(item.minVariantPrice, lang) })
+    : item.price === null ? null : formatPrice(item.price, lang);
 
   return (
     <article className="surface ptr-highlight">
@@ -42,6 +48,11 @@ function HighlightCard({ item, warning, from, live, canSharePrice }: {
         <div className="ptr-controls text-xs ptr-muted">
           {item.store && <StoreBadge name={item.store} size="sm" />}
           {categoryLabelKey(item.category) && <span className="ptr-badge">{t(categoryLabelKey(item.category)!)}</span>}
+          {item.hasMultipleVariants && (
+            <span className="ptr-badge ptr-badge-variant">
+              <bdi>{t(item.variantCount >= 11 ? "variant.optionsCountMany" : "variant.optionsCount", { count: formatNumber(item.variantCount, lang) })}</bdi>
+            </span>
+          )}
         </div>
         <h2 className="text-base font-bold">{href ? <Link href={href}><bdi>{title}</bdi></Link> : <bdi>{title}</bdi>}</h2>
         <span className={`ptr-badge ${warning ? "ptr-badge-warning" : "ptr-badge-good"}`}>
@@ -53,7 +64,17 @@ function HighlightCard({ item, warning, from, live, canSharePrice }: {
         )}
       </div>
       <dl className="ptr-highlight-prices">
-        {displayPrice && <div><dt>{t("detail.current")}</dt><dd className="ptr-price"><bdi>{displayPrice}</bdi></dd></div>}
+        {displayPrice && (
+          <div>
+            <dt>{t("detail.current")}</dt>
+            <dd className="ptr-price"><bdi>{displayPrice}</bdi></dd>
+            {hasPriceRange && item.minVariantPrice !== null && item.maxVariantPrice !== null && (
+              <p className="text-xs ptr-muted ptr-variant-range">
+                <bdi>{t("variant.priceRange", { min: formatPrice(item.minVariantPrice, lang), max: formatPrice(item.maxVariantPrice, lang) })}</bdi>
+              </p>
+            )}
+          </div>
+        )}
         {item.baseline !== null && <div><dt>{t("deals.baselinePrice")}</dt><dd><bdi>{formatPrice(item.baseline, lang)}</bdi></dd></div>}
         {warning && item.advertisedPrice !== null && <div><dt>{t("deals.claimedPrice")}</dt><dd><bdi>{formatPrice(item.advertisedPrice, lang)}</bdi></dd></div>}
       </dl>

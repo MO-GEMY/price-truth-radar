@@ -12,6 +12,11 @@ export interface PriceHighlight {
   observedSavings: number | null;
   advertisedSavings: number | null;
   priceHike: boolean;
+  variantLabel: string | null;
+  variantCount: number;
+  hasMultipleVariants: boolean;
+  minVariantPrice: number | null;
+  maxVariantPrice: number | null;
 }
 
 function text(value: string | null | undefined): string | null {
@@ -26,6 +31,12 @@ export function normalizeHighlight(item: HighlightItem): PriceHighlight {
   const price = positive(item.current_price);
   const advertisedPrice = positive(item.claimed_old_price ?? item.claimed_original_price);
   const baseline = positive(item.baseline_price ?? item.rolling_60d_median);
+  const variantCount = typeof item.variant_count === "number" && item.variant_count > 1
+    ? Math.floor(item.variant_count)
+    : 1;
+  const hasMultipleVariants = Boolean(item.has_multiple_variants || variantCount > 1);
+  const minVariantPrice = positive(item.min_variant_price) ?? price;
+  const maxVariantPrice = positive(item.max_variant_price) ?? price;
   return {
     id: text(item.id) ?? text(item.product_sk),
     title: text(item.title) ?? text(item.product_title),
@@ -40,6 +51,11 @@ export function normalizeHighlight(item: HighlightItem): PriceHighlight {
       ? (advertisedPrice - price) / advertisedPrice * 100
       : null,
     priceHike: item.verdict === "inflated_before_sale" || item.discount_verdict === "PRESALE_HIKE",
+    variantLabel: text(item.variant_label),
+    variantCount,
+    hasMultipleVariants,
+    minVariantPrice,
+    maxVariantPrice,
   };
 }
 

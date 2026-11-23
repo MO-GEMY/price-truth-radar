@@ -82,7 +82,13 @@ _HIGHLIGHT_COLS = """
     claimed_discount_pct,
     real_discount_pct,
     discount_verdict,
-    last_updated_at
+    last_updated_at,
+    parent_product_key,
+    variant_label,
+    variant_count,
+    has_multiple_variants,
+    min_variant_price,
+    max_variant_price
 """
 
 
@@ -127,6 +133,19 @@ def _row_to_highlight(row: dict[str, Any], *, bucket: Literal["scandal", "deal"]
     if bucket == "deal" and real_drop_pct == 0.0 and claimed_old and claimed_old > current_price:
         real_drop_pct = round(((claimed_old - current_price) / claimed_old) * 100.0, 1)
 
+    variant_count = max(1, int(row.get("variant_count") or 1))
+    has_multiple = bool(row.get("has_multiple_variants") or variant_count > 1)
+    min_var = (
+        round(float(row["min_variant_price"]), 2)
+        if row.get("min_variant_price") is not None
+        else round(current_price, 2)
+    )
+    max_var = (
+        round(float(row["max_variant_price"]), 2)
+        if row.get("max_variant_price") is not None
+        else round(current_price, 2)
+    )
+
     return RadarHighlightItem(
         id=str(row["product_sk"]),
         product_key=str(row["canonical_product_key"] or row["product_sk"]),
@@ -141,6 +160,12 @@ def _row_to_highlight(row: dict[str, Any], *, bucket: Literal["scandal", "deal"]
         inflation_pct=inflation_pct,
         real_drop_pct=real_drop_pct,
         verdict=verdict,
+        parent_product_key=row.get("parent_product_key"),
+        variant_label=row.get("variant_label"),
+        variant_count=variant_count,
+        has_multiple_variants=has_multiple,
+        min_variant_price=min_var,
+        max_variant_price=max_var,
     )
 
 
@@ -153,7 +178,7 @@ def get_radar_highlights(
     db: Connection = Depends(get_db),
 ) -> RadarHighlightsResponse:
     set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
-    cache_key = f"radar:highlights:{category}:{limit}"
+    cache_key = f"radar:highlights:v2:{category}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -164,58 +189,77 @@ def get_radar_highlights(
         cat_filter = "AND category = :category"
         params["category"] = category
 
+    parent_expr = "COALESCE(parent_product_key, store_name || '::' || product_sk)"
+    scandal_rank_expr = """
+        CASE WHEN discount_verdict = 'PRESALE_HIKE' THEN 0 ELSE 1 END ASC,
+        GREATEST(
+            claimed_discount_pct - real_discount_pct,
+            CASE
+                WHEN rolling_60d_median > 0
+                THEN ((current_price - rolling_60d_median) / rolling_60d_median) * 100.0
+                ELSE 0.0
+            END
+        ) DESC,
+        current_price ASC,
+        product_sk ASC
+    """
     scandals_sql = text(
         f"""
+        WITH deduped AS (
+            SELECT DISTINCT ON ({parent_expr})
+                {_HIGHLIGHT_COLS}
+            FROM gold.mart_product_verdicts
+            WHERE in_stock = TRUE
+              {_PRICE_FLOOR_SQL_GUARD}
+              AND (
+                  discount_verdict IN ('PRESALE_HIKE', 'FAKE_DISCOUNT')
+                  OR (claimed_discount_pct - real_discount_pct) >= 10.0
+              )
+              {cat_filter}
+            ORDER BY {parent_expr}, {scandal_rank_expr}
+        )
         SELECT {_HIGHLIGHT_COLS}
-        FROM gold.mart_product_verdicts
-        WHERE in_stock = TRUE
-          {_PRICE_FLOOR_SQL_GUARD}
-          AND (
-              discount_verdict IN ('PRESALE_HIKE', 'FAKE_DISCOUNT')
-              OR (claimed_discount_pct - real_discount_pct) >= 10.0
-          )
-          {cat_filter}
-        ORDER BY
-            CASE WHEN discount_verdict = 'PRESALE_HIKE' THEN 0 ELSE 1 END ASC,
-            GREATEST(
-                claimed_discount_pct - real_discount_pct,
-                CASE
-                    WHEN rolling_60d_median > 0
-                    THEN ((current_price - rolling_60d_median) / rolling_60d_median) * 100.0
-                    ELSE 0.0
-                END
-            ) DESC,
-            product_sk ASC
+        FROM deduped
+        ORDER BY {scandal_rank_expr}
         LIMIT :limit
         """
     )
 
+    deal_rank_expr = """
+        CASE
+            WHEN discount_verdict = 'ALL_TIME_LOW' THEN 0
+            WHEN discount_verdict = 'GENUINE_DEAL' THEN 1
+            ELSE 2
+        END ASC,
+        real_discount_pct DESC,
+        claimed_discount_pct DESC,
+        current_price ASC,
+        product_sk ASC
+    """
     deals_sql = text(
         f"""
-        SELECT {_HIGHLIGHT_COLS}
-        FROM gold.mart_product_verdicts
-        WHERE in_stock = TRUE
-          {_PRICE_FLOOR_SQL_GUARD}
-          AND discount_verdict NOT IN ('FAKE_DISCOUNT', 'PRESALE_HIKE')
-          AND (
-              discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL')
-              OR real_discount_pct > 0.0
-              OR (
-                  claimed_original_price IS NOT NULL
-                  AND claimed_original_price > current_price
-                  AND current_price <= min_historical_price
+        WITH deduped AS (
+            SELECT DISTINCT ON ({parent_expr})
+                {_HIGHLIGHT_COLS}
+            FROM gold.mart_product_verdicts
+            WHERE in_stock = TRUE
+              {_PRICE_FLOOR_SQL_GUARD}
+              AND discount_verdict NOT IN ('FAKE_DISCOUNT', 'PRESALE_HIKE')
+              AND (
+                  discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL')
+                  OR real_discount_pct > 0.0
+                  OR (
+                      claimed_original_price IS NOT NULL
+                      AND claimed_original_price > current_price
+                      AND current_price <= min_historical_price
+                  )
               )
-          )
-          {cat_filter}
-        ORDER BY
-            CASE
-                WHEN discount_verdict = 'ALL_TIME_LOW' THEN 0
-                WHEN discount_verdict = 'GENUINE_DEAL' THEN 1
-                ELSE 2
-            END ASC,
-            real_discount_pct DESC,
-            claimed_discount_pct DESC,
-            product_sk ASC
+              {cat_filter}
+            ORDER BY {parent_expr}, {deal_rank_expr}
+        )
+        SELECT {_HIGHLIGHT_COLS}
+        FROM deduped
+        ORDER BY {deal_rank_expr}
         LIMIT :limit
         """
     )

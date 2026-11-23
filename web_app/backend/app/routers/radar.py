@@ -43,7 +43,13 @@ PRODUCT_SELECT_COLS = """
     discount_verdict,
     scarcity_flag,
     in_stock,
-    last_updated_at
+    last_updated_at,
+    parent_product_key,
+    variant_label,
+    variant_count,
+    has_multiple_variants,
+    min_variant_price,
+    max_variant_price
 """
 
 
@@ -65,7 +71,7 @@ def get_radar_feed(
 ) -> RadarFeedResponse:
     set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
     norm_store = store.strip().lower() if (store and store.strip()) else ""
-    cache_key = f"radar:feed:{category}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
+    cache_key = f"radar:feed:v2:{category}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -88,16 +94,29 @@ def get_radar_feed(
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     order_clause = SORT_EXPRESSIONS[sort]
 
-    count_sql = text(f"SELECT COUNT(*)::INTEGER FROM gold.mart_product_verdicts {where_clause}")
+    parent_expr = "COALESCE(parent_product_key, store_name || '::' || product_sk)"
+    count_sql = text(
+        f"SELECT COUNT(DISTINCT {parent_expr})::INTEGER FROM gold.mart_product_verdicts {where_clause}"
+    )
     total = int(db.execute(count_sql, params).scalar_one())
 
     offset = (page - 1) * limit
     query_params = {**params, "limit": limit, "offset": offset}
     items_sql = text(
         f"""
+        WITH deduped AS (
+            SELECT DISTINCT ON ({parent_expr})
+                {PRODUCT_SELECT_COLS}
+            FROM gold.mart_product_verdicts
+            {where_clause}
+            ORDER BY
+                {parent_expr},
+                in_stock DESC,
+                current_price ASC,
+                product_sk ASC
+        )
         SELECT {PRODUCT_SELECT_COLS}
-        FROM gold.mart_product_verdicts
-        {where_clause}
+        FROM deduped
         ORDER BY {order_clause}
         LIMIT :limit OFFSET :offset
         """

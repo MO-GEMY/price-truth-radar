@@ -74,6 +74,13 @@ export interface Product {
   /** Unit price for groceries (shrinkflation transparency) — optional until the backend emits it. */
   unit_price_egp?: number | null;
   unit_price_unit?: "kg" | "L" | string | null;
+  /** Multi-variant rollup fields from gold.mart_product_verdicts. */
+  parent_product_key?: string | null;
+  variant_label?: string | null;
+  variant_count?: number;
+  has_multiple_variants?: boolean;
+  min_variant_price?: number | null;
+  max_variant_price?: number | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -177,10 +184,22 @@ export interface AlternativeListing {
   unit_price_unit?: "kg" | "L" | string | null;
 }
 
+export interface ProductVariant {
+  product_sk: string;
+  variant_label: string | null;
+  title: string;
+  current_price: number;
+  claimed_original_price: number | null;
+  verdict: DiscountVerdict;
+  in_stock: boolean;
+  product_url: string;
+}
+
 export interface ProductDetailResponse {
   product: Product;
   history: PriceHistoryPoint[];
   alternatives: AlternativeListing[];
+  variants?: ProductVariant[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -256,6 +275,12 @@ export interface HighlightItem {
   real_discount_pct?: number;
   discount_verdict?: string;
   in_stock?: boolean;
+  parent_product_key?: string | null;
+  variant_label?: string | null;
+  variant_count?: number;
+  has_multiple_variants?: boolean;
+  min_variant_price?: number | null;
+  max_variant_price?: number | null;
 }
 
 export interface RadarHighlights {

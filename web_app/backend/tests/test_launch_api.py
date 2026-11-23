@@ -179,6 +179,12 @@ class TestLaunchBackendAPI(unittest.TestCase):
                 "inflation_pct",
                 "real_drop_pct",
                 "verdict",
+                "parent_product_key",
+                "variant_label",
+                "variant_count",
+                "has_multiple_variants",
+                "min_variant_price",
+                "max_variant_price",
             },
         )
         self.assertEqual(s0["verdict"], "inflated_before_sale")
@@ -615,7 +621,7 @@ class TestLaunchBackendAPI(unittest.TestCase):
                         {"category": "pet_care", "product_count": 480, "compare_count": 12},
                     ]
                 )
-            if "COUNT(*)" in sql:
+            if "COUNT(*)" in sql or "COUNT(DISTINCT" in sql:
                 return _FakeResult(scalar=1)
             if "FROM gold.mart_cross_store_matches" in sql:
                 return _FakeResult(rows=[])
@@ -641,6 +647,117 @@ class TestLaunchBackendAPI(unittest.TestCase):
             self.assertEqual(r_hi.status_code, 200, f"highlights failed for {cat}")
             r_cmp = client.get(f"/api/v1/compare?category={cat}&limit=5")
             self.assertEqual(r_cmp.status_code, 200, f"compare failed for {cat}")
+
+    def test_multi_variant_feed_dedup_and_product_detail_siblings(self) -> None:
+        now = datetime(2026, 11, 23, 2, 0, 0, tzinfo=timezone.utc)
+        rug_small = {
+            "product_sk": "sk_rug_small",
+            "canonical_product_key": None,
+            "store_name": "kabbani",
+            "category": "home_furniture",
+            "sub_category": "rugs",
+            "brand": "Kabbani",
+            "product_title": "سجادة بوهو — 120x180 سم",
+            "product_url": "https://www.kabbanifurniture.com/products/boho-rug?variant=101",
+            "image_url": "https://cdn.example.com/rug.jpg",
+            "attributes_json": {"parent_product_key": "kabbani::999", "variant_label": "120x180 سم"},
+            "current_price": 2400.0,
+            "claimed_original_price": 3200.0,
+            "rolling_60d_median": 2400.0,
+            "min_historical_price": 2400.0,
+            "max_historical_price": 2400.0,
+            "claimed_discount_pct": 25.0,
+            "real_discount_pct": 0.0,
+            "discount_verdict": "FAKE_DISCOUNT",
+            "scarcity_flag": False,
+            "in_stock": True,
+            "last_updated_at": now,
+            "parent_product_key": "kabbani::999",
+            "variant_label": "120x180 سم",
+            "variant_count": 3,
+            "has_multiple_variants": True,
+            "min_variant_price": 2400.0,
+            "max_variant_price": 7200.0,
+        }
+        sibling_rows = [
+            {
+                "product_sk": "sk_rug_small",
+                "variant_label": "120x180 سم",
+                "title": "سجادة بوهو — 120x180 سم",
+                "current_price": 2400.0,
+                "claimed_original_price": 3200.0,
+                "verdict": "FAKE_DISCOUNT",
+                "in_stock": True,
+                "product_url": "https://www.kabbanifurniture.com/products/boho-rug?variant=101",
+            },
+            {
+                "product_sk": "sk_rug_med",
+                "variant_label": "160x230 سم",
+                "title": "سجادة بوهو — 160x230 سم",
+                "current_price": 4500.0,
+                "claimed_original_price": 6000.0,
+                "verdict": "FAKE_DISCOUNT",
+                "in_stock": True,
+                "product_url": "https://www.kabbanifurniture.com/products/boho-rug?variant=102",
+            },
+            {
+                "product_sk": "sk_rug_lg",
+                "variant_label": "200x300 سم",
+                "title": "سجادة بوهو — 200x300 سم",
+                "current_price": 7200.0,
+                "claimed_original_price": 9600.0,
+                "verdict": "NORMAL_PRICE",
+                "in_stock": False,
+                "product_url": "https://www.kabbanifurniture.com/products/boho-rug?variant=103",
+            },
+        ]
+
+        def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
+            if "COUNT(DISTINCT" in sql:
+                return _FakeResult(scalar=1)
+            if "DISTINCT ON" in sql:
+                return _FakeResult(rows=[rug_small])
+            if "WHERE parent_product_key = :parent_key" in sql:
+                self.assertEqual(params["parent_key"], "kabbani::999")
+                return _FakeResult(rows=sibling_rows)
+            if "FROM gold.fct_price_history" in sql:
+                return _FakeResult(rows=[])
+            if "WHERE product_sk = :product_sk" in sql:
+                return _FakeResult(rows=[rug_small])
+            return _FakeResult(rows=[])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        # 1. Feed deduplicates by parent_product_key and exposes all 6 variant rollup fields
+        r_feed = client.get("/api/v1/radar/feed?category=home_furniture&limit=10")
+        self.assertEqual(r_feed.status_code, 200)
+        feed_body = r_feed.json()
+        self.assertEqual(feed_body["total"], 1)
+        self.assertEqual(len(feed_body["items"]), 1)
+        item = feed_body["items"][0]
+        self.assertEqual(item["parent_product_key"], "kabbani::999")
+        self.assertEqual(item["variant_label"], "120x180 سم")
+        self.assertEqual(item["variant_count"], 3)
+        self.assertTrue(item["has_multiple_variants"])
+        self.assertEqual(item["min_variant_price"], 2400.0)
+        self.assertEqual(item["max_variant_price"], 7200.0)
+        self.assertTrue(any("DISTINCT ON" in sql for sql in fake_db.calls))
+        self.assertTrue(any("COUNT(DISTINCT" in sql for sql in fake_db.calls))
+
+        # 2. Detail endpoint returns ordered sibling variants + product rollup fields
+        r_det = client.get("/api/v1/products/sk_rug_small")
+        self.assertEqual(r_det.status_code, 200)
+        det = r_det.json()
+        self.assertEqual(det["product"]["variant_count"], 3)
+        self.assertEqual(det["product"]["min_variant_price"], 2400.0)
+        self.assertEqual(det["product"]["max_variant_price"], 7200.0)
+        self.assertEqual(len(det["variants"]), 3)
+        self.assertEqual([v["product_sk"] for v in det["variants"]], ["sk_rug_small", "sk_rug_med", "sk_rug_lg"])
+        self.assertEqual([v["current_price"] for v in det["variants"]], [2400.0, 4500.0, 7200.0])
+        self.assertEqual(det["variants"][1]["variant_label"], "160x230 سم")
+        self.assertEqual(det["variants"][2]["in_stock"], False)
 
 
 if __name__ == "__main__":

@@ -259,11 +259,24 @@ def exact_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) 
         SELECT matched_sk, MIN(relevance) AS relevance
         FROM candidates
         GROUP BY matched_sk
+    ),
+    deduped AS (
+        SELECT
+            {PRODUCT_SELECT_COLS},
+            {_PART_ORDER} AS part_order,
+            r.relevance AS relevance,
+            {_SCRIPT_ORDER} AS script_order,
+            ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(p.parent_product_key, p.store_name || '::' || p.product_sk)
+                ORDER BY {_PART_ORDER}, r.relevance, p.in_stock DESC, p.current_price ASC, p.product_sk
+            ) AS variant_rn
+        FROM gold.mart_product_verdicts p
+        JOIN ranked r ON r.matched_sk = p.product_sk
     )
     SELECT {PRODUCT_SELECT_COLS}, COUNT(*) OVER () AS search_total
-    FROM gold.mart_product_verdicts p
-    JOIN ranked r ON r.matched_sk = p.product_sk
-    ORDER BY {_PART_ORDER}, r.relevance, {_SCRIPT_ORDER}, p.in_stock DESC, p.real_discount_pct DESC, p.product_sk
+    FROM deduped
+    WHERE variant_rn = 1
+    ORDER BY part_order, relevance, script_order, in_stock DESC, real_discount_pct DESC, product_sk
     LIMIT :limit
     """
     return sql, {
@@ -292,12 +305,27 @@ def fuzzy_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) 
         scores.append(f"strict_word_similarity(:{word}, {document})")
 
     missed = " + ".join(misses)
+    score_expr = " + ".join(scores)
     return f"""
+        WITH deduped AS (
+            SELECT
+                {PRODUCT_SELECT_COLS},
+                {_PART_ORDER} AS part_order,
+                ({missed}) AS miss_count,
+                ({score_expr}) AS fuzzy_score,
+                {_SCRIPT_ORDER} AS script_order,
+                ROW_NUMBER() OVER (
+                    PARTITION BY COALESCE(p.parent_product_key, p.store_name || '::' || p.product_sk)
+                    ORDER BY {_PART_ORDER}, ({missed}), ({score_expr}) DESC, p.in_stock DESC, p.current_price ASC, p.product_sk
+                ) AS variant_rn
+            FROM gold.mart_product_verdicts p
+            WHERE {' AND '.join(matches)} AND ({missed}) <= 2
+        )
         SELECT {PRODUCT_SELECT_COLS}, COUNT(*) OVER () AS search_total
-        FROM gold.mart_product_verdicts p
-        WHERE {' AND '.join(matches)} AND ({missed}) <= 2
-        ORDER BY {_PART_ORDER}, ({missed}), ({' + '.join(scores)}) DESC,
-            {_SCRIPT_ORDER}, p.in_stock DESC, p.real_discount_pct DESC, p.product_sk
+        FROM deduped
+        WHERE variant_rn = 1
+        ORDER BY part_order, miss_count, fuzzy_score DESC,
+            script_order, in_stock DESC, real_discount_pct DESC, product_sk
         LIMIT :limit
     """, params
 

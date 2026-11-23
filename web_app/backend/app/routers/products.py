@@ -18,6 +18,7 @@ from app.schemas import (
     AlternativeListing,
     PriceHistoryPoint,
     ProductDetailResponse,
+    ProductVariantItem,
     ProductVerdictItem,
     SearchResponse,
 )
@@ -386,7 +387,7 @@ def get_product_detail(
     db: Connection = Depends(get_db),
 ) -> ProductDetailResponse:
     set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
-    cache_key = f"products:detail:{product_sk}"
+    cache_key = f"products:detail:v2:{product_sk}"
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -441,10 +442,37 @@ def get_product_detail(
                 if entry.get("product_sk") != product_sk:
                     alternatives.append(AlternativeListing.model_validate(entry))
 
+    variants: list[ProductVariantItem] = []
+    if product.parent_product_key:
+        variants_sql = text(
+            """
+            SELECT
+                product_sk,
+                variant_label,
+                product_title AS title,
+                current_price,
+                claimed_original_price,
+                discount_verdict AS verdict,
+                in_stock,
+                product_url
+            FROM gold.mart_product_verdicts
+            WHERE parent_product_key = :parent_key
+            ORDER BY current_price ASC, in_stock DESC, product_sk ASC
+            LIMIT 50
+            """
+        )
+        variant_rows = (
+            db.execute(variants_sql, {"parent_key": product.parent_product_key})
+            .mappings()
+            .all()
+        )
+        variants = [ProductVariantItem.model_validate(dict(r)) for r in variant_rows]
+
     res = ProductDetailResponse(
         product=product,
         history=history,
         alternatives=alternatives,
+        variants=variants,
     )
     api_cache.set(cache_key, res, ttl=300.0)
     return res
