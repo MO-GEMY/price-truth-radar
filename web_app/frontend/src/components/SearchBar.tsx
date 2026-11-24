@@ -2,17 +2,33 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Check, Link2, Search, ShieldAlert, X } from "lucide-react";
-import type { SearchResponse } from "@/types/contract";
+import {
+  BadgeCheck,
+  Check,
+  Filter,
+  Link2,
+  Search,
+  ShieldAlert,
+  X,
+} from "lucide-react";
+import type { FeedCategoryFilter, SearchResponse } from "@/types/contract";
 import { fetchSearch, type ApiResult } from "@/lib/api";
 import { trackSearchProduct } from "@/lib/analytics";
-import { productHref } from "@/lib/browse-state";
+import { categoryLabels, productHref } from "@/lib/browse-state";
+import { getCategorySearchCopy } from "@/lib/category-search-config";
 import {
   cleanSearchQuery,
   hasArabicChars,
   normalizeArabicAggressive,
 } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
+
+export interface SearchScope {
+  category: FeedCategoryFilter;
+  subcategory: string;
+  store: string;
+  brand: string;
+}
 
 type SearchState = { query: string; link: boolean } & (
   | { status: "loading" | "error" | "invalid" }
@@ -21,7 +37,7 @@ type SearchState = { query: string; link: boolean } & (
 
 // Keep the result within this browser view so Back can restore it after a receipt.
 // Pasted retailer URLs are never written to storage or route parameters.
-let lastSearch: Extract<SearchState, { status: "ready" }> | null = null;
+let lastSearch: (Extract<SearchState, { status: "ready" }> & { scopeKey: string }) | null = null;
 
 function retailerQuery(input: string): string | null {
   if (/^https?:\/\//i.test(input)) return input;
@@ -29,26 +45,49 @@ function retailerQuery(input: string): string | null {
   return null;
 }
 
-export function useProductSearch(from: string) {
+function makeScopeKey(scope: SearchScope): string {
+  return JSON.stringify([scope.category, scope.subcategory, scope.store, scope.brand]);
+}
+
+export function useProductSearch(
+  from: string,
+  scope: SearchScope,
+  urlQuery: string,
+  onUrlQueryChange?: (nextQuery: string | undefined) => void,
+) {
   const router = useRouter();
-  const [query, setQuery] = useState(() => lastSearch?.query ?? "");
-  const [state, setState] = useState<SearchState | null>(() => lastSearch);
+  const scopeKey = makeScopeKey(scope);
+  const initialQuery = urlQuery.trim() || lastSearch?.query || "";
+  const [query, setQuery] = useState(initialQuery);
+  const [state, setState] = useState<SearchState | null>(() => {
+    if (urlQuery.trim()) {
+      return lastSearch &&
+        lastSearch.query === urlQuery.trim() &&
+        lastSearch.scopeKey === scopeKey
+        ? lastSearch
+        : null;
+    }
+    return lastSearch && lastSearch.scopeKey === scopeKey ? lastSearch : null;
+  });
   const request = useRef<AbortController | null>(null);
+  const lastExecutedRef = useRef<string>(
+    lastSearch && lastSearch.query === initialQuery && lastSearch.scopeKey === scopeKey
+      ? `${lastSearch.query}::${lastSearch.scopeKey}`
+      : "",
+  );
 
   useEffect(() => () => request.current?.abort(), []);
 
-  function clear() {
-    request.current?.abort();
-    lastSearch = null;
-    setQuery("");
-    setState(null);
-  }
-
-  async function run(rawQuery: string) {
+  async function execute(
+    rawQuery: string,
+    activeScope: SearchScope,
+    syncUrl: boolean,
+  ) {
     const input = rawQuery.trim();
     if (!input) return;
     const url = retailerQuery(input);
     const link = url !== null;
+    const activeScopeKey = makeScopeKey(activeScope);
     request.current?.abort();
     if (url) {
       try {
@@ -57,27 +96,45 @@ export function useProductSearch(from: string) {
         setState({ query: input, link, status: "invalid" });
         return;
       }
+    } else if (syncUrl) {
+      onUrlQueryChange?.(input);
     }
+
+    const execSig = `${input}::${activeScopeKey}`;
+    lastExecutedRef.current = execSig;
+
     const controller = new AbortController();
     request.current = controller;
     setState({ query: input, link, status: "loading" });
     try {
       const q = url ? undefined : cleanSearchQuery(input);
-      let result = await fetchSearch(
-        { q, url: url ?? undefined, limit: 20 },
-        controller.signal,
-      );
+      const searchParams = {
+        q,
+        url: url ?? undefined,
+        category: !url && activeScope.category !== "all" ? activeScope.category : undefined,
+        subcategory: !url && activeScope.subcategory ? activeScope.subcategory : undefined,
+        store: !url && activeScope.store ? activeScope.store : undefined,
+        brand: !url && activeScope.brand ? activeScope.brand : undefined,
+        limit: 20,
+      };
+      let result = await fetchSearch(searchParams, controller.signal);
       if (!url && !result.data.items.length && hasArabicChars(input)) {
         const normalized = normalizeArabicAggressive(input);
         if (normalized !== q && !controller.signal.aborted) {
           result = await fetchSearch(
-            { q: normalized, limit: 20 },
+            { ...searchParams, q: normalized },
             controller.signal,
           );
         }
       }
       if (controller.signal.aborted) return;
-      const ready = { query: input, link, status: "ready", result } as const;
+      const ready = {
+        query: input,
+        link,
+        status: "ready" as const,
+        result,
+        scopeKey: activeScopeKey,
+      };
       lastSearch = ready;
       setState(ready);
       trackSearchProduct({
@@ -100,9 +157,46 @@ export function useProductSearch(from: string) {
         );
       }
     } catch {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
         setState({ query: input, link, status: "error" });
+      }
     }
+  }
+
+  // Re-run or restore search when URL `?q=` or active filter scope changes.
+  useEffect(() => {
+    const trimmed = urlQuery.trim();
+    if (!trimmed) {
+      // Only clear text search state when `?q=` disappears (preserve URL-paste results).
+      if (state && !state.link) {
+        request.current?.abort();
+        lastSearch = null;
+        lastExecutedRef.current = "";
+        setQuery("");
+        setState(null);
+      }
+      return;
+    }
+    const sig = `${trimmed}::${scopeKey}`;
+    if (lastExecutedRef.current === sig) return;
+    setQuery(trimmed);
+    void execute(trimmed, scope, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlQuery, scopeKey]);
+
+  function clear() {
+    request.current?.abort();
+    lastSearch = null;
+    lastExecutedRef.current = "";
+    setQuery("");
+    setState(null);
+    if (urlQuery.trim()) {
+      onUrlQueryChange?.(undefined);
+    }
+  }
+
+  async function run(rawQuery: string) {
+    await execute(rawQuery, scope, true);
   }
 
   return { query, setQuery, state, clear, run };
@@ -110,16 +204,37 @@ export function useProductSearch(from: string) {
 
 export function SearchBar({
   search,
+  category = "all",
+  subcategory = "",
+  subcategoryLabel,
+  onClearCategory,
+  onClearSubcategory,
   onFilterVerifiedDeals,
   onFilterDiscountsToReview,
 }: {
   search: ReturnType<typeof useProductSearch>;
+  category?: FeedCategoryFilter;
+  subcategory?: string;
+  subcategoryLabel?: string | null;
+  onClearCategory?: () => void;
+  onClearSubcategory?: () => void;
   onFilterVerifiedDeals?: () => void;
   onFilterDiscountsToReview?: () => void;
 }) {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const field = useRef<HTMLInputElement>(null);
   const isUrlInput = retailerQuery(search.query.trim()) !== null;
+  const categoryCopy = getCategorySearchCopy(category);
+  const placeholder = categoryCopy
+    ? lang === "ar"
+      ? categoryCopy.placeholderAr
+      : categoryCopy.placeholderEn
+    : t("search.placeholder");
+  const quickChips: readonly string[] = categoryCopy
+    ? lang === "ar"
+      ? categoryCopy.chipsAr
+      : categoryCopy.chipsEn
+    : [t("search.chipIphone"), t("search.chipSharp"), t("search.chipWasher")];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -166,7 +281,7 @@ export function SearchBar({
                 clear();
               }
             }}
-            placeholder={t("search.placeholder")}
+            placeholder={placeholder}
           />
           {isUrlInput && (
             <span className="ptr-url-pill">
@@ -201,27 +316,51 @@ export function SearchBar({
         </button>
       </div>
 
+      {category !== "all" && !isUrlInput && (
+        <div className="ptr-search-scope-row" role="status">
+          <span className="ptr-search-scope-pill">
+            <Filter size={12} aria-hidden="true" />
+            <span>
+              {t("search.searchingIn")}: {t(categoryLabels[category])}
+              {subcategory && subcategoryLabel ? ` › ${subcategoryLabel}` : ""}
+            </span>
+          </span>
+          {subcategory && onClearSubcategory && (
+            <button
+              type="button"
+              className="ptr-search-scope-clear"
+              onClick={onClearSubcategory}
+            >
+              <X size={12} aria-hidden="true" />
+              <span>{t(categoryLabels[category])}</span>
+            </button>
+          )}
+          {onClearCategory && (
+            <button
+              type="button"
+              className="ptr-search-scope-clear"
+              onClick={onClearCategory}
+              aria-label={t("search.clearScope")}
+            >
+              <X size={12} aria-hidden="true" />
+              <span>{t("search.allCategories")}</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="ptr-quick-try" aria-label={t("search.quickTryLabel")}>
         <span className="ptr-quick-try-label">{t("search.quickTryLabel")}</span>
-        {(
-          [
-            "search.chipIphone",
-            "search.chipSharp",
-            "search.chipWasher",
-          ] as const
-        ).map((key) => {
-          const term = t(key);
-          return (
-            <button
-              key={key}
-              type="button"
-              className="ptr-quick-chip"
-              onClick={() => runQuickQuery(term)}
-            >
-              {term}
-            </button>
-          );
-        })}
+        {quickChips.map((term) => (
+          <button
+            key={`${category}-${term}`}
+            type="button"
+            className="ptr-quick-chip"
+            onClick={() => runQuickQuery(term)}
+          >
+            {term}
+          </button>
+        ))}
         {onFilterVerifiedDeals && (
           <button
             type="button"

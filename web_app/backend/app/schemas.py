@@ -124,6 +124,32 @@ class CategoriesResponse(BaseModel):
     total_products: int
 
 
+class SubcategoryFacetItem(BaseModel):
+    slug: str
+    label_en: str
+    label_ar: str
+    count: int
+
+
+class StoreFacetItem(BaseModel):
+    slug: str
+    count: int
+
+
+class BrandFacetItem(BaseModel):
+    name: str
+    count: int
+
+
+class CategoryFacetsResponse(BaseModel):
+    category: Category
+    subcategory: Optional[str] = None
+    total_in_stock: int = 0
+    subcategories: list[SubcategoryFacetItem] = Field(default_factory=list)
+    stores: list[StoreFacetItem] = Field(default_factory=list)
+    brands: list[BrandFacetItem] = Field(default_factory=list)
+
+
 class ProductVerdictItem(BaseModel):
     product_sk: str
     canonical_product_key: Optional[str] = None

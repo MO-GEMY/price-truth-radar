@@ -286,11 +286,20 @@ def _term_parameters(query: CatalogQuery, limit: int) -> dict[str, Any]:
     }
 
 
-def exact_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) -> tuple[str, dict[str, Any]]:
+def exact_catalog_sql(
+    query: CatalogQuery,
+    limit: int,
+    *,
+    indexed: bool = True,
+    filters_sql: str = "",
+    filters_params: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]]:
     document = "p.search_document" if indexed else _LEGACY_DOCUMENT
     matches = " AND ".join(f"{document} ~ :term_{index}" for index in range(len(query.terms)))
     title_matches = " AND ".join(f"{_TITLE_AND_BRAND} ~ :term_{index}" for index in range(len(query.terms)))
     anchor_order = _anchor_title_order_sql(query)
+    scope_and = f" AND {filters_sql}" if filters_sql else ""
+    scope_where = f"WHERE {filters_sql}" if filters_sql else ""
 
     sql = f"""
     WITH direct_matches AS MATERIALIZED (
@@ -302,7 +311,7 @@ def exact_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) 
                 ELSE 3
             END AS relevance
         FROM gold.mart_product_verdicts p
-        WHERE {matches}
+        WHERE {matches}{scope_and}
     ),
     verified_models AS (
         SELECT d.canonical_product_key
@@ -340,6 +349,7 @@ def exact_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) 
             ) AS variant_rn
         FROM gold.mart_product_verdicts p
         JOIN ranked r ON r.matched_sk = p.product_sk
+        {scope_where}
     )
     SELECT {PRODUCT_SELECT_COLS}, COUNT(*) OVER () AS search_total
     FROM deduped
@@ -349,13 +359,21 @@ def exact_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) 
     """
     return sql, {
         **_term_parameters(query, limit),
+        **(filters_params or {}),
         "normalized": query.normalized,
         "phrase": query.phrase,
         "related_model_limit": _RELATED_MODEL_LIMIT,
     }
 
 
-def coverage_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) -> tuple[str, dict[str, Any]] | None:
+def coverage_catalog_sql(
+    query: CatalogQuery,
+    limit: int,
+    *,
+    indexed: bool = True,
+    filters_sql: str = "",
+    filters_params: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]] | None:
     """High-coverage fallback for 3+ token queries when 1 descriptive token misses.
 
     Requires ALL model-number/unit anchors to match and at least `len(terms) - 1`
@@ -374,10 +392,12 @@ def coverage_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = Tru
     required_clauses = [f"{document} ~ :term_{i}" for i in anchor_idxs]
     any_non_anchor = "(" + " OR ".join(f"{document} ~ :term_{i}" for i in non_anchor_idxs) + ")"
     required_clauses.append(any_non_anchor)
+    if filters_sql:
+        required_clauses.append(filters_sql)
     where_sql = " AND ".join(required_clauses)
     anchor_order = _anchor_title_order_sql(query)
 
-    params = {**_term_parameters(query, limit), "min_hits": min_hits}
+    params = {**_term_parameters(query, limit), **(filters_params or {}), "min_hits": min_hits}
     sql = f"""
     WITH scored AS (
         SELECT
@@ -408,11 +428,18 @@ def coverage_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = Tru
     return sql, params
 
 
-def fuzzy_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) -> tuple[str, dict[str, Any]] | None:
+def fuzzy_catalog_sql(
+    query: CatalogQuery,
+    limit: int,
+    *,
+    indexed: bool = True,
+    filters_sql: str = "",
+    filters_params: dict[str, Any] | None = None,
+) -> tuple[str, dict[str, Any]] | None:
     if not any(term.fuzzy_word for term in query.terms):
         return None
     document = "p.search_document" if indexed else _LEGACY_DOCUMENT
-    params = _term_parameters(query, limit)
+    params = {**_term_parameters(query, limit), **(filters_params or {})}
     matches, misses, scores = [], [], []
     for index, term in enumerate(query.terms):
         exact = f"{document} ~ :term_{index}"
@@ -428,6 +455,7 @@ def fuzzy_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) 
     missed = " + ".join(misses)
     score_expr = " + ".join(scores)
     anchor_order = _anchor_title_order_sql(query)
+    scope_and = f" AND {filters_sql}" if filters_sql else ""
     return f"""
         WITH deduped AS (
             SELECT
@@ -442,7 +470,7 @@ def fuzzy_catalog_sql(query: CatalogQuery, limit: int, *, indexed: bool = True) 
                     ORDER BY {_ACCESSORY_ORDER}, {anchor_order}, ({missed}), ({score_expr}) DESC, p.in_stock DESC, p.current_price ASC, p.product_sk
                 ) AS variant_rn
             FROM gold.mart_product_verdicts p
-            WHERE {' AND '.join(matches)} AND ({missed}) <= 2
+            WHERE {' AND '.join(matches)} AND ({missed}) <= 2{scope_and}
         )
         SELECT {PRODUCT_SELECT_COLS}, COUNT(*) OVER () AS search_total
         FROM deduped
@@ -457,9 +485,21 @@ def _database_code(error: DBAPIError) -> str | None:
     return getattr(error.orig, "pgcode", None) or getattr(error.orig, "sqlstate", None)
 
 
-def search_catalog(db: Connection, query: CatalogQuery, limit: int) -> tuple[list[dict[str, Any]], int, str]:
+def search_catalog(
+    db: Connection,
+    query: CatalogQuery,
+    limit: int,
+    *,
+    filters_sql: str = "",
+    filters_params: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], int, str]:
     indexed = True
-    sql, params = exact_catalog_sql(query, limit)
+    sql, params = exact_catalog_sql(
+        query,
+        limit,
+        filters_sql=filters_sql,
+        filters_params=filters_params,
+    )
     try:
         rows = db.execute(text(sql), params).mappings().all()
     except DBAPIError as error:
@@ -467,14 +507,26 @@ def search_catalog(db: Connection, query: CatalogQuery, limit: int) -> tuple[lis
             raise
         db.rollback()
         indexed = False
-        sql, params = exact_catalog_sql(query, limit, indexed=indexed)
+        sql, params = exact_catalog_sql(
+            query,
+            limit,
+            indexed=indexed,
+            filters_sql=filters_sql,
+            filters_params=filters_params,
+        )
         rows = db.execute(text(sql), params).mappings().all()
 
     if rows:
         return [dict(row) for row in rows], int(rows[0]["search_total"]), "text_search"
 
     # Multi-token coverage fallback (for 3+ term queries where 1 descriptive word is absent)
-    cov = coverage_catalog_sql(query, limit, indexed=indexed)
+    cov = coverage_catalog_sql(
+        query,
+        limit,
+        indexed=indexed,
+        filters_sql=filters_sql,
+        filters_params=filters_params,
+    )
     if cov is not None:
         cov_sql, cov_params = cov
         try:
@@ -484,7 +536,13 @@ def search_catalog(db: Connection, query: CatalogQuery, limit: int) -> tuple[lis
         except DBAPIError:
             db.rollback()
 
-    fuzzy = fuzzy_catalog_sql(query, limit, indexed=indexed)
+    fuzzy = fuzzy_catalog_sql(
+        query,
+        limit,
+        indexed=indexed,
+        filters_sql=filters_sql,
+        filters_params=filters_params,
+    )
     if fuzzy is not None:
         sql, params = fuzzy
         try:

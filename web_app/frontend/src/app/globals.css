@@ -868,6 +868,108 @@ html[lang="ar"] :is(
   opacity: 0.76;
 }
 
+.ptr-subcategory-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-block: 2px 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ptr-subcategory-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.ptr-subchip {
+  flex: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--asarak-border);
+  background: var(--asarak-surface);
+  color: var(--asarak-ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ptr-subchip:hover {
+  border-color: var(--asarak-emerald);
+  background: var(--asarak-emerald-soft);
+  color: var(--asarak-emerald-aaa);
+}
+
+[data-theme="dark"] .ptr-subchip:hover {
+  color: #6ee7b7;
+}
+
+.ptr-subchip[aria-pressed="true"] {
+  border-color: var(--asarak-emerald);
+  background: var(--asarak-emerald-soft);
+  color: var(--asarak-emerald-aaa);
+  font-weight: 700;
+}
+
+[data-theme="dark"] .ptr-subchip[aria-pressed="true"] {
+  color: #6ee7b7;
+}
+
+.ptr-search-scope-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-block-start: 10px;
+}
+
+.ptr-search-scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--asarak-emerald-soft);
+  border: 1px solid var(--asarak-emerald-border);
+  color: var(--asarak-emerald-aaa);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+[data-theme="dark"] .ptr-search-scope-pill {
+  color: #6ee7b7;
+}
+
+.ptr-search-scope-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--asarak-border-strong);
+  background: var(--asarak-card);
+  color: var(--asarak-ink-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.ptr-search-scope-clear:hover {
+  border-color: var(--asarak-emerald);
+  color: var(--asarak-ink);
+  background: var(--asarak-surface);
+}
+
 /* ==========================================================================
    Product List & Grid Cards
    ========================================================================== */

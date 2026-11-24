@@ -124,12 +124,40 @@ export interface CategoriesResponse {
   total_products: number;
 }
 
+export interface SubcategoryFacetItem {
+  slug: string;
+  label_en: string;
+  label_ar: string;
+  count: number;
+}
+
+export interface StoreFacetItem {
+  slug: string;
+  count: number;
+}
+
+export interface BrandFacetItem {
+  name: string;
+  count: number;
+}
+
+export interface CategoryFacetsResponse {
+  category: Category;
+  subcategory?: string | null;
+  total_in_stock: number;
+  subcategories: SubcategoryFacetItem[];
+  stores: StoreFacetItem[];
+  brands: BrandFacetItem[];
+}
+
 /* ------------------------------------------------------------------ */
 /* §5.3 Radar Feed                                                     */
 /* ------------------------------------------------------------------ */
 
 export interface RadarFeedParams {
   category: FeedCategoryFilter;
+  subcategory?: string;
+  brand?: string;
   verdict?: DiscountVerdict;
   store?: string;
   sort: FeedSort;
@@ -152,6 +180,10 @@ export interface RadarFeedResponse {
 export interface SearchParams {
   q?: string;
   url?: string;
+  category?: FeedCategoryFilter;
+  subcategory?: string;
+  store?: string;
+  brand?: string;
   limit?: number;
 }
 

@@ -2,18 +2,29 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
 from app.schemas import (
+    BrandFacetItem,
     CANONICAL_CATEGORIES,
     CategoriesResponse,
     Category,
     CategoryFacetItem,
+    CategoryFacetsResponse,
     OverviewStatsResponse,
+    StoreFacetItem,
+    SubcategoryFacetItem,
+)
+from app.subcategories import (
+    build_subcategory_sql_filter,
+    get_category_subcategories,
+    normalize_subcategory_slug,
 )
 
 router = APIRouter(tags=["stats"])
@@ -185,3 +196,171 @@ def get_categories(
     result = CategoriesResponse(items=items, total_products=total_products)
     api_cache.set(cache_key, result, ttl=43200.0)
     return result
+
+
+_IGNORED_BRANDS_SQL = (
+    "('unknown', 'generic', 'unbranded', 'other', 'n/a', 'none', 'no brand', 'null', '-', 'na')"
+)
+
+
+def _compute_subcategory_counts(
+    db: Connection,
+    category: Category,
+) -> tuple[int, list[SubcategoryFacetItem]]:
+    """Compute live in-stock counts for all canonical subcategories in a category (cached 6h)."""
+    sub_cache_key = f"stats:cat_subcounts:v1:{category}"
+    cached = api_cache.get(sub_cache_key)
+    if cached is not None:
+        return cached
+
+    specs = get_category_subcategories(category)
+    select_parts = ["COUNT(*)::INTEGER AS total_in_stock"]
+    params: dict[str, Any] = {"category": category}
+
+    for idx, spec in enumerate(specs):
+        pred, pred_params = build_subcategory_sql_filter(
+            category,
+            spec.slug,
+            param_prefix=f"sc{idx}",
+        )
+        if pred:
+            select_parts.append(f"COUNT(*) FILTER (WHERE {pred})::INTEGER AS cnt_{idx}")
+            params.update(pred_params)
+
+    sql = text(
+        f"""
+        SELECT {", ".join(select_parts)}
+        FROM gold.mart_product_verdicts
+        WHERE category = :category
+          AND in_stock = TRUE
+        """
+    )
+    row = db.execute(sql, params).mappings().one()
+    total_in_stock = int(row.get("total_in_stock") or 0)
+
+    items: list[SubcategoryFacetItem] = []
+    for idx, spec in enumerate(specs):
+        cnt = int(row.get(f"cnt_{idx}") or 0)
+        if cnt <= 0:
+            continue
+        items.append(
+            SubcategoryFacetItem(
+                slug=spec.slug,
+                label_en=spec.label_en,
+                label_ar=spec.label_ar,
+                count=cnt,
+            )
+        )
+    items.sort(key=lambda item: (-item.count, item.label_en))
+    result = (total_in_stock, items)
+    api_cache.set(sub_cache_key, result, ttl=21600.0)
+    return result
+
+
+def _load_category_facets(
+    response: Response,
+    category: Category,
+    subcategory: Optional[str],
+    db: Connection,
+) -> CategoryFacetsResponse:
+    set_cache_headers(response, s_maxage=21600, stale_while_revalidate=86400)
+    norm_sub = normalize_subcategory_slug(subcategory)
+    cache_key = f"stats:cat_facets:v1:{category}:{norm_sub}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    total_in_stock, subcategories = _compute_subcategory_counts(db, category)
+
+    params: dict[str, Any] = {"category": category}
+    sub_clause = ""
+    if norm_sub:
+        pred, pred_params = build_subcategory_sql_filter(category, norm_sub, param_prefix="fsub")
+        if pred:
+            sub_clause = f"AND {pred}"
+            params.update(pred_params)
+
+    facets_sql = text(
+        f"""
+        WITH scoped AS (
+            SELECT store_name, brand
+            FROM gold.mart_product_verdicts
+            WHERE category = :category
+              AND in_stock = TRUE
+              {sub_clause}
+        ),
+        store_agg AS (
+            SELECT store_name AS slug, COUNT(*)::INTEGER AS cnt
+            FROM scoped
+            WHERE store_name IS NOT NULL AND store_name <> ''
+            GROUP BY store_name
+        ),
+        brand_agg AS (
+            SELECT MIN(TRIM(brand)) AS name, COUNT(*)::INTEGER AS cnt
+            FROM scoped
+            WHERE brand IS NOT NULL
+              AND TRIM(brand) <> ''
+              AND LOWER(TRIM(brand)) NOT IN {_IGNORED_BRANDS_SQL}
+            GROUP BY LOWER(TRIM(brand))
+            ORDER BY COUNT(*) DESC, MIN(TRIM(brand)) ASC
+            LIMIT 40
+        )
+        SELECT
+            (SELECT COUNT(*)::INTEGER FROM scoped) AS scoped_total,
+            COALESCE(
+                (SELECT JSONB_AGG(JSONB_BUILD_OBJECT('slug', slug, 'count', cnt) ORDER BY cnt DESC, slug ASC) FROM store_agg),
+                '[]'::JSONB
+            ) AS stores,
+            COALESCE(
+                (SELECT JSONB_AGG(JSONB_BUILD_OBJECT('name', name, 'count', cnt) ORDER BY cnt DESC, name ASC) FROM brand_agg),
+                '[]'::JSONB
+            ) AS brands
+        """
+    )
+    row = db.execute(facets_sql, params).mappings().one()
+    raw_stores = row.get("stores") or []
+    raw_brands = row.get("brands") or []
+
+    stores = [
+        StoreFacetItem(slug=str(item["slug"]), count=int(item["count"]))
+        for item in raw_stores
+        if isinstance(item, dict) and item.get("slug") and int(item.get("count") or 0) > 0
+    ]
+    brands = [
+        BrandFacetItem(name=str(item["name"]), count=int(item["count"]))
+        for item in raw_brands
+        if isinstance(item, dict) and item.get("name") and int(item.get("count") or 0) > 0
+    ]
+
+    result = CategoryFacetsResponse(
+        category=category,
+        subcategory=norm_sub or None,
+        total_in_stock=int(row.get("scoped_total") or 0) if norm_sub else total_in_stock,
+        subcategories=subcategories,
+        stores=stores,
+        brands=brands,
+    )
+    api_cache.set(cache_key, result, ttl=21600.0)
+    return result
+
+
+@router.get("/api/v1/categories/facets", response_model=CategoryFacetsResponse)
+@router.get("/api/facets", response_model=CategoryFacetsResponse, include_in_schema=True)
+def get_facets_by_query(
+    response: Response,
+    category: Category = Query(...),
+    subcategory: Optional[str] = Query(default=None),
+    db: Connection = Depends(get_db),
+) -> CategoryFacetsResponse:
+    return _load_category_facets(response, category, subcategory, db)
+
+
+@router.get("/api/v1/categories/{category}/facets", response_model=CategoryFacetsResponse)
+@router.get("/api/categories/{category}/facets", response_model=CategoryFacetsResponse, include_in_schema=True)
+def get_category_facets(
+    category: Category,
+    response: Response,
+    subcategory: Optional[str] = Query(default=None),
+    db: Connection = Depends(get_db),
+) -> CategoryFacetsResponse:
+    return _load_category_facets(response, category, subcategory, db)

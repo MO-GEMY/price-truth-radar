@@ -11,6 +11,8 @@
 
 import type {
   CategoriesResponse,
+  Category,
+  CategoryFacetsResponse,
   CompareParams,
   CompareResponse,
   CouponScope,
@@ -27,6 +29,7 @@ import type {
 } from "@/types/contract";
 import {
   getMockCategories,
+  getMockCategoryFacets,
   getMockStatsOverview,
   mockCompare,
   mockProductDetail,
@@ -176,6 +179,24 @@ export function fetchCategories(signal?: AbortSignal): Promise<ApiResult<Categor
   );
 }
 
+/** GET /api/v1/categories/{category}/facets — cached subcategories, scoped stores & top brands */
+export function fetchCategoryFacets(
+  category: Category,
+  subcategory?: string,
+  signal?: AbortSignal,
+): Promise<ApiResult<CategoryFacetsResponse>> {
+  return withFallback(
+    () =>
+      fetchJson<CategoryFacetsResponse>(
+        `/api/v1/categories/${encodeURIComponent(category)}/facets`,
+        { subcategory: subcategory || undefined },
+        signal,
+      ),
+    () => getMockCategoryFacets(category, subcategory),
+    signal,
+  );
+}
+
 /** §5.3 GET /api/v1/radar/feed */
 export function fetchRadarFeed(
   params: RadarFeedParams,
@@ -187,6 +208,8 @@ export function fetchRadarFeed(
         "/api/v1/radar/feed",
         {
           category: params.category,
+          subcategory: params.subcategory,
+          brand: params.brand,
           verdict: params.verdict,
           store: params.store,
           sort: params.sort,
@@ -208,7 +231,15 @@ export async function fetchSearch(
   if (!isApiConfigured()) return { data: mockSearch(params), source: "mock" };
   const data = await fetchJson<SearchResponse>(
     "/api/v1/products/search",
-    { q: params.q, url: params.url, limit: params.limit ?? 20 },
+    {
+      q: params.q,
+      url: params.url,
+      category: params.category && params.category !== "all" ? params.category : undefined,
+      subcategory: params.subcategory || undefined,
+      store: params.store || undefined,
+      brand: params.brand || undefined,
+      limit: params.limit ?? 20,
+    },
     signal,
   );
   return { data, source: "api" };

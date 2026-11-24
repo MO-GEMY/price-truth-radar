@@ -17,6 +17,7 @@ from app.database import get_db
 from app.routers.radar import PRODUCT_SELECT_COLS
 from app.schemas import (
     AlternativeListing,
+    CategoryFilter,
     PriceHistoryPoint,
     ProductDetailResponse,
     ProductVariantItem,
@@ -25,6 +26,7 @@ from app.schemas import (
     SimilarAlternativeItem,
 )
 from app.similar_alternatives import find_similar_alternatives
+from app.subcategories import build_subcategory_sql_filter, normalize_subcategory_slug
 
 router = APIRouter(prefix="/api/v1/products", tags=["products"])
 
@@ -179,11 +181,22 @@ def search_products(
     response: Response,
     q: Optional[str] = Query(default=None),
     url: Optional[str] = Query(default=None),
+    category: Optional[CategoryFilter] = Query(default=None),
+    subcategory: Optional[str] = Query(default=None),
+    store: Optional[str] = Query(default=None),
+    brand: Optional[str] = Query(default=None),
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
     set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
-    cache_key = f"products:search:v3:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
+    norm_cat = category if (category and category != "all") else ""
+    norm_sub = normalize_subcategory_slug(subcategory)
+    norm_store = store.strip().lower() if (store and store.strip()) else ""
+    norm_brand = brand.strip().lower() if (brand and brand.strip()) else ""
+    cache_key = (
+        f"products:search:v4:{(q or '').strip().lower()}:{(url or '').strip().lower()}:"
+        f"{norm_cat}:{norm_sub}:{norm_store}:{norm_brand}:{limit}"
+    )
     cached = search_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -371,7 +384,35 @@ def search_products(
     if not query.terms:
         return SearchResponse(match_type="none", items=[], total=0)
 
-    rows, total, match_type = search_catalog(db, query, limit)
+    filter_clauses: list[str] = []
+    filter_params: dict[str, object] = {}
+    if norm_cat:
+        filter_clauses.append("p.category = :search_cat")
+        filter_params["search_cat"] = norm_cat
+    if norm_sub:
+        sub_pred, sub_params = build_subcategory_sql_filter(
+            norm_cat or "all",
+            norm_sub,
+            alias="p",
+            param_prefix="ssub",
+        )
+        if sub_pred:
+            filter_clauses.append(sub_pred)
+            filter_params.update(sub_params)
+    if norm_store:
+        filter_clauses.append("p.store_name = :search_store")
+        filter_params["search_store"] = norm_store
+    if norm_brand:
+        filter_clauses.append("LOWER(TRIM(COALESCE(p.brand, ''))) = :search_brand")
+        filter_params["search_brand"] = norm_brand
+
+    rows, total, match_type = search_catalog(
+        db,
+        query,
+        limit,
+        filters_sql=" AND ".join(filter_clauses),
+        filters_params=filter_params,
+    )
     items = [ProductVerdictItem.model_validate(row) for row in rows]
     res = SearchResponse(match_type=match_type, items=items, total=total)
     search_cache.set(cache_key, res, ttl=3600.0)

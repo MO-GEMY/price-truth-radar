@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { LayoutGrid, List, SlidersHorizontal } from "lucide-react";
 import type {
+  CategoryFacetsResponse,
   DiscountVerdict,
   FeedCategoryFilter,
   FeedSort,
@@ -28,6 +29,8 @@ export const sortOptions: FeedSort[] = [
 
 export interface FeedFilterState {
   category: FeedCategoryFilter;
+  subcategory: string;
+  brand: string;
   verdict: DiscountVerdict | "";
   store: string;
   sort: FeedSort;
@@ -35,6 +38,8 @@ export interface FeedFilterState {
 
 export const defaultFilters: FeedFilterState = {
   category: "all",
+  subcategory: "",
+  brand: "",
   verdict: "",
   store: "",
   sort: "claimed_vs_real_gap_desc",
@@ -44,6 +49,8 @@ export function FeedFilters({
   value,
   stores,
   categoryCounts,
+  facets,
+  facetsLoading = false,
   view = "list",
   onViewChange,
   onChange,
@@ -51,6 +58,8 @@ export function FeedFilters({
   value: FeedFilterState;
   stores: string[];
   categoryCounts?: Record<string, number> | null;
+  facets?: CategoryFacetsResponse | null;
+  facetsLoading?: boolean;
   view?: "list" | "grid";
   onViewChange?: (view: "list" | "grid") => void;
   onChange: (next: FeedFilterState) => void;
@@ -60,12 +69,48 @@ export function FeedFilters({
   const opener = useRef<HTMLButtonElement>(null);
   const [draft, setDraft] = useState(value);
   const shownCategories = visibleCategories(categoryCounts, value.category);
-  const available = [
-    ...new Set([...stores, ...(value.store ? [value.store] : [])]),
-  ].sort((a, b) =>
-    storeDisplayName(a, lang).localeCompare(storeDisplayName(b, lang), lang),
-  );
+
+  const scopedStoreCounts = new Map<string, number>();
+  if (value.category !== "all" && facets?.stores?.length) {
+    for (const s of facets.stores) {
+      scopedStoreCounts.set(s.slug, s.count);
+    }
+  }
+
+  const baseStores =
+    value.category !== "all" && facets?.stores?.length
+      ? facets.stores.map((s) => s.slug)
+      : stores;
+
+  const availableStores = [
+    ...new Set([...baseStores, ...(value.store ? [value.store] : [])]),
+  ].sort((a, b) => {
+    const ca = scopedStoreCounts.get(a) ?? 0;
+    const cb = scopedStoreCounts.get(b) ?? 0;
+    if (ca !== cb) return cb - ca;
+    return storeDisplayName(a, lang).localeCompare(storeDisplayName(b, lang), lang);
+  });
+
+  const availableBrands = facets?.brands ?? [];
+  const hasSelectedBrandInList =
+    !value.brand ||
+    availableBrands.some(
+      (b) => b.name.toLowerCase() === value.brand.toLowerCase(),
+    );
+
+  const subcategories = value.category !== "all" ? (facets?.subcategories ?? []) : [];
+  const activeSubcatObj = subcategories.find((s) => s.slug === value.subcategory);
+  const activeSubcatLabel = activeSubcatObj
+    ? lang === "ar"
+      ? activeSubcatObj.label_ar
+      : activeSubcatObj.label_en
+    : value.subcategory
+      ? value.subcategory.replace(/_/g, " ")
+      : "";
+
   const active = [
+    activeSubcatLabel,
+    value.brand,
     value.verdict && t(`verdict.${value.verdict}`),
     value.store && storeDisplayName(value.store, lang),
     value.sort !== defaultFilters.sort && t(`sort.${value.sort}`),
@@ -74,6 +119,25 @@ export function FeedFilters({
   function close() {
     dialog.current?.close();
     opener.current?.focus({ preventScroll: true });
+  }
+
+  function selectCategory(nextCat: FeedCategoryFilter) {
+    if (nextCat === value.category) return;
+    onChange({
+      ...value,
+      category: nextCat,
+      subcategory: "",
+      brand: "",
+      store: "",
+    });
+  }
+
+  function selectSubcategory(nextSub: string) {
+    onChange({
+      ...value,
+      subcategory: nextSub === value.subcategory ? "" : nextSub,
+      brand: "",
+    });
   }
 
   return (
@@ -93,7 +157,7 @@ export function FeedFilters({
                 key={category}
                 type="button"
                 aria-pressed={value.category === category}
-                onClick={() => onChange({ ...value, category })}
+                onClick={() => selectCategory(category)}
               >
                 <span>{t(categoryLabels[category])}</span>
                 {typeof catCount === "number" && catCount > 0 && (
@@ -150,6 +214,56 @@ export function FeedFilters({
         </div>
       </div>
 
+      {value.category !== "all" && (subcategories.length > 0 || facetsLoading) && (
+        <div
+          className="ptr-subcategory-bar"
+          role="group"
+          aria-label={t("filters.subcategory")}
+        >
+          {facetsLoading && subcategories.length === 0 ? (
+            [0, 1, 2, 3, 4].map((idx) => (
+              <span
+                key={idx}
+                className="skeleton"
+                style={{ width: 92, height: 32, borderRadius: 999, flex: "none" }}
+                aria-hidden="true"
+              />
+            ))
+          ) : (
+            <>
+              <button
+                type="button"
+                className="ptr-subchip"
+                aria-pressed={value.subcategory === ""}
+                onClick={() =>
+                  onChange({ ...value, subcategory: "", brand: "" })
+                }
+              >
+                <span>
+                  {t("filters.subcatAll", {
+                    category: t(categoryLabels[value.category]),
+                  })}
+                </span>
+              </button>
+              {subcategories.map((sub) => (
+                <button
+                  key={sub.slug}
+                  type="button"
+                  className="ptr-subchip"
+                  aria-pressed={value.subcategory === sub.slug}
+                  onClick={() => selectSubcategory(sub.slug)}
+                >
+                  <span>{lang === "ar" ? sub.label_ar : sub.label_en}</span>
+                  <span className="ptr-chip-count">
+                    <bdi>{formatNumber(sub.count, lang)}</bdi>
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
       {(active.length > 0 || value.category !== "all") && (
         <div className="ptr-controls text-sm ptr-muted">
           {active.length > 0 && <span>{active.join(" · ")}</span>}
@@ -193,13 +307,43 @@ export function FeedFilters({
               }
             >
               <option value="">{t("filters.storeAll")}</option>
-              {available.map((store) => (
-                <option key={store} value={store}>
-                  {storeDisplayName(store, lang)}
-                </option>
-              ))}
+              {availableStores.map((store) => {
+                const cnt = scopedStoreCounts.get(store);
+                return (
+                  <option key={store} value={store}>
+                    {storeDisplayName(store, lang)}
+                    {typeof cnt === "number" && cnt > 0
+                      ? ` (${formatNumber(cnt, lang)})`
+                      : ""}
+                  </option>
+                );
+              })}
             </select>
           </label>
+
+          {value.category !== "all" && (availableBrands.length > 0 || draft.brand) && (
+            <label className="ptr-control-label">
+              {t("filters.brand")}
+              <select
+                className="ptr-field"
+                value={draft.brand}
+                onChange={(event) =>
+                  setDraft({ ...draft, brand: event.target.value })
+                }
+              >
+                <option value="">{t("filters.brandAll")}</option>
+                {!hasSelectedBrandInList && draft.brand && (
+                  <option value={draft.brand}>{draft.brand}</option>
+                )}
+                {availableBrands.map((brand) => (
+                  <option key={brand.name} value={brand.name}>
+                    {brand.name} ({formatNumber(brand.count, lang)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <label className="ptr-control-label">
             {t("filters.verdict")}
             <select
@@ -223,6 +367,7 @@ export function FeedFilters({
               ))}
             </select>
           </label>
+
           <label className="ptr-control-label">
             {t("filters.sort")}
             <select
@@ -244,6 +389,7 @@ export function FeedFilters({
               ))}
             </select>
           </label>
+
           <div className="ptr-controls pt-2">
             <button type="submit" className="ptr-button ptr-primary">
               {t("ui.applyFilters")}

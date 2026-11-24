@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
-import type { Category, RadarFeedResponse } from "@/types/contract";
+import type { Category, CategoryFacetsResponse, RadarFeedResponse } from "@/types/contract";
 import { fetchJson, isApiConfigured } from "@/lib/api";
 import { serializeJsonLd } from "@/lib/jsonld";
 import {
@@ -140,6 +140,21 @@ async function loadCategoryFeed(slug: Category): Promise<RadarFeedResponse | nul
   }
 }
 
+async function loadCategoryFacets(slug: Category): Promise<CategoryFacetsResponse | null> {
+  if (!isApiConfigured()) return null;
+  try {
+    return await fetchJson<CategoryFacetsResponse>(
+      `/api/v1/categories/${encodeURIComponent(slug)}/facets`,
+      undefined,
+      undefined,
+      CATEGORY_SSR_TIMEOUT_MS,
+      revalidate,
+    );
+  } catch {
+    return null;
+  }
+}
+
 interface CategoryPageProps {
   params: Promise<{ slug: string }>;
 }
@@ -187,8 +202,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   if (!isCanonicalCategory(slug)) notFound();
 
   const meta = CATEGORY_META[slug];
-  const feed = await loadCategoryFeed(slug);
+  const [feed, facets] = await Promise.all([
+    loadCategoryFeed(slug),
+    loadCategoryFacets(slug),
+  ]);
   const items = feed?.items ?? [];
+  const subcategories = facets?.subcategories ?? [];
   const totalCount = feed?.total ?? 0;
   const canonicalUrl = absoluteUrl(`/category/${slug}`);
 
@@ -267,6 +286,27 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
             );
           })}
         </nav>
+
+        {subcategories.length > 0 && (
+          <nav
+            aria-label="Subcategories"
+            className="ptr-subcategory-bar"
+          >
+            {subcategories.map((sub) => (
+              <a
+                key={sub.slug}
+                href={`/?category=${slug}&subcategory=${encodeURIComponent(sub.slug)}`}
+                rel="nofollow"
+                className="ptr-subchip"
+              >
+                <span>{sub.label_ar} · {sub.label_en}</span>
+                <span className="ptr-chip-count">
+                  <bdi>{sub.count.toLocaleString("en-US")}</bdi>
+                </span>
+              </a>
+            ))}
+          </nav>
+        )}
 
         <section className="min-w-0 space-y-4">
           {items.length > 0 ? (

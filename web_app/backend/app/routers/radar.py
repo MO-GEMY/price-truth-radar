@@ -13,6 +13,7 @@ from sqlalchemy.exc import DBAPIError
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
 from app.schemas import CategoryFilter, DiscountVerdict, ProductVerdictItem, RadarFeedResponse
+from app.subcategories import build_subcategory_sql_filter, normalize_subcategory_slug
 
 router = APIRouter(prefix="/api/v1/radar", tags=["radar"])
 
@@ -58,6 +59,8 @@ PRODUCT_SELECT_COLS = """
 def get_radar_feed(
     response: Response,
     category: CategoryFilter = Query(default="all"),
+    subcategory: Optional[str] = Query(default=None),
+    brand: Optional[str] = Query(default=None),
     verdict: Optional[DiscountVerdict] = Query(default=None),
     store: Optional[str] = Query(default=None),
     sort: Literal[
@@ -71,11 +74,15 @@ def get_radar_feed(
     db: Connection = Depends(get_db),
 ) -> RadarFeedResponse:
     norm_store = store.strip().lower() if (store and store.strip()) else ""
-    if verdict is None and not norm_store and page == 1:
+    norm_sub = normalize_subcategory_slug(subcategory)
+    norm_brand = brand.strip().lower() if (brand and brand.strip()) else ""
+    if verdict is None and not norm_store and not norm_sub and not norm_brand and page == 1:
         set_cache_headers(response, s_maxage=86400, stale_while_revalidate=604800)
     else:
         set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
-    cache_key = f"radar:feed:v2:{category}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
+    cache_key = (
+        f"radar:feed:v3:{category}:{norm_sub}:{norm_brand}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
+    )
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -86,6 +93,16 @@ def get_radar_feed(
     if category != "all":
         conditions.append("category = :category")
         params["category"] = category
+
+    if norm_sub:
+        sub_pred, sub_params = build_subcategory_sql_filter(category, norm_sub, param_prefix="rsub")
+        if sub_pred:
+            conditions.append(sub_pred)
+            params.update(sub_params)
+
+    if norm_brand:
+        conditions.append("LOWER(TRIM(COALESCE(brand, ''))) = :brand")
+        params["brand"] = norm_brand
 
     if verdict is not None:
         conditions.append("discount_verdict = :verdict")

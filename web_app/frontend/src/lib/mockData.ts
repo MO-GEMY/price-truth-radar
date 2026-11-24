@@ -10,6 +10,7 @@ import type {
   AlternativeListing,
   CategoriesResponse,
   Category,
+  CategoryFacetsResponse,
   CompareListing,
   CompareParams,
   CompareResponse,
@@ -941,8 +942,12 @@ function sortFeed(items: Product[], sort: RadarFeedParams["sort"]): Product[] {
 }
 
 export function mockRadarFeed(params: RadarFeedParams): RadarFeedResponse {
+  const normSub = params.subcategory?.trim().toLowerCase() ?? "";
+  const normBrand = params.brand?.trim().toLowerCase() ?? "";
   const filtered = getDataset().filter((p) => {
     if (params.category !== "all" && p.category !== params.category) return false;
+    if (normSub && p.sub_category.toLowerCase() !== normSub) return false;
+    if (normBrand && p.brand.trim().toLowerCase() !== normBrand) return false;
     if (params.verdict && p.discount_verdict !== params.verdict) return false;
     if (params.store && p.store_name !== params.store) return false;
     return true;
@@ -1161,11 +1166,62 @@ export function mockSearch(params: SearchParams): SearchResponse {
   if (q.length === 0) {
     return { match_type: "none", items: [], total: 0 };
   }
-  const matched = products.filter(
-    (p) =>
-      p.product_title.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q),
-  );
+  const normSub = params.subcategory?.trim().toLowerCase() ?? "";
+  const normBrand = params.brand?.trim().toLowerCase() ?? "";
+  const normStore = params.store?.trim().toLowerCase() ?? "";
+  const matched = products.filter((p) => {
+    if (params.category && params.category !== "all" && p.category !== params.category) return false;
+    if (normSub && p.sub_category.toLowerCase() !== normSub) return false;
+    if (normStore && p.store_name.toLowerCase() !== normStore) return false;
+    if (normBrand && p.brand.trim().toLowerCase() !== normBrand) return false;
+    return p.product_title.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q);
+  });
   return { match_type: "text_search", items: matched.slice(0, limit), total: matched.length };
+}
+
+export function getMockCategoryFacets(
+  category: Category,
+  subcategory?: string,
+): CategoryFacetsResponse {
+  const normSub = subcategory?.trim().toLowerCase() ?? "";
+  const inCategory = getDataset().filter((p) => p.category === category && p.in_stock);
+  const subCounts = new Map<string, number>();
+  for (const p of inCategory) {
+    const slug = p.sub_category.toLowerCase();
+    subCounts.set(slug, (subCounts.get(slug) ?? 0) + 1);
+  }
+  const scoped = normSub
+    ? inCategory.filter((p) => p.sub_category.toLowerCase() === normSub)
+    : inCategory;
+  const storeCounts = new Map<string, number>();
+  const brandCounts = new Map<string, number>();
+  for (const p of scoped) {
+    storeCounts.set(p.store_name, (storeCounts.get(p.store_name) ?? 0) + 1);
+    const brand = p.brand.trim();
+    if (brand && brand.toLowerCase() !== "unknown") {
+      brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
+    }
+  }
+  return {
+    category,
+    subcategory: normSub || null,
+    total_in_stock: scoped.length,
+    subcategories: Array.from(subCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([slug, count]) => ({
+        slug,
+        label_en: slug.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        label_ar: slug.replace(/_/g, " "),
+        count,
+      })),
+    stores: Array.from(storeCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([slug, count]) => ({ slug, count })),
+    brands: Array.from(brandCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 40)
+      .map(([name, count]) => ({ name, count })),
+  };
 }
 
 export function mockProductDetail(productSk: string): {

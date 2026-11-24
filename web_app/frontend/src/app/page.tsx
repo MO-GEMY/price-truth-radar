@@ -3,8 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronUp, Store } from "lucide-react";
-import type { RadarFeedResponse, StatsOverview } from "@/types/contract";
-import { fetchRadarFeed, fetchStatsOverview, type ApiResult } from "@/lib/api";
+import type {
+  CategoryFacetsResponse,
+  RadarFeedResponse,
+  StatsOverview,
+} from "@/types/contract";
+import {
+  fetchCategoryFacets,
+  fetchRadarFeed,
+  fetchStatsOverview,
+  type ApiResult,
+} from "@/lib/api";
 import {
   browseHref,
   parseCategory,
@@ -68,17 +77,37 @@ export default function HomePage() {
   const { lang, t } = useLanguage();
   const params = useBrowseParams();
   const category = parseCategory(params.get("category"));
+  const subcategory = category === "all" ? "" : (params.get("subcategory") ?? "").trim().toLowerCase();
+  const brand = (params.get("brand") ?? "").trim();
   const store = params.get("store") ?? "";
+  const urlQuery = params.get("q") ?? "";
   const sort =
     sortOptions.find((value) => value === params.get("sort")) ??
     defaultFilters.sort;
   const verdict =
     verdictOptions.find((value) => value === params.get("verdict")) ?? "";
   const page = parsePage(params.get("page"));
-  const key = JSON.stringify([category, verdict, store, sort, page]);
+  const key = JSON.stringify([category, subcategory, brand, verdict, store, sort, page]);
+  const facetsKey = `${category}::${subcategory}`;
   const from = browseHref("/", params);
-  const search = useProductSearch(from);
+
+  const search = useProductSearch(
+    from,
+    { category, subcategory, store, brand },
+    urlQuery,
+    (nextQuery) => {
+      setBrowseParams({
+        q: nextQuery && nextQuery.trim() ? nextQuery.trim() : undefined,
+        page: undefined,
+      });
+    },
+  );
+
   const [stats, setStats] = useState<ApiResult<StatsOverview> | null>(null);
+  const [facetsState, setFacetsState] = useState<{
+    key: string;
+    value: ApiResult<CategoryFacetsResponse>;
+  } | null>(null);
   const [feed, setFeed] = useState<{
     key: string;
     value: ApiResult<RadarFeedResponse>;
@@ -99,11 +128,36 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (category === "all") return;
+    const controller = new AbortController();
+    fetchCategoryFacets(category, subcategory || undefined, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setFacetsState({ key: facetsKey, value });
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [category, subcategory, facetsKey]);
+
+  const activeFacets =
+    category !== "all" && facetsState?.value.data.category === category
+      ? facetsState.value.data
+      : null;
+  const facetsLoading =
+    category !== "all" && facetsState?.key !== facetsKey && !activeFacets;
+
+  const hasActiveTextSearch = Boolean(urlQuery.trim() || search.state);
+
+  useEffect(() => {
+    if (hasActiveTextSearch) return;
     const controller = new AbortController();
     setFailed(null);
     fetchRadarFeed(
       {
         category,
+        subcategory: subcategory || undefined,
+        brand: brand || undefined,
         verdict: verdict || undefined,
         store: store || undefined,
         sort,
@@ -119,7 +173,7 @@ export default function HomePage() {
         if (!controller.signal.aborted) setFailed(key);
       });
     return () => controller.abort();
-  }, [key, category, verdict, store, sort, page, attempt]);
+  }, [key, category, subcategory, brand, verdict, store, sort, page, attempt, hasActiveTextSearch]);
 
   const current = feed?.key === key ? feed.value : null;
   const loading = !current && failed !== key;
@@ -129,17 +183,38 @@ export default function HomePage() {
     ? observedTimestamp(storedStats?.last_pipeline_run_at)
     : null;
   const storeChoices =
-    liveStats || current?.source !== "api"
-      ? (storedStats?.available_stores ?? [])
-      : current.data.items.map((product) => product.store_name);
+    category !== "all" && activeFacets?.stores?.length
+      ? activeFacets.stores.map((s) => s.slug)
+      : liveStats || current?.source !== "api"
+        ? (storedStats?.available_stores ?? [])
+        : current.data.items.map((product) => product.store_name);
+  const drawerStores =
+    category !== "all" && activeFacets?.stores?.length
+      ? activeFacets.stores.map((s) => s.slug)
+      : (storedStats?.available_stores ?? []);
+
   const searchState = search.state;
   const searchResult =
     searchState?.status === "ready" ? searchState.result : null;
   const searchItems = searchResult?.data.items ?? [];
 
+  const activeSubcatObj = activeFacets?.subcategories.find(
+    (s) => s.slug === subcategory,
+  );
+  const activeSubcatLabel = activeSubcatObj
+    ? lang === "ar"
+      ? activeSubcatObj.label_ar
+      : activeSubcatObj.label_en
+    : subcategory
+      ? subcategory.replace(/_/g, " ")
+      : null;
+
   function updateFilters(next: FeedFilterState) {
     setBrowseParams({
       category: next.category === "all" ? undefined : next.category,
+      subcategory:
+        next.category !== "all" && next.subcategory ? next.subcategory : undefined,
+      brand: next.brand || undefined,
       verdict: next.verdict || undefined,
       store: next.store || undefined,
       sort: next.sort === defaultFilters.sort ? undefined : next.sort,
@@ -157,6 +232,8 @@ export default function HomePage() {
     search.clear();
     updateFilters({
       category,
+      subcategory,
+      brand,
       store,
       sort,
       verdict: verdict === nextVerdict ? "" : nextVerdict,
@@ -180,6 +257,26 @@ export default function HomePage() {
             <p className="ptr-hero-lede">{t("hero.subtitle")}</p>
             <SearchBar
               search={search}
+              category={category}
+              subcategory={subcategory}
+              subcategoryLabel={activeSubcatLabel}
+              onClearCategory={() =>
+                updateFilters({
+                  ...defaultFilters,
+                  verdict,
+                  sort,
+                })
+              }
+              onClearSubcategory={() =>
+                updateFilters({
+                  category,
+                  subcategory: "",
+                  brand: "",
+                  verdict,
+                  store,
+                  sort,
+                })
+              }
               onFilterVerifiedDeals={() => filterByVerdict("GENUINE_DEAL")}
               onFilterDiscountsToReview={() => filterByVerdict("FAKE_DISCOUNT")}
             />
@@ -306,10 +403,7 @@ export default function HomePage() {
                     {storesOpen
                       ? t("stores.hideAll")
                       : t("stores.browseAll", {
-                          count: formatNumber(
-                            storedStats.available_stores.length,
-                            lang,
-                          ),
+                          count: formatNumber(drawerStores.length, lang),
                         })}
                   </span>
                   {stats?.source === "mock" && ` · ${t("ui.sample")}`}
@@ -331,23 +425,30 @@ export default function HomePage() {
                       type="button"
                       aria-pressed={store === ""}
                       onClick={() => {
-                        search.clear();
-                        updateFilters({ category, verdict, sort, store: "" });
+                        updateFilters({
+                          category,
+                          subcategory,
+                          brand,
+                          verdict,
+                          sort,
+                          store: "",
+                        });
                         scrollToResults();
                       }}
                     >
                       {t("stores.allLabel")}
                     </button>
-                    {storedStats.available_stores.map((name) => (
+                    {drawerStores.map((name) => (
                       <button
                         className="ptr-chip"
                         type="button"
                         key={name}
                         aria-pressed={store === name}
                         onClick={() => {
-                          search.clear();
                           updateFilters({
                             category,
+                            subcategory,
+                            brand,
                             verdict,
                             sort,
                             store: name,
@@ -396,16 +497,19 @@ export default function HomePage() {
             )}
           </div>
 
+          <FeedFilters
+            value={{ category, subcategory, brand, verdict, store, sort }}
+            stores={storeChoices}
+            categoryCounts={storedStats?.category_counts}
+            facets={activeFacets}
+            facetsLoading={facetsLoading}
+            view={view}
+            onViewChange={setView}
+            onChange={updateFilters}
+          />
+
           {!searchState && (
             <>
-              <FeedFilters
-                value={{ category, verdict, store, sort }}
-                stores={storeChoices}
-                categoryCounts={storedStats?.category_counts}
-                view={view}
-                onViewChange={setView}
-                onChange={updateFilters}
-              />
               <MockBanner
                 source={current?.source ?? null}
                 onRetry={() => setAttempt((value) => value + 1)}
@@ -492,6 +596,21 @@ export default function HomePage() {
                     )}
                   </p>
                   <p className="ptr-muted">{t("search.hint")}</p>
+                  {category !== "all" && !searchState?.link && (
+                    <button
+                      type="button"
+                      className="ptr-button ptr-primary"
+                      onClick={() =>
+                        updateFilters({
+                          ...defaultFilters,
+                          verdict,
+                          sort,
+                        })
+                      }
+                    >
+                      {t("search.clearScope")}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
@@ -506,17 +625,31 @@ export default function HomePage() {
                     {" · "}
                     <bdi>{formatNumber(searchItems.length, lang)}</bdi>
                   </p>
-                  <div className="surface ptr-list">
-                    {searchItems.map((product) => (
-                      <ProductCard
-                        key={product.product_sk}
-                        product={product}
-                        from={from}
-                        source={searchResult.source}
-                        view="list"
-                      />
-                    ))}
-                  </div>
+                  {view === "grid" ? (
+                    <div className="asarak-product-grid">
+                      {searchItems.map((product) => (
+                        <ProductCard
+                          key={product.product_sk}
+                          product={product}
+                          from={from}
+                          source={searchResult.source}
+                          view="grid"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="surface ptr-list">
+                      {searchItems.map((product) => (
+                        <ProductCard
+                          key={product.product_sk}
+                          product={product}
+                          from={from}
+                          source={searchResult.source}
+                          view="list"
+                        />
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </>
