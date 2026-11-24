@@ -155,6 +155,10 @@ def _load_registry_targets(
     region_mode: str,
     selected_tiers: set[str],
 ) -> list[StoreTarget]:
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from data_platform.ingestion.scrapers import SCRAPER_REGISTRY
+
     raw = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
     stores = raw.get("stores") or []
     cat_to_tier: dict[str, str] = {}
@@ -173,13 +177,19 @@ def _load_registry_targets(
         tkey = cat_to_tier.get(cat, "lifestyle")
         if selected_tiers and tkey not in selected_tiers:
             continue
+        skey = str(entry["store_key"]).strip()
         vert = str(entry.get("vertical") or "core").strip()
         if vert not in ("core", "fashion", "groceries"):
             vert = "fashion" if cat == "fashion" else ("groceries" if cat == "groceries" else "core")
+        scraper_cls = SCRAPER_REGISTRY.get(skey)
+        if scraper_cls is not None:
+            supported = getattr(scraper_cls, "supported_verticals", ("core",))
+            if vert not in supported:
+                vert = supported[0]
         targets.append(
             StoreTarget(
-                store_key=str(entry["store_key"]).strip(),
-                display_name=str(entry.get("display_name") or entry["store_key"]).strip(),
+                store_key=skey,
+                display_name=str(entry.get("display_name") or skey).strip(),
                 platform=str(entry.get("platform") or "custom").strip(),
                 category=cat,
                 vertical=vert,

@@ -68,6 +68,7 @@ changed_parents AS MATERIALIZED (
     WHERE t.product_sk IS NULL
        OR cp.scraped_at > t.last_updated_at
        OR cp.canonical_product_key IS DISTINCT FROM t.canonical_product_key
+       OR cp.sub_category IS DISTINCT FROM t.sub_category
        OR cp.current_price IS DISTINCT FROM t.current_price
        OR cp.claimed_original_price IS DISTINCT FROM t.claimed_original_price
        OR cp.in_stock IS DISTINCT FROM t.in_stock

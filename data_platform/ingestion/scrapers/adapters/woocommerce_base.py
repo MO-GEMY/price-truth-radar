@@ -617,12 +617,12 @@ class WooCommerceBaseScraper(BaseScraper):
         for page in range(start_p, start_p + max_pages_budget):
             if len(collected) >= target_limit:
                 break
-            logger.info("[%s] Expand WooCommerce API page %d (%s)", self.store_name, page, endpoint)
+            logger.info("[%s] Expand WooCommerce API page %d (%s, per_page=%d)", self.store_name, page, endpoint, req_per_page)
             try:
                 get_kwargs: dict[str, Any] = {
                     "params": {"per_page": req_per_page, "page": page},
                     "min_delay_seconds": effective_delay,
-                    "timeout": self.request_timeout,
+                    "timeout": min(self.request_timeout, 15.0),
                 }
                 if self.use_impersonation:
                     get_kwargs["check_throttle"] = False
@@ -638,9 +638,23 @@ class WooCommerceBaseScraper(BaseScraper):
                 if status_code == 400 and page > 1:
                     exhausted = True
                     break
-                logger.warning("[%s] Expand WooCommerce error on page %d: %s", self.store_name, page, exc)
-                had_error = True
-                break
+                # Heavy WooCommerce stores (e.g. hankerz) can return empty/truncated JSON at per_page=40;
+                # retry once at per_page=20 before aborting.
+                if req_per_page > 20:
+                    req_per_page = 20
+                    logger.info("[%s] Retrying WooCommerce page %d with smaller per_page=20 (%s)", self.store_name, page, exc)
+                    try:
+                        get_kwargs["params"] = {"per_page": req_per_page, "page": page}
+                        resp = fetcher.get(endpoint, **get_kwargs)
+                        payload = resp.json()
+                    except Exception as retry_exc:
+                        logger.warning("[%s] Expand WooCommerce error on page %d (per_page=20): %s", self.store_name, page, retry_exc)
+                        had_error = True
+                        break
+                else:
+                    logger.warning("[%s] Expand WooCommerce error on page %d: %s", self.store_name, page, exc)
+                    had_error = True
+                    break
 
             self.pages_fetched += 1
             pages_used += 1

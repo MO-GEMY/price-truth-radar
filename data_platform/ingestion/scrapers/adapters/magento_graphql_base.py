@@ -345,6 +345,17 @@ class MagentoGraphQLBaseScraper(BaseScraper):
         ean = self._extract_ean(sku, url_key)
         external_id = (ean or sku)[:120]
 
+        # Guard against variable-weight GS1 PLU (`20%`) deli/produce items leaking a 1 kg base
+        # regular_price as a bogus >= 50% strikethrough discount on a fractional weight step.
+        if (
+            cat == "groceries"
+            and claimed_original is not None
+            and ean
+            and ean.startswith("20")
+            and claimed_original >= (current_price * Decimal("2.0"))
+        ):
+            claimed_original = None
+
         raw_brand: Optional[str] = None
         brand_field = item.get("brand")
         if isinstance(brand_field, dict) and brand_field.get("name"):

@@ -1579,12 +1579,37 @@ class CarrefourEgScraper(BaseScraper):
             )
 
             # 2. Fetch public product pages politely & extract standard Schema.org JSON-LD
-            max_attempts = min(len(ordered_urls), max(target_limit * 2, target_limit + 60))
-            for prod_url, url_sku, cat_name, default_sub in ordered_urls[:max_attempts]:
-                if len(collected) >= target_limit:
+            started_mono = time.monotonic()
+            if self.mode == "expand":
+                # Keep each Carrefour expand pass safely under the 240s runner timeout (~150s budget)
+                # and advance deterministically through the round-robin sitemap via start_page.
+                chunk_size = 60
+                effective_target = min(target_limit, chunk_size)
+                offset = self.start_page * chunk_size
+                if offset >= len(ordered_urls):
+                    offset = 0
+                candidate_slice = ordered_urls[offset : offset + max(chunk_size * 2, 100)]
+                time_budget_s = 150.0
+            else:
+                effective_target = target_limit
+                max_attempts = min(len(ordered_urls), max(target_limit * 2, target_limit + 60))
+                candidate_slice = ordered_urls[:max_attempts]
+                time_budget_s = 210.0
+
+            attempted_in_slice = 0
+            for prod_url, url_sku, cat_name, default_sub in candidate_slice:
+                if len(collected) >= effective_target:
+                    break
+                if (time.monotonic() - started_mono) >= time_budget_s:
+                    logger.info(
+                        "[carrefour_eg] Reached %.0fs time budget with %d records; saving progress cleanly.",
+                        time_budget_s,
+                        len(collected),
+                    )
                     break
                 if url_sku in seen_ids:
                     continue
+                attempted_in_slice += 1
                 try:
                     rp = client.get(prod_url)
                 except Exception as exc:
@@ -1689,6 +1714,18 @@ class CarrefourEgScraper(BaseScraper):
                 if self.min_delay_seconds > 0:
                     time.sleep(self.min_delay_seconds)
 
+            if self.mode == "expand" and self.pages_fetched > 0:
+                self._checkpoint_updated = True
+                next_offset = (self.start_page + 1) * 60
+                if next_offset >= len(ordered_urls):
+                    self.exhausted_catalog = True
+                    self.next_page = 0
+                    self.next_cursor = None
+                else:
+                    self.exhausted_catalog = False
+                    self.next_page = self.start_page + 1
+                    self.next_cursor = None
+
         return collected
 
 
@@ -1770,11 +1807,19 @@ class AdidasEgScraper(BaseScraper):
                             break
 
                         page.wait_for_timeout(int(self.min_delay_seconds * 1000))
-                        # Gentle scroll to load lazy images on the rendered grid
-                        page.evaluate("window.scrollTo(0, document.body.scrollHeight * 0.5)")
-                        page.wait_for_timeout(800)
-                        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        page.wait_for_timeout(800)
+                        try:
+                            page.wait_for_selector("body", timeout=8000)
+                        except Exception:
+                            logger.warning("[adidas_eg] Empty/missing <body> on %s; skipping page cleanly.", url)
+                            break
+                        # Gentle scroll to load lazy images on the rendered grid (null-safe)
+                        try:
+                            page.evaluate("() => { if (document.body) window.scrollTo(0, document.body.scrollHeight * 0.5); }")
+                            page.wait_for_timeout(800)
+                            page.evaluate("() => { if (document.body) window.scrollTo(0, document.body.scrollHeight); }")
+                            page.wait_for_timeout(800)
+                        except Exception as scroll_exc:
+                            logger.debug("[adidas_eg] Scroll skipped on %s (%s)", url, scroll_exc)
                         self.pages_fetched += 1
 
                         cards = page.evaluate(

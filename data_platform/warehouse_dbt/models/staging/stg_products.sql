@@ -176,6 +176,10 @@ cleaned AS (
                     WHEN LOWER(product_title) ~ '(desk|bed|bunk|room|furniture|kids bundle)' THEN 'kids_furniture'
                     ELSE 'kids'
                 END
+            WHEN norm_category = 'electronics'
+                 AND raw_sub_category IN ('smartphones', 'mobile_equipment', 'tablets', 'laptops')
+                 AND LOWER(product_title) ~ '(magclick|magsafe|coehl|frosted\s*shield|nillkin|video\s*cage|smallrig|حماية\s*عدسات|lens\s*protector|screen\s*protector|phone\s*case|back\s*cover|جراب|كفر|اسكرين)'
+                THEN 'accessories'
             ELSE raw_sub_category
         END::VARCHAR AS sub_category,
         CASE UPPER(TRIM(brand))
@@ -218,6 +222,12 @@ cleaned AS (
         END AS attr_variant_max_price,
         current_price::NUMERIC(12,2) AS current_price,
         CASE
+            WHEN norm_category = 'groceries'
+                 AND COALESCE(attributes_json::JSONB ->> 'ean', '') LIKE '20%'
+                 AND claimed_original_price IS NOT NULL
+                 AND current_price > 0
+                 AND claimed_original_price >= (current_price * 2.0)
+                THEN NULL::NUMERIC(12,2)
             WHEN claimed_original_price IS NOT NULL
                  AND claimed_original_price > current_price
                 THEN claimed_original_price::NUMERIC(12,2)

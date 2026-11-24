@@ -29,6 +29,7 @@ from ..base import (
     ImpersonatedHttpClient,
     RawProductSnapshot,
     ScrapeVertical,
+    ThrottledResponseError,
     normalize_snake_slug,
     parse_egp_price,
     utc_now_naive,
@@ -109,6 +110,17 @@ _BABY_KIDS_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
 )
 
 _ELECTRONICS_SUBCAT_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    # Check phone/camera accessories FIRST so cases, lens protectors, and cages for iPhone/Galaxy
+    # are never misclassified as smartphones.
+    (
+        (
+            "magclick", "magsafe", "coehl", "nillkin", "frosted shield", "video cage", "smallrig",
+            "lens protector", "screen protector", "tempered glass", "phone case", "back cover",
+            "case ", " cover", "charger", "cable", "adapter", "power bank", "mount", "holder",
+            "tripod", "حماية عدسات", "جراب", "كفر", "اسكرين", "شاحن", "كابل",
+        ),
+        "accessories",
+    ),
     (("iphone", "galaxy", "smartphone", "mobile", "redmi", "xiaomi", "oppo", "realme"), "smartphones"),
     (("laptop", "macbook", "notebook", "thinkpad", "ideapad", "vivobook", "zenbook"), "laptops"),
     (("ipad", "tablet", "tab"), "tablets"),
@@ -246,7 +258,7 @@ class ShopifyBaseScraper(BaseScraper):
     collection_handles: tuple[tuple[str, Category, str], ...] = ()  # (sub_category, category, handle)
     min_delay_seconds: float = 1.2
     request_timeout: float = 25.0
-    use_impersonation: bool = False
+    use_impersonation: bool = True
     per_page: int = 250
 
     def _resolve_sub_category(self, title: str, product_type: str, default_sub: Optional[str], cat: Category) -> str:
@@ -612,6 +624,24 @@ class ShopifyBaseScraper(BaseScraper):
                     get_kwargs["check_throttle"] = False
                 resp = fetcher.get(endpoint, **get_kwargs)
                 payload = resp.json()
+            except ThrottledResponseError as exc:
+                # Some Shopify themes restrict /products.json while allowing /collections/all/products.json
+                if page == 1 and endpoint.endswith("/products.json") and "/collections/" not in endpoint:
+                    alt_endpoint = f"{self.base_url.rstrip('/')}/collections/all/products.json"
+                    logger.info("[%s] Retrying restricted /products.json via %s", self.store_name, alt_endpoint)
+                    try:
+                        resp = fetcher.get(alt_endpoint, **get_kwargs)
+                        payload = resp.json()
+                        endpoints[cur_ep] = (default_sub, cat, alt_endpoint)
+                        endpoint = alt_endpoint
+                    except Exception as alt_exc:
+                        logger.warning("[%s] Expand WAF/throttle on %s (%s); failing fast.", self.store_name, alt_endpoint, alt_exc)
+                        had_error = True
+                        break
+                else:
+                    logger.warning("[%s] Expand WAF/throttle on %s page %d (%s); failing fast.", self.store_name, endpoint, page, exc)
+                    had_error = True
+                    break
             except Exception as exc:
                 logger.warning("[%s] Expand error fetching %s page %d: %s", self.store_name, endpoint, page, exc)
                 had_error = True
@@ -674,14 +704,18 @@ class ShopifyBaseScraper(BaseScraper):
 
         runner = self._scrape_expand_with_fetcher if self.mode == "expand" else self._scrape_with_fetcher
         if self.use_impersonation:
-            with ImpersonatedHttpClient(
-                impersonate="chrome",
-                timeout=self.request_timeout or 25.0,
-                max_retries=3,
-                backoff_base=2.0,
-                min_delay_seconds=max(self.min_delay_seconds, self.http.min_delay_seconds),
-                jitter_range=(0.25, 0.8),
-            ) as client:
-                return runner(client, target_limit)
+            try:
+                with ImpersonatedHttpClient(
+                    impersonate="chrome",
+                    timeout=self.request_timeout or 25.0,
+                    max_retries=2,
+                    backoff_base=2.0,
+                    min_delay_seconds=max(self.min_delay_seconds, self.http.min_delay_seconds),
+                    jitter_range=(0.2, 0.6),
+                    headers={"Accept": "application/json, text/plain, */*"},
+                ) as client:
+                    return runner(client, target_limit)
+            except ImportError:
+                logger.warning("[%s] curl_cffi unavailable; falling back to PoliteHttpClient.", self.store_name)
 
         return runner(self.http, target_limit)

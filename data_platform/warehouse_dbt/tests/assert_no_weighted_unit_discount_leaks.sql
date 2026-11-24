@@ -44,8 +44,10 @@ WHERE category = 'groceries'
                   ABS((claimed_original_price / current_price) - 2.0) <= 0.005
                   AND NULLIF(TRIM(COALESCE(attributes_json ->> 'net_weight_g', '')), '') IS NULL
                   AND NULLIF(TRIM(COALESCE(attributes_json ->> 'net_volume_ml', '')), '') IS NULL
+                  AND COALESCE(NULLIF(TRIM(attributes_json ->> 'pack_count'), ''), '1') = '1'
                   AND LOWER(product_title) NOT LIKE '%1+1%'
                   AND LOWER(product_title) NOT LIKE '%buy 1%'
+                  AND LOWER(product_title) !~ '(pack\s+of\s+\d+|\d+\s*(wipes|tissues|sheets|pcs|pieces|pads|rolls))'
               )
           )
       )

@@ -774,7 +774,7 @@ stores:
   platform: custom
   base_url: https://misr-online.com
   category: health
-  vertical: groceries
+  vertical: core
   region_mode: local_only
   enabled: true
   verified: true
@@ -2296,7 +2296,7 @@ stores:
   platform: custom
   base_url: https://www.decathlon.eg
   category: sports
-  vertical: fashion
+  vertical: core
   region_mode: local_only
   enabled: true
   verified: true
@@ -2365,7 +2365,7 @@ stores:
   platform: custom
   base_url: https://tdawi.com
   category: health
-  vertical: groceries
+  vertical: core
   region_mode: local_only
   enabled: true
   verified: true

@@ -20,7 +20,9 @@ from typing import Any, Optional
 from .base import (
     BaseScraper,
     Category,
+    ImpersonatedHttpClient,
     RawProductSnapshot,
+    ThrottledResponseError,
     normalize_snake_slug,
     parse_egp_price,
     utc_now_naive,
@@ -84,8 +86,10 @@ class ShopifyScraper(BaseScraper):
     override_brand: bool = False
     default_limit: int = 250
     discover_limit: int = 1000
+    expand_max_pages: int = 6
     min_delay_seconds: float = 1.0
-    per_page: int = 100
+    per_page: int = 250
+    use_impersonation: bool = True
 
     def _resolve_brand(self, vendor_raw: Optional[str]) -> str:
         if self.override_brand:
@@ -215,33 +219,71 @@ class ShopifyScraper(BaseScraper):
             }
         )
 
-    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
-        target_limit = self.get_target_limit() if limit is None else limit
-        if target_limit <= 0:
-            return []
-
+    def _scrape_with_fetcher(self, fetcher: Any, target_limit: int, *, is_impersonated: bool) -> list[RawProductSnapshot]:
         snapshot_date = datetime.now(timezone.utc).date()
         scraped_at = utc_now_naive()
         collected: list[RawProductSnapshot] = []
         seen_ids: set[str] = set()
 
         endpoint = f"{self.base_url.rstrip('/')}/products.json"
-        page = 1
-        max_pages = max(1, (target_limit // self.per_page) + 4)
+        if self.mode == "expand":
+            page = self.start_page + 1
+            max_page = self.start_page + max(1, self.expand_max_pages)
+        else:
+            page = 1
+            max_page = max(1, (target_limit // self.per_page) + 4)
 
-        while len(collected) < target_limit and page <= max_pages:
-            logger.info("[%s] Fetching Shopify catalog page %d (%s?limit=%d&page=%d)", self.store_name, page, endpoint, self.per_page, page)
-            resp = self.http.get(
+        last_good_page = self.start_page
+        pages_used = 0
+        exhausted = False
+        had_error = False
+
+        while len(collected) < target_limit and page <= max_page:
+            logger.info(
+                "[%s] Fetching Shopify catalog page %d (%s?limit=%d&page=%d)",
+                self.store_name,
+                page,
                 endpoint,
-                params={"limit": self.per_page, "page": page},
-                min_delay_seconds=self.min_delay_seconds,
-                timeout=self.request_timeout,
+                self.per_page,
+                page,
             )
-            self.pages_fetched += 1
+            try:
+                get_kwargs: dict[str, Any] = {
+                    "params": {"limit": self.per_page, "page": page},
+                    "min_delay_seconds": self.min_delay_seconds,
+                    "timeout": self.request_timeout,
+                }
+                if is_impersonated:
+                    get_kwargs["check_throttle"] = False
+                resp = fetcher.get(endpoint, **get_kwargs)
+                payload = resp.json()
+            except ThrottledResponseError as exc:
+                if page == 1 and endpoint.endswith("/products.json") and "/collections/" not in endpoint:
+                    alt_endpoint = f"{self.base_url.rstrip('/')}/collections/all/products.json"
+                    logger.info("[%s] Retrying restricted /products.json via %s", self.store_name, alt_endpoint)
+                    try:
+                        resp = fetcher.get(alt_endpoint, **get_kwargs)
+                        payload = resp.json()
+                        endpoint = alt_endpoint
+                    except Exception as alt_exc:
+                        logger.warning("[%s] WAF/throttle on %s (%s); failing fast.", self.store_name, alt_endpoint, alt_exc)
+                        had_error = True
+                        break
+                else:
+                    logger.warning("[%s] WAF/throttle on %s page %d (%s); failing fast.", self.store_name, endpoint, page, exc)
+                    had_error = True
+                    break
+            except Exception as exc:
+                logger.warning("[%s] Error fetching %s page %d: %s", self.store_name, endpoint, page, exc)
+                had_error = True
+                break
 
-            payload = resp.json()
+            self.pages_fetched += 1
+            pages_used += 1
+
             products = payload.get("products") if isinstance(payload, dict) else None
             if not isinstance(products, list) or not products:
+                exhausted = True
                 break
 
             page_records: list[RawProductSnapshot] = []
@@ -264,11 +306,46 @@ class ShopifyScraper(BaseScraper):
                 if len(collected) >= target_limit:
                     break
 
-            if len(products) < self.per_page or added_this_page == 0:
+            last_good_page = page
+            if len(products) < self.per_page or (added_this_page == 0 and self.mode != "expand"):
+                exhausted = True
                 break
             page += 1
 
+        if self.mode == "expand" and (exhausted or pages_used > 0 or not had_error):
+            self._checkpoint_updated = True
+            if exhausted:
+                self.exhausted_catalog = True
+                self.next_page = 0
+                self.next_cursor = None
+            else:
+                self.exhausted_catalog = False
+                self.next_page = last_good_page
+                self.next_cursor = None
+
         return collected
+
+    def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
+        target_limit = self.get_target_limit() if limit is None else limit
+        if target_limit <= 0:
+            return []
+
+        if self.use_impersonation:
+            try:
+                with ImpersonatedHttpClient(
+                    impersonate="chrome",
+                    timeout=self.request_timeout or 25.0,
+                    max_retries=2,
+                    backoff_base=2.0,
+                    min_delay_seconds=max(self.min_delay_seconds, self.http.min_delay_seconds),
+                    jitter_range=(0.2, 0.6),
+                    headers={"Accept": "application/json, text/plain, */*"},
+                ) as client:
+                    return self._scrape_with_fetcher(client, target_limit, is_impersonated=True)
+            except ImportError:
+                logger.warning("[%s] curl_cffi unavailable; falling back to PoliteHttpClient.", self.store_name)
+
+        return self._scrape_with_fetcher(self.http, target_limit, is_impersonated=False)
 
 
 class TownTeamScraper(ShopifyScraper):

@@ -453,12 +453,35 @@ class PoliteHttpClient:
             self._wait_rate_limit(min_delay_override=min_delay_seconds)
             try:
                 resp = self._client.get(url, params=params, headers=headers, timeout=effective_timeout)
+                if resp.status_code == 403:
+                    raise ThrottledResponseError(f"HTTP 403 Forbidden for {url}")
+                if resp.status_code == 429:
+                    # Cap 429 retry-after and allow at most 1 short retry so WAF blocks fail fast (~10-15s)
+                    if attempt < min(self.max_retries, 2):
+                        retry_after = resp.headers.get("Retry-After")
+                        parsed_ra = (
+                            float(retry_after)
+                            if retry_after and retry_after.strip().isdigit()
+                            else 4.0
+                        )
+                        sleep_for = min(parsed_ra, 8.0)
+                        logger.warning(
+                            "HTTP 429 for %s (attempt %d/2); retrying in %.1fs (capped from Retry-After=%s)",
+                            url,
+                            attempt,
+                            sleep_for,
+                            retry_after,
+                        )
+                        time.sleep(sleep_for)
+                        continue
+                    raise ThrottledResponseError(f"HTTP 429 Too Many Requests for {url}")
                 if resp.status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
                     retry_after = resp.headers.get("Retry-After")
-                    sleep_for = (
+                    sleep_for = min(
                         float(retry_after)
-                        if retry_after and retry_after.isdigit()
-                        else self.backoff_base**attempt
+                        if retry_after and retry_after.strip().isdigit()
+                        else self.backoff_base**attempt,
+                        10.0,
                     )
                     logger.warning(
                         "HTTP %s for %s (attempt %d/%d); retrying in %.1fs",
@@ -472,15 +495,34 @@ class PoliteHttpClient:
                     continue
                 resp.raise_for_status()
                 return resp
-            except (httpx.TimeoutException, httpx.TransportError, httpx.HTTPStatusError) as exc:
+            except ThrottledResponseError:
+                raise
+            except httpx.HTTPStatusError as exc:
                 last_exc = exc
-                if attempt < self.max_retries:
-                    sleep_for = self.backoff_base**attempt
+                status_code = exc.response.status_code if exc.response is not None else 0
+                if status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
+                    sleep_for = min(self.backoff_base**attempt, 10.0)
+                    logger.warning(
+                        "HTTP error for %s (attempt %d/%d): %s; retrying in %.1fs",
+                        url,
+                        attempt,
+                        self.max_retries,
+                        exc,
+                        sleep_for,
+                    )
+                    time.sleep(sleep_for)
+                    continue
+                raise
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
+                last_exc = exc
+                max_for_err = min(self.max_retries, 2) if isinstance(exc, httpx.TimeoutException) else self.max_retries
+                if attempt < max_for_err:
+                    sleep_for = min(self.backoff_base**attempt, 6.0)
                     logger.warning(
                         "Request error for %s (attempt %d/%d): %s; retrying in %.1fs",
                         url,
                         attempt,
-                        self.max_retries,
+                        max_for_err,
                         exc,
                         sleep_for,
                     )
@@ -514,12 +556,33 @@ class PoliteHttpClient:
                     headers=headers,
                     timeout=effective_timeout,
                 )
+                if resp.status_code == 403:
+                    raise ThrottledResponseError(f"HTTP 403 Forbidden for POST {url}")
+                if resp.status_code == 429:
+                    if attempt < min(self.max_retries, 2):
+                        retry_after = resp.headers.get("Retry-After")
+                        parsed_ra = (
+                            float(retry_after)
+                            if retry_after and retry_after.strip().isdigit()
+                            else 4.0
+                        )
+                        sleep_for = min(parsed_ra, 8.0)
+                        logger.warning(
+                            "HTTP 429 for POST %s (attempt %d/2); retrying in %.1fs",
+                            url,
+                            attempt,
+                            sleep_for,
+                        )
+                        time.sleep(sleep_for)
+                        continue
+                    raise ThrottledResponseError(f"HTTP 429 Too Many Requests for POST {url}")
                 if resp.status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
                     retry_after = resp.headers.get("Retry-After")
-                    sleep_for = (
+                    sleep_for = min(
                         float(retry_after)
-                        if retry_after and retry_after.isdigit()
-                        else self.backoff_base**attempt
+                        if retry_after and retry_after.strip().isdigit()
+                        else self.backoff_base**attempt,
+                        10.0,
                     )
                     logger.warning(
                         "HTTP %s for POST %s (attempt %d/%d); retrying in %.1fs",
@@ -533,10 +596,28 @@ class PoliteHttpClient:
                     continue
                 resp.raise_for_status()
                 return resp
-            except (httpx.TimeoutException, httpx.TransportError, httpx.HTTPStatusError) as exc:
+            except ThrottledResponseError:
+                raise
+            except httpx.HTTPStatusError as exc:
+                last_exc = exc
+                status_code = exc.response.status_code if exc.response is not None else 0
+                if status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
+                    sleep_for = min(self.backoff_base**attempt, 10.0)
+                    logger.warning(
+                        "HTTP error for POST %s (attempt %d/%d): %s; retrying in %.1fs",
+                        url,
+                        attempt,
+                        self.max_retries,
+                        exc,
+                        sleep_for,
+                    )
+                    time.sleep(sleep_for)
+                    continue
+                raise
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
                 last_exc = exc
                 if attempt < self.max_retries:
-                    sleep_for = self.backoff_base**attempt
+                    sleep_for = min(self.backoff_base**attempt, 10.0)
                     logger.warning(
                         "Request error for POST %s (attempt %d/%d): %s; retrying in %.1fs",
                         url,
@@ -615,14 +696,14 @@ class ImpersonatedHttpClient:
             try:
                 parsed = float(retry_after.strip())
                 if parsed > 0:
-                    return min(parsed, 60.0)
+                    return min(parsed, 10.0)
             except ValueError:
                 pass
         if status == 429:
-            schedule = (4.0, 8.0, 15.0, 25.0)
+            schedule = (4.0, 8.0)
             base_delay = schedule[min(max(attempt - 1, 0), len(schedule) - 1)]
             return base_delay + random.uniform(0.3, 1.0)
-        return (self.backoff_base**attempt) + random.uniform(0.5, 1.5)
+        return min((self.backoff_base**attempt) + random.uniform(0.3, 1.0), 10.0)
 
     def _request(
         self,
@@ -666,10 +747,13 @@ class ImpersonatedHttpClient:
                         allow_redirects=True,
                     )
                 status = int(resp.status_code)
+                if status == 403:
+                    raise ThrottledResponseError(f"HTTP 403 for {method} {url}")
                 if status in IMPERSONATED_RETRYABLE_CODES:
                     msg = f"HTTP {status} for {method} {url}"
                     last_exc = ThrottledResponseError(msg)
-                    if attempt < self.max_retries:
+                    max_for_status = min(self.max_retries, 2) if status == 429 else self.max_retries
+                    if attempt < max_for_status:
                         sleep_for = self._compute_backoff(
                             status, attempt, resp.headers.get("Retry-After")
                         )
@@ -677,7 +761,7 @@ class ImpersonatedHttpClient:
                             "%s (attempt %d/%d); backing off %.1fs",
                             msg,
                             attempt,
-                            self.max_retries,
+                            max_for_status,
                             sleep_for,
                         )
                         time.sleep(sleep_for)

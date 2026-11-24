@@ -228,4 +228,7 @@ dbt_packages/
 target/
 .user.yml
 
+# Overnight offline staging JSONL
+data/overnight_staging/
+
 
