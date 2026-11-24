@@ -34,6 +34,7 @@ from ..base import (
     parse_egp_price,
     utc_now_naive,
 )
+from ..coupon_radar import scan_and_record_coupons
 from ..groceries import (
     extract_grocery_brand,
     parse_grocery_packaging,
@@ -352,6 +353,31 @@ class ShopifyBaseScraper(BaseScraper):
 
         sub_category = self._resolve_sub_category(title, product_type, default_sub, cat)
         base_product_url = f"{self.base_url.rstrip('/')}/products/{handle}"
+
+        # Passive non-blocking promo-code radar (draft queue only — never auto-publishes)
+        try:
+            radar_texts: list[str] = [title]
+            body_html = raw.get("body_html")
+            if isinstance(body_html, str) and body_html:
+                radar_texts.append(body_html)
+            raw_tags = raw.get("tags")
+            if isinstance(raw_tags, list) and raw_tags:
+                radar_texts.append(" ".join(str(t) for t in raw_tags if t))
+            elif isinstance(raw_tags, str) and raw_tags:
+                radar_texts.append(raw_tags)
+            excluded = {str(pid).strip().upper(), handle.upper()}
+            for v, _, _ in valid_variants:
+                v_sku = str(v.get("sku") or "").strip().upper()
+                if v_sku:
+                    excluded.add(v_sku)
+            scan_and_record_coupons(
+                self.store_name,
+                radar_texts,
+                source_url=base_product_url,
+                excluded_tokens=excluded,
+            )
+        except Exception:
+            pass
 
         if split_by_variant:
             # Deduplicate variants that share identical (price, normalized_label) so

@@ -13,6 +13,8 @@ import type {
   CategoriesResponse,
   CompareParams,
   CompareResponse,
+  CouponScope,
+  CouponsListResponse,
   PriceAlertRequest,
   PriceAlertResponse,
   ProductDetailResponse,
@@ -421,6 +423,32 @@ export interface SubmissionsConfig {
   form_enabled: boolean;
   /** Cloudflare Turnstile site key; empty when the widget is not enabled. */
   turnstile_site_key: string;
+  /** Public Telegram bot username (without `@`) for price-drop alert Chat ID onboarding. */
+  telegram_bot_username?: string;
+}
+
+/** GET /api/v1/coupons — zero-Neon in-memory active promo codes. */
+export async function fetchCoupons(
+  params?: { store_id?: string; scope?: CouponScope | "all"; category?: string },
+  signal?: AbortSignal,
+  revalidateSeconds?: number,
+): Promise<CouponsListResponse | null> {
+  if (!isApiConfigured()) return null;
+  try {
+    return await fetchJson<CouponsListResponse>(
+      "/api/v1/coupons",
+      {
+        store_id: params?.store_id && params.store_id !== "all" ? params.store_id : undefined,
+        scope: params?.scope && params.scope !== "all" ? params.scope : undefined,
+        category: params?.category && params.category !== "all" ? params.category : undefined,
+      },
+      signal,
+      REQUEST_TIMEOUT_MS,
+      revalidateSeconds,
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**

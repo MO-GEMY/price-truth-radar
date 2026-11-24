@@ -7,7 +7,19 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import alerts, compare, health, highlights, products, radar, seo, stats, submissions
+from app.routers import (
+    alerts,
+    compare,
+    coupons,
+    health,
+    highlights,
+    products,
+    radar,
+    seo,
+    stats,
+    submissions,
+    telegram,
+)
 
 DEFAULT_CORS_ORIGINS: tuple[str, ...] = (
     "https://asarak.com",
@@ -53,5 +65,7 @@ app.include_router(highlights.router)
 app.include_router(products.router)
 app.include_router(compare.router)
 app.include_router(alerts.router)
+app.include_router(coupons.router)
 app.include_router(seo.router)
 app.include_router(submissions.router)
+app.include_router(telegram.router)

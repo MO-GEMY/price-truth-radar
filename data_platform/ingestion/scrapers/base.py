@@ -1462,6 +1462,65 @@ def update_canonical_keys_in_neon(snapshots: list[RawProductSnapshot]) -> int:
     return len(values)
 
 
+def prune_old_raw_snapshots(
+    retention_days: int = 3,
+    *,
+    vacuum: bool = True,
+    dry_run: bool = False,
+) -> int:
+    """Delete raw snapshots older than `retention_days` and run VACUUM (ANALYZE).
+
+    MUST ONLY be called after `dbt run` and `dbt test` have succeeded so gold
+    history (`gold.fct_price_history`) and verdicts (`gold.mart_product_verdicts`)
+    have already absorbed all recent snapshots.
+
+    `VACUUM (ANALYZE)` is executed with `autocommit = True` outside any
+    transaction block, as required by PostgreSQL.
+    """
+    days = int(retention_days)
+    if days < 1:
+        raise ValueError("retention_days must be >= 1")
+
+    db_url = os.getenv("DATABASE_URL_ADMIN")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
+
+    conn = psycopg2.connect(db_url)
+    try:
+        if dry_run:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM raw.raw_product_snapshots
+                    WHERE snapshot_date < CURRENT_DATE - (%s * INTERVAL '1 day');
+                    """,
+                    (days,),
+                )
+                return int(cur.fetchone()[0] or 0)
+
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM raw.raw_product_snapshots
+                    WHERE snapshot_date < CURRENT_DATE - (%s * INTERVAL '1 day');
+                    """,
+                    (days,),
+                )
+                deleted = int(cur.rowcount or 0)
+
+        if vacuum:
+            # PostgreSQL requires VACUUM to run outside any transaction block.
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute("VACUUM (ANALYZE) raw.raw_product_snapshots;")
+
+        return deleted
+    finally:
+        conn.close()
+
+
 def fetch_tracked_store_ids_from_neon(
     store_name: str,
     *,

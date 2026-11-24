@@ -47,6 +47,7 @@ import { useLanguage } from "@/lib/i18n";
 import { lowestAvailablePrice, retailerHref, sortOffers } from "@/lib/offers";
 import { storeDisplayName } from "@/lib/stores";
 import { AdSlot } from "@/components/AdSlot";
+import { CouponPill } from "@/components/CouponPill";
 import { EditorialGuide } from "@/components/EditorialGuide";
 import { MockBanner } from "@/components/MockBanner";
 import { Pagination } from "@/components/Pagination";
@@ -369,11 +370,16 @@ function ArenaMatchCard({
                 </div>
               </div>
 
-              {/* Col 3: Price + Unit Price */}
+              {/* Col 3: Price + Unit Price + Coupon Estimate */}
               <div className="min-w-0 space-y-0.5">
                 <p className="ptr-price">
                   <bdi>{formatPrice(offer.price, lang)}</bdi>
                 </p>
+                <CouponPill
+                  coupons={offer.applicable_coupons}
+                  estimatedPrice={offer.estimated_price_after_coupon}
+                  compact
+                />
                 {offer.unit_price_egp != null && offer.unit_price_unit && (
                   <p className="text-xs ptr-muted ptr-mono">
                     <bdi>

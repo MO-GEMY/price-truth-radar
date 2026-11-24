@@ -15,6 +15,7 @@ import {
   type OfferPrice,
 } from "@/lib/offers";
 import { storeDisplayName } from "@/lib/stores";
+import { CouponPill } from "./CouponPill";
 import { StoreBadge } from "./StoreBadge";
 import { VerdictBadge } from "./VerdictBadge";
 
@@ -65,6 +66,11 @@ export function AlternativesTable({
               <p className="ptr-price">
                 <bdi>{formatPrice(offer.price, lang)}</bdi>
               </p>
+              <CouponPill
+                coupons={offer.applicable_coupons}
+                estimatedPrice={offer.estimated_price_after_coupon}
+                compact
+              />
               {offer.unit_price_egp != null && offer.unit_price_unit && (
                 <p className="text-xs ptr-muted">
                   <bdi>

@@ -24,6 +24,7 @@ from .base import (
     fetch_tracked_store_ids_from_neon,
     parse_egp_price,
     preview_delta_savings,
+    prune_old_raw_snapshots,
     update_canonical_keys_in_neon,
     upsert_snapshots_to_neon,
 )
@@ -167,6 +168,7 @@ __all__ = [
     "load_discovery_state",
     "parse_egp_price",
     "parse_grocery_packaging",
+    "prune_old_raw_snapshots",
     "refine_grocery_sub_category",
     "save_discovery_state",
     "update_canonical_keys_in_neon",

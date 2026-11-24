@@ -81,6 +81,8 @@ export interface Product {
   has_multiple_variants?: boolean;
   min_variant_price?: number | null;
   max_variant_price?: number | null;
+  applicable_coupons?: ApplicableCoupon[];
+  estimated_price_after_coupon?: number | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -183,6 +185,8 @@ export interface AlternativeListing {
   /** Optional groceries unit price (shrinkflation transparency). */
   unit_price_egp?: number | null;
   unit_price_unit?: "kg" | "L" | string | null;
+  applicable_coupons?: ApplicableCoupon[];
+  estimated_price_after_coupon?: number | null;
 }
 
 export interface ProductVariant {
@@ -241,6 +245,8 @@ export interface CompareListing {
   /** Optional groceries unit price (shrinkflation transparency). */
   unit_price_egp?: number | null;
   unit_price_unit?: "kg" | "L" | string | null;
+  applicable_coupons?: ApplicableCoupon[];
+  estimated_price_after_coupon?: number | null;
 }
 
 export interface CrossStoreMatch {
@@ -300,6 +306,8 @@ export interface HighlightItem {
   has_multiple_variants?: boolean;
   min_variant_price?: number | null;
   max_variant_price?: number | null;
+  applicable_coupons?: ApplicableCoupon[];
+  estimated_price_after_coupon?: number | null;
 }
 
 export interface RadarHighlights {
@@ -327,4 +335,50 @@ export interface PriceAlertResponse {
   id: string;
   status: string;
   message: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Zero-Neon Coupons & Promo Codes                                     */
+/* ------------------------------------------------------------------ */
+
+export type CouponDiscountType = "percent" | "fixed";
+export type CouponScope = "general" | "bank" | "first_order" | "seasonal";
+
+export interface CouponItem {
+  store_id: string;
+  store_name_ar: string;
+  code: string;
+  title_ar: string;
+  discount_type: CouponDiscountType;
+  value: number;
+  max_discount?: number | null;
+  min_order?: number | null;
+  scope: CouponScope;
+  category: string;
+  affiliate_url?: string | null;
+  expires_at?: string | null;
+  active: boolean;
+  notes_ar: string;
+}
+
+export interface ApplicableCoupon {
+  code: string;
+  title_ar: string;
+  discount_type: CouponDiscountType;
+  value: number;
+  max_discount?: number | null;
+  min_order?: number | null;
+  scope: CouponScope;
+  estimated_price: number;
+  estimated_savings: number;
+  affiliate_url?: string | null;
+  notes_ar: string;
+}
+
+export interface CouponsListResponse {
+  items: CouponItem[];
+  total: number;
+  source: string;
+  refreshed_at?: string | null;
+  available_stores: string[];
 }

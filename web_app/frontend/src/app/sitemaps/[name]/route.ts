@@ -63,14 +63,17 @@ function buildStaticSitemap(): Response {
     { loc: absoluteUrl("/"), lastmod: today, changefreq: "daily", priority: "1.0" },
     { loc: absoluteUrl("/deals"), lastmod: today, changefreq: "daily", priority: "0.9" },
     { loc: absoluteUrl("/compare"), lastmod: today, changefreq: "daily", priority: "0.9" },
+    { loc: absoluteUrl("/coupons"), lastmod: today, changefreq: "daily", priority: "0.85" },
     ...CANONICAL_CATEGORIES.map((slug) => ({
       loc: absoluteUrl(`/category/${slug}`),
       lastmod: today,
       changefreq: "daily" as const,
       priority: "0.85",
     })),
+    { loc: absoluteUrl("/add-store"), lastmod: today, changefreq: "monthly", priority: "0.6" },
     { loc: absoluteUrl("/about"), lastmod: today, changefreq: "monthly", priority: "0.5" },
     { loc: absoluteUrl("/contact"), lastmod: today, changefreq: "monthly", priority: "0.5" },
+    { loc: absoluteUrl("/disclaimer"), lastmod: today, changefreq: "monthly", priority: "0.4" },
     { loc: absoluteUrl("/privacy"), lastmod: today, changefreq: "monthly", priority: "0.4" },
     { loc: absoluteUrl("/terms"), lastmod: today, changefreq: "monthly", priority: "0.4" },
   ];

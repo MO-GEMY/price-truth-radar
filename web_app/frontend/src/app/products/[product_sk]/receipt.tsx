@@ -34,6 +34,7 @@ import { AdSlot } from "@/components/AdSlot";
 import { AlternativesTable } from "@/components/AlternativesTable";
 import { AsarakEmblem } from "@/components/AsarakLogo";
 import { AttributesPanel } from "@/components/AttributesPanel";
+import { CouponPill } from "@/components/CouponPill";
 import { MockBanner } from "@/components/MockBanner";
 import { PriceAlertModal } from "@/components/PriceAlertModal";
 import { ProductImage } from "@/components/ProductImage";
@@ -338,6 +339,11 @@ export function ProductReceipt({
           <p className="ptr-price ptr-current-price">
             <bdi>{price}</bdi>
           </p>
+
+          <CouponPill
+            coupons={product.applicable_coupons}
+            estimatedPrice={product.estimated_price_after_coupon}
+          />
 
           {unit && (
             <p className="text-sm ptr-muted">

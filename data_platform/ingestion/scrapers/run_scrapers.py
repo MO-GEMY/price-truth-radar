@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -37,6 +38,7 @@ from data_platform.ingestion.scrapers import (  # noqa: E402
     get_batch_targets,
     load_discovery_state,
     preview_delta_savings,
+    prune_old_raw_snapshots,
     save_discovery_state,
     update_canonical_keys_in_neon,
     upsert_snapshots_to_neon,
@@ -92,6 +94,28 @@ def _build_parser() -> argparse.ArgumentParser:
         "--match-db",
         action="store_true",
         help="Read latest snapshot_date rows across all stores from Neon, run cross-store matching, and update canonical_product_key.",
+    )
+    parser.add_argument(
+        "--prune-raw",
+        action="store_true",
+        help=(
+            "Post-dbt storage guardrail: delete raw.raw_product_snapshots older than --retention-days "
+            "and run VACUUM (ANALYZE). Invoke ONLY after dbt run and dbt test succeed."
+        ),
+    )
+    parser.add_argument(
+        "--run-dbt-and-prune",
+        action="store_true",
+        help=(
+            "Execute dbt run + dbt test and, ONLY if both succeed, prune raw.raw_product_snapshots "
+            "older than --retention-days followed by VACUUM (ANALYZE)."
+        ),
+    )
+    parser.add_argument(
+        "--retention-days",
+        type=int,
+        default=3,
+        help="Rolling retention window in days for raw.raw_product_snapshots cleanup (default: 3).",
     )
     parser.add_argument(
         "--delta",
@@ -341,6 +365,47 @@ def _run_match_db(dry_run: bool) -> int:
     return 0
 
 
+def run_post_dbt_raw_retention_cleanup(
+    retention_days: int = 3,
+    *,
+    run_dbt_first: bool = False,
+    dry_run: bool = False,
+) -> int:
+    """Prune `raw.raw_product_snapshots` older than `retention_days` and VACUUM (ANALYZE).
+
+    When `run_dbt_first=True`, runs `dbt run` then `dbt test` first and aborts
+    without pruning if either step exits non-zero.
+    """
+    if run_dbt_first:
+        dbt_runner = _REPO_ROOT / "data_platform" / "run_dbt.py"
+        for subcmd in ("run", "test"):
+            rc = subprocess.call([sys.executable, str(dbt_runner), subcmd])
+            if rc != 0:
+                logging.error(
+                    "Post-dbt cleanup aborted: `dbt %s` failed with exit code %d; raw snapshots preserved.",
+                    subcmd,
+                    rc,
+                )
+                return rc
+
+    deleted = prune_old_raw_snapshots(
+        retention_days=retention_days,
+        vacuum=not dry_run,
+        dry_run=dry_run,
+    )
+    if dry_run:
+        print(
+            f"RAW_RETENTION (DRY-RUN) | retention_days={retention_days} "
+            f"| would_delete={deleted:,} rows from raw.raw_product_snapshots"
+        )
+    else:
+        print(
+            f"RAW_RETENTION | retention_days={retention_days} "
+            f"| deleted={deleted:,} rows from raw.raw_product_snapshots | vacuum_analyze=OK"
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -350,20 +415,46 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if not args.store and not args.batch and not args.match_db:
-        parser.error("Provide --store <slug|all>, --batch <name>, and/or --match-db")
+    if (
+        not args.store
+        and not args.batch
+        and not args.match_db
+        and not args.prune_raw
+        and not args.run_dbt_and_prune
+    ):
+        parser.error(
+            "Provide --store <slug|all>, --batch <name>, --match-db, --prune-raw, and/or --run-dbt-and-prune"
+        )
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be a positive integer")
     if args.max_pages is not None and args.max_pages <= 0:
         parser.error("--max-pages must be a positive integer")
+    if args.retention_days <= 0:
+        parser.error("--retention-days must be a positive integer")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    if args.match_db and not args.store and not args.batch:
-        return _run_match_db(dry_run=args.dry_run)
+    if not args.store and not args.batch:
+        if args.match_db:
+            rc = _run_match_db(dry_run=args.dry_run)
+            if rc != 0:
+                return rc
+        if args.run_dbt_and_prune:
+            return run_post_dbt_raw_retention_cleanup(
+                retention_days=args.retention_days,
+                run_dbt_first=True,
+                dry_run=args.dry_run,
+            )
+        if args.prune_raw:
+            return run_post_dbt_raw_retention_cleanup(
+                retention_days=args.retention_days,
+                run_dbt_first=False,
+                dry_run=args.dry_run,
+            )
+        return 0
 
     run_targets: list[tuple[str, ScrapeVertical]] = []
     if args.batch:
@@ -590,7 +681,21 @@ def main(argv: list[str] | None = None) -> int:
                 logging.warning("[%s] Failed to save scraper_discovery_state (%s).", store_slug, exc)
 
     if args.match_db:
-        return _run_match_db(dry_run=False)
+        rc = _run_match_db(dry_run=False)
+        if rc != 0:
+            return rc
+    if args.run_dbt_and_prune:
+        return run_post_dbt_raw_retention_cleanup(
+            retention_days=args.retention_days,
+            run_dbt_first=True,
+            dry_run=False,
+        )
+    if args.prune_raw:
+        return run_post_dbt_raw_retention_cleanup(
+            retention_days=args.retention_days,
+            run_dbt_first=False,
+            dry_run=False,
+        )
     return 0
 
 

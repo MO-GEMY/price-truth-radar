@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { BellRing, Check, Loader2, Mail, Send, X } from "lucide-react";
+import { BellRing, Check, ExternalLink, Loader2, Mail, Send, X } from "lucide-react";
 import type { AlertChannel } from "@/types/contract";
-import { ApiError, submitPriceAlert } from "@/lib/api";
+import { ApiError, fetchSubmissionsConfig, submitPriceAlert } from "@/lib/api";
 import { formatPctPlain, formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
@@ -19,13 +19,17 @@ export interface PriceAlertModalProps {
 
 const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const CHAT_ID = /^-?\d{5,20}$/;
-const TELEGRAM_USERNAME = /^@[A-Za-z0-9_]{5,32}$/;
+
+const ENV_TELEGRAM_BOT_USERNAME = (
+  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? ""
+)
+  .trim()
+  .replace(/^@+/, "");
+
+let cachedBotUsername: string | null = ENV_TELEGRAM_BOT_USERNAME || null;
 
 export function normalizeTelegramDestination(value: string): string {
-  const trimmed = value.trim();
-  return /^-?\d+$/.test(trimmed) || trimmed.startsWith("@")
-    ? trimmed
-    : `@${trimmed}`;
+  return value.trim();
 }
 
 function maskedDestination(destination: string, channel: AlertChannel): string {
@@ -55,10 +59,31 @@ export function PriceAlertModal({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [uncertain, setUncertain] = useState(false);
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string>(
+    cachedBotUsername ?? "",
+  );
   const [saved, setSaved] = useState<{
     destination: string;
     target: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (!open || cachedBotUsername !== null) return;
+    const controller = new AbortController();
+    fetchSubmissionsConfig(controller.signal)
+      .then((cfg) => {
+        if (controller.signal.aborted) return;
+        const resolved = (cfg?.telegram_bot_username ?? "")
+          .trim()
+          .replace(/^@+/, "");
+        cachedBotUsername = resolved;
+        setTelegramBotUsername(resolved);
+      })
+      .catch(() => {
+        /* Keep empty fallback when unreachable */
+      });
+    return () => controller.abort();
+  }, [open]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -102,7 +127,7 @@ export function PriceAlertModal({
   const validAddress =
     channel === "email"
       ? EMAIL.test(address)
-      : CHAT_ID.test(address) || TELEGRAM_USERNAME.test(address);
+      : CHAT_ID.test(address);
   const validTarget =
     Number.isFinite(amount) &&
     amount > 0 &&
@@ -270,10 +295,25 @@ export function PriceAlertModal({
             <label className="ptr-label" htmlFor={`${id}-destination`}>
               {t(channel === "email" ? "alert.email" : "alert.telegram")}
             </label>
+            {channel === "telegram" && telegramBotUsername && (
+              <div className="mb-2">
+                <a
+                  href={`https://t.me/${encodeURIComponent(telegramBotUsername)}?start=alerts`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ptr-button ptr-small-button w-full"
+                >
+                  <Send size={14} aria-hidden="true" />
+                  <span>{t("alert.openTelegramBot")}</span>
+                  <ExternalLink size={13} aria-hidden="true" />
+                </a>
+              </div>
+            )}
             <input
               id={`${id}-destination`}
-              className="ptr-field"
+              className={`ptr-field${channel === "telegram" ? " ptr-mono" : ""}`}
               type={channel === "email" ? "email" : "text"}
+              inputMode={channel === "telegram" ? "numeric" : "email"}
               dir="ltr"
               value={destination}
               disabled={pending}

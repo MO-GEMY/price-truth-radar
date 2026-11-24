@@ -10,18 +10,20 @@ import {
   Sparkles,
   Store,
   Sun,
+  Tag,
 } from "lucide-react";
 import { browseHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { AsarakLogo } from "./AsarakLogo";
 
-// `wideOnly` tabs do not fit beside the brand and the toggles on tablets and
-// are hidden there by `.ptr-nav-secondary` (they still show in the mobile tab bar).
+// `wideOnly` tabs are hidden below 1024px (they remain accessible via the footer)
+// so the 4 primary tabs fit comfortably on mobile (320-639px) and tablet (640-1023px).
 const destinations = [
   { href: "/", text: "nav.feed", icon: Search, wideOnly: false },
   { href: "/deals", text: "nav.deals", icon: Sparkles, wideOnly: false },
   { href: "/compare", text: "nav.compare", icon: ArrowLeftRight, wideOnly: false },
+  { href: "/coupons", text: "nav.coupons", icon: Tag, wideOnly: false },
   { href: "/add-store", text: "nav.addStore", icon: Store, wideOnly: true },
 ] as const;
 
@@ -54,8 +56,12 @@ export function Header() {
             <Link
               key={href}
               className={wideOnly ? "ptr-nav-secondary" : undefined}
-              // Only browse tabs carry filters; "/add-store" links to itself as-is.
-              href={pathname === href && href !== "/add-store" ? browseHref(href, query) : href}
+              // Only browse tabs carry filters; "/add-store" and "/coupons" link cleanly as-is.
+              href={
+                pathname === href && href !== "/add-store" && href !== "/coupons"
+                  ? browseHref(href, query)
+                  : href
+              }
               aria-current={active === href ? "page" : undefined}
             >
               <Icon size={16} strokeWidth={2.1} aria-hidden="true" />

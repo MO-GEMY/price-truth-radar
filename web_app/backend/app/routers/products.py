@@ -12,6 +12,7 @@ from sqlalchemy.engine import Connection
 
 from app.cache import api_cache, product_detail_cache, search_cache, set_cache_headers
 from app.catalog_search import build_catalog_query, search_catalog
+from app.coupons_service import coupon_store
 from app.database import get_db
 from app.routers.radar import PRODUCT_SELECT_COLS
 from app.schemas import (
@@ -377,6 +378,43 @@ def search_products(
     return res
 
 
+def _attach_coupons_to_detail(detail: ProductDetailResponse) -> ProductDetailResponse:
+    """Attach in-memory matching coupons to product & alternatives (zero Neon queries)."""
+    prod = detail.product
+    prod_coupons, prod_est = coupon_store.match_for_offer(
+        store_id=prod.store_name,
+        price=prod.current_price,
+        category=prod.category,
+    )
+    enriched_product = prod.model_copy(
+        update={
+            "applicable_coupons": prod_coupons,
+            "estimated_price_after_coupon": prod_est,
+        }
+    )
+    enriched_alts: list[AlternativeListing] = []
+    for alt in detail.alternatives:
+        alt_coupons, alt_est = coupon_store.match_for_offer(
+            store_id=alt.store_name,
+            price=alt.price,
+            category=prod.category,
+        )
+        enriched_alts.append(
+            alt.model_copy(
+                update={
+                    "applicable_coupons": alt_coupons,
+                    "estimated_price_after_coupon": alt_est,
+                }
+            )
+        )
+    return detail.model_copy(
+        update={
+            "product": enriched_product,
+            "alternatives": enriched_alts,
+        }
+    )
+
+
 @router.get("/{product_sk}", response_model=ProductDetailResponse)
 def get_product_detail(
     product_sk: str,
@@ -387,7 +425,7 @@ def get_product_detail(
     cache_key = f"products:detail:v4:{product_sk}"
     cached = product_detail_cache.get(cache_key)
     if cached is not None:
-        return cached
+        return _attach_coupons_to_detail(cached)
     product_sql = text(
         f"""
         SELECT {PRODUCT_SELECT_COLS}
@@ -418,6 +456,30 @@ def get_product_detail(
     )
     history_rows = db.execute(history_sql, {"product_sk": product_sk}).mappings().all()
     history = [PriceHistoryPoint.model_validate(dict(r)) for r in history_rows]
+    # For change-only deduplicated history that already has verified multi-point evidence,
+    # project the latest unchanged anchor to `product.last_updated_at.date()` so 60-day
+    # charts extend cleanly to the latest observation without storing flat duplicate rows.
+    if (
+        len(history) >= 2
+        and (
+            len(history) >= 3
+            or abs(product.max_historical_price - product.min_historical_price) > 0.005
+        )
+        and product.last_updated_at is not None
+    ):
+        latest_obs_date = product.last_updated_at.date()
+        last_pt = history[-1]
+        if latest_obs_date > last_pt.snapshot_date:
+            history.append(
+                PriceHistoryPoint(
+                    snapshot_date=latest_obs_date,
+                    price=product.current_price,
+                    claimed_original_price=product.claimed_original_price,
+                    rolling_60d_median=product.rolling_60d_median,
+                    in_stock=product.in_stock,
+                    available_sizes_count=last_pt.available_sizes_count,
+                )
+            )
 
     alternatives: list[AlternativeListing] = []
     if product.canonical_product_key:
@@ -506,4 +568,4 @@ def get_product_detail(
         variants=variants,
     )
     product_detail_cache.set(cache_key, res, ttl=43200.0)
-    return res
+    return _attach_coupons_to_detail(res)

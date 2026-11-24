@@ -9,10 +9,34 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from app.cache import api_cache, set_cache_headers
+from app.coupons_service import coupon_store
 from app.database import get_db
-from app.schemas import CategoryFilter, CompareResponse, CrossStoreMatchItem
+from app.schemas import AlternativeListing, CategoryFilter, CompareResponse, CrossStoreMatchItem
 
 router = APIRouter(tags=["compare"])
+
+
+def _attach_coupons_to_compare(result: CompareResponse) -> CompareResponse:
+    """Attach in-memory matching coupons to every offer in compare rows (zero Neon queries)."""
+    enriched_items: list[CrossStoreMatchItem] = []
+    for item in result.items:
+        enriched_listings: list[AlternativeListing] = []
+        for offer in item.listings_json:
+            coupons, est = coupon_store.match_for_offer(
+                store_id=offer.store_name,
+                price=offer.price,
+                category=item.category,
+            )
+            enriched_listings.append(
+                offer.model_copy(
+                    update={
+                        "applicable_coupons": coupons,
+                        "estimated_price_after_coupon": est,
+                    }
+                )
+            )
+        enriched_items.append(item.model_copy(update={"listings_json": enriched_listings}))
+    return result.model_copy(update={"items": enriched_items})
 
 
 @router.get("/api/v1/compare", response_model=CompareResponse)
@@ -29,7 +53,7 @@ def get_cross_store_comparison(
     cache_key = f"compare:{category}:{min_spread_pct:.2f}:{page}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:
-        return cached
+        return _attach_coupons_to_compare(cached)
 
     conditions: list[str] = ["price_spread_pct >= :min_spread_pct"]
     params: dict[str, object] = {"min_spread_pct": min_spread_pct}
@@ -115,4 +139,4 @@ def get_cross_store_comparison(
         limit=limit,
     )
     api_cache.set(cache_key, result, ttl=300.0)
-    return result
+    return _attach_coupons_to_compare(result)

@@ -361,8 +361,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
         )
         self.assertEqual(r_dup.status_code, 409)
 
-        # 3. Valid Telegram @username and numeric chat_id -> 201
-        r_tg = client.post(
+        # 3. Telegram @username is rejected (numeric Chat ID required), numeric chat_id -> 201
+        r_tg_handle = client.post(
             "/api/alerts",
             json={
                 "product_key": "ps5_slim",
@@ -373,7 +373,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
                 "destination": "@cairo_deals_bot",
             },
         )
-        self.assertEqual(r_tg.status_code, 201)
+        self.assertEqual(r_tg_handle.status_code, 422)
+        self.assertIn("Chat ID", str(r_tg_handle.json()))
 
         r_tg_id = client.post(
             "/api/alerts",
@@ -387,6 +388,19 @@ class TestLaunchBackendAPI(unittest.TestCase):
             },
         )
         self.assertEqual(r_tg_id.status_code, 201)
+
+        r_tg_group_id = client.post(
+            "/api/alerts",
+            json={
+                "product_key": "ps5_pro",
+                "product_title": "Sony PlayStation 5 Pro",
+                "store_name": "noon",
+                "target_price": 32000.0,
+                "channel": "telegram",
+                "destination": "-1001234567890",
+            },
+        )
+        self.assertEqual(r_tg_group_id.status_code, 201)
 
         # 4. Invalid payloads -> 422
         bad_payloads = [

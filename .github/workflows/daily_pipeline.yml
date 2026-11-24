@@ -71,9 +71,10 @@ jobs:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
         run: python data_platform/ingestion/scrapers/run_scrapers.py --match-db
 
-      - name: Run dbt models and data tests
+      - name: Run dbt models, data tests, and 3-day raw retention cleanup
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
         run: |
           python data_platform/run_dbt.py run
           python data_platform/run_dbt.py test
+          python data_platform/ingestion/scrapers/run_scrapers.py --prune-raw --retention-days 3

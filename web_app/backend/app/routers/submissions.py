@@ -218,11 +218,12 @@ def _accept(
     include_in_schema=True,
 )
 def get_submissions_config(response: Response) -> SubmissionsConfigResponse:
-    """Whether the forms can deliver, plus the Turnstile site key when enabled."""
+    """Whether the forms can deliver, plus the Turnstile site key & Telegram bot username."""
     response.headers["Cache-Control"] = "no-store"
     return SubmissionsConfigResponse(
         form_enabled=team_channel_ready(contact_inbox()),
         turnstile_site_key=turnstile_site_key(),
+        telegram_bot_username=env_str("TELEGRAM_BOT_USERNAME").lstrip("@"),
     )
 
 

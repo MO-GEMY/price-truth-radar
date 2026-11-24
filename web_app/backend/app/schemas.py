@@ -8,6 +8,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
+from app.coupons_service import ApplicableCoupon, CouponRecord
 from app.sanitize import http_url, normalize_email, normalize_whatsapp
 
 CANONICAL_CATEGORIES: tuple[str, ...] = (
@@ -153,6 +154,8 @@ class ProductVerdictItem(BaseModel):
     has_multiple_variants: bool = False
     min_variant_price: Optional[float] = None
     max_variant_price: Optional[float] = None
+    applicable_coupons: list[ApplicableCoupon] = Field(default_factory=list)
+    estimated_price_after_coupon: Optional[float] = None
 
     @model_validator(mode="after")
     def _populate_unit_pricing(self) -> "ProductVerdictItem":
@@ -208,6 +211,8 @@ class AlternativeListing(BaseModel):
     discount_verdict: DiscountVerdict
     unit_price_egp: Optional[float] = None
     unit_price_unit: Optional[UnitPriceUnit] = None
+    applicable_coupons: list[ApplicableCoupon] = Field(default_factory=list)
+    estimated_price_after_coupon: Optional[float] = None
 
 
 class ProductVariantItem(BaseModel):
@@ -340,9 +345,9 @@ class AlertCreateRequest(BaseModel):
                 raise ValueError("Invalid email address format for email alert destination.")
             self.destination = dest.lower()
         elif self.channel == "telegram":
-            if not (_TELEGRAM_USERNAME_RE.match(dest) or _TELEGRAM_CHAT_ID_RE.match(dest)):
+            if not _TELEGRAM_CHAT_ID_RE.match(dest):
                 raise ValueError(
-                    "Invalid Telegram destination: provide '@username' (5-32 chars) or numeric chat ID."
+                    "رقم محادثة تليجرام (Chat ID) يجب أن يكون أرقاماً فقط (5 إلى 20 رقماً) وليس اسم مستخدم مثل @username. افتح بوت أسعارك واضغط Start للحصول على رقم المحادثة الخاص بك."
                 )
             self.destination = dest
         self.target_price = round(float(self.target_price), 2)
@@ -479,8 +484,25 @@ class StoreSuggestCreateRequest(BaseModel):
 class SubmissionsConfigResponse(BaseModel):
     form_enabled: bool
     turnstile_site_key: str = ""
+    telegram_bot_username: str = ""
 
 
 class SubmissionAcceptedResponse(BaseModel):
     status: Literal["received"] = "received"
     message: str
+
+
+class CouponsListResponse(BaseModel):
+    items: list[CouponRecord]
+    total: int
+    source: str
+    refreshed_at: Optional[str] = None
+    available_stores: list[str] = Field(default_factory=list)
+
+
+class CouponsRefreshResponse(BaseModel):
+    ok: bool
+    source: str
+    count: int
+    refreshed_at: Optional[str] = None
+    error: Optional[str] = None

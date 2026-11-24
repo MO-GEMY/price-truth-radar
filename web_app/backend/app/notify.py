@@ -151,19 +151,29 @@ def send_email(to: str, subject: str, body: str) -> SendResult:
     return outcome
 
 
-def send_telegram(chat_id: str, text: str, *, token: str | None = None) -> SendResult:
+def send_telegram(
+    chat_id: str,
+    text: str,
+    *,
+    token: str | None = None,
+    parse_mode: str | None = None,
+    disable_web_page_preview: bool = False,
+) -> SendResult:
     """Post one Bot API message. Never raises; the bot token never reaches the reason."""
     bot_token = env_str("TELEGRAM_BOT_TOKEN") if token is None else token.strip()
     if not bot_token:
         return SendResult(False, "telegram", "TELEGRAM_BOT_TOKEN not configured")
+    payload: dict[str, object] = {
+        "chat_id": chat_id,
+        "text": text[:TELEGRAM_MAX_CHARS],
+        "disable_web_page_preview": disable_web_page_preview,
+    }
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
     try:
         resp = httpx.post(
             f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text[:TELEGRAM_MAX_CHARS],
-                "disable_web_page_preview": False,
-            },
+            json=payload,
             timeout=HTTP_TIMEOUT_SECONDS,
         )
         if resp.status_code >= 400:

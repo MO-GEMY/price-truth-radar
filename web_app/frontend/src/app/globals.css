@@ -124,14 +124,26 @@ select option {
   position: sticky;
   top: 0;
   z-index: 40;
+  border-block-end: 1px solid var(--asarak-border);
+  transition: border-color 0.2s ease;
+}
+
+/* Paint frosted glass on ::before rather than .ptr-mast itself so backdrop-filter
+   NEVER establishes a CSS containing block that traps position:fixed descendants
+   (specifically the mobile bottom tab bar .ptr-nav on viewports < 640px). */
+.ptr-mast::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border-block-end: 1px solid var(--asarak-border);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
-[data-theme="dark"] .ptr-mast {
+[data-theme="dark"] .ptr-mast::before {
   background: rgba(11, 25, 46, 0.88);
 }
 
@@ -2503,6 +2515,8 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   .ptr-nav {
     position: fixed;
     z-index: 45;
+    top: auto;
+    bottom: 0;
     inset-inline: 0;
     inset-block-end: 0;
     justify-content: space-around;
@@ -2513,6 +2527,9 @@ html[dir="rtl"] .asarak-bar-fill--winner {
     background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
+  }
+  .ptr-nav a.ptr-nav-secondary {
+    display: none;
   }
   [data-theme="dark"] .ptr-nav {
     background: rgba(11, 25, 46, 0.94);
@@ -2768,11 +2785,17 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   }
 }
 
-/* Header: a fourth tab no longer fits beside the brand and the toggles between
-   the mobile tab bar and 800px (measured for both Arabic and English labels). */
-@media (min-width: 640px) and (max-width: 799px) {
+/* Header: secondary tab (/add-store, always in footer) hides below 1024px so the
+   4 primary tabs (feed, deals, compare, coupons) fit beside logo & toggles on
+   tablets without wrapping or clipping in either Arabic or English. */
+@media (min-width: 640px) and (max-width: 1023px) {
   .ptr-nav a.ptr-nav-secondary {
     display: none;
+  }
+  .ptr-nav a {
+    padding: 7px 10px;
+    gap: 5px;
+    font-size: 0.8125rem;
   }
 }
 
@@ -2783,4 +2806,83 @@ html[dir="rtl"] .asarak-bar-fill--winner {
     line-height: 1.15;
     white-space: normal;
   }
+}
+
+/* ==========================================================================
+   Coupons Directory & Inline Offer Coupon Pills
+   ========================================================================== */
+
+.ptr-coupons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+}
+
+.ptr-coupon-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+
+.ptr-coupon-actions {
+  margin-block-start: auto;
+  padding-block-start: 10px;
+  border-block-start: 1px dashed var(--asarak-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ptr-coupon-code-box {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--asarak-emerald);
+  background: var(--asarak-emerald-soft);
+  color: var(--asarak-emerald-text);
+  font-size: 0.875rem;
+}
+
+.ptr-coupon-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--asarak-emerald-border);
+  background: var(--asarak-emerald-soft);
+  color: var(--asarak-emerald-text);
+  font-size: 0.78rem;
+  max-width: 100%;
+}
+
+.ptr-coupon-inline--compact {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+
+.ptr-coupon-code-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--asarak-emerald-border);
+  background: var(--asarak-card);
+  color: var(--asarak-emerald-text);
+  font-size: inherit;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ptr-coupon-code-pill:hover {
+  border-color: var(--asarak-emerald);
+}
+
+.ptr-coupon-est {
+  color: var(--asarak-ink);
+  font-weight: 600;
 }

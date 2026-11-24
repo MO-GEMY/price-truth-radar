@@ -7,6 +7,7 @@ import { AsarakLogo } from "./AsarakLogo";
 import { VerdictLegend } from "./VerdictLegend";
 
 const LEGAL_LINKS = [
+  { href: "/coupons", key: "footer.coupons" },
   { href: "/about", key: "footer.about" },
   { href: "/privacy", key: "footer.privacy" },
   { href: "/terms", key: "footer.terms" },

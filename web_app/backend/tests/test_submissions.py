@@ -44,6 +44,7 @@ _NOTIFY_KEYS = (
     "SMTP_PASS",
     "SMTP_FROM",
     "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_BOT_USERNAME",
     "TELEGRAM_NOTIFY_CHAT_ID",
     "CONTACT_TO_EMAIL",
     "ADD_STORE_TO_EMAIL",
@@ -333,7 +334,10 @@ class TestSubmissionsApi(unittest.TestCase):
             resp = self.client.get("/api/submissions/config")
             alias = self.client.get("/api/v1/submissions/config")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json(), {"form_enabled": False, "turnstile_site_key": ""})
+        self.assertEqual(
+            resp.json(),
+            {"form_enabled": False, "turnstile_site_key": "", "telegram_bot_username": ""},
+        )
         self.assertEqual(resp.headers["cache-control"], "no-store")
         self.assertEqual(alias.json(), resp.json())
         post.assert_not_called()
@@ -341,10 +345,19 @@ class TestSubmissionsApi(unittest.TestCase):
     def test_config_enabled_by_resend_inbox_or_telegram_chat(self) -> None:
         with notify_env(**RESEND_READY):
             self.assertTrue(self.client.get("/api/submissions/config").json()["form_enabled"])
-        with notify_env(**RESEND_READY, TURNSTILE_SITE_KEY="site-key", TURNSTILE_SECRET_KEY="sec"):
+        with notify_env(
+            **RESEND_READY,
+            TURNSTILE_SITE_KEY="site-key",
+            TURNSTILE_SECRET_KEY="sec",
+            TELEGRAM_BOT_USERNAME="@AsarakAlertsBot",
+        ):
             self.assertEqual(
                 self.client.get("/api/submissions/config").json(),
-                {"form_enabled": True, "turnstile_site_key": "site-key"},
+                {
+                    "form_enabled": True,
+                    "turnstile_site_key": "site-key",
+                    "telegram_bot_username": "AsarakAlertsBot",
+                },
             )
         with notify_env(TELEGRAM_BOT_TOKEN="t", TELEGRAM_NOTIFY_CHAT_ID="-100123"):
             self.assertTrue(self.client.get("/api/submissions/config").json()["form_enabled"])
