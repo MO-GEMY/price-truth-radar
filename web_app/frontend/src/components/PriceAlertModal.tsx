@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { BellRing, Check, ExternalLink, Loader2, Mail, Send, X } from "lucide-react";
 import type { AlertChannel } from "@/types/contract";
 import { ApiError, fetchSubmissionsConfig, submitPriceAlert } from "@/lib/api";
-import { formatPctPlain, formatPrice } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
 
@@ -373,7 +373,8 @@ export function PriceAlertModal({
                 style={{ color: "var(--asarak-emerald-text)" }}
               >
                 {t("alert.belowHint", {
-                  pct: formatPctPlain(belowPct, lang, 0),
+                  // The translation appends its own "%", so pass bare digits.
+                  pct: Math.round(belowPct),
                 })}
               </p>
             )}

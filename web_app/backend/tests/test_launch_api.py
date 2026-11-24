@@ -11,6 +11,8 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+from psycopg2.errors import InsufficientPrivilege
+from sqlalchemy.exc import ProgrammingError
 
 _BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(_BACKEND_DIR) not in sys.path:
@@ -58,14 +60,19 @@ class _FakeReadDB:
 
 
 class _FakeAlertsDB:
-    def __init__(self) -> None:
+    def __init__(self, *, table_exists: bool = True) -> None:
         self.rows: list[dict[str, Any]] = []
         self.next_id = 1
+        self.table_exists = table_exists
+        self.ddl_ran = False
 
     def execute(self, stmt: Any, params: dict[str, Any] | None = None) -> _FakeResult:
         sql = str(stmt)
         p = params or {}
+        if "to_regclass" in sql:
+            return _FakeResult(scalar="price_alerts" if self.table_exists else None)
         if "CREATE TABLE IF NOT EXISTS" in sql:
+            self.ddl_ran = True
             return _FakeResult()
         if "SELECT id" in sql and "FROM public.price_alerts" in sql:
             dest = str(p["destination"]).lower()
@@ -449,6 +456,44 @@ class TestLaunchBackendAPI(unittest.TestCase):
             r_bad = client.post("/api/alerts", json=bad)
             self.assertEqual(r_bad.status_code, 422, f"Expected 422 for {bad}, got {r_bad.status_code}")
 
+    def test_alerts_skip_ddl_on_existing_table_and_503_when_not_creatable(self) -> None:
+        payload = {
+            "product_key": "iphone_16_128gb",
+            "target_price": 45000,
+            "channel": "email",
+            "destination": "shopper@example.com",
+        }
+
+        # 1. Railway case: table exists but the role lacks CREATE on schema public -> no DDL, 201
+        existing = _FakeAlertsDB(table_exists=True)
+        app.dependency_overrides[get_write_db] = lambda: existing
+        with patch("app.database._alerts_table_ready", False):
+            r_ok = TestClient(app).post("/api/alerts", json=payload)
+        self.assertEqual(r_ok.status_code, 201)
+        self.assertFalse(existing.ddl_ran)
+
+        class _CreateDeniedDB(_FakeAlertsDB):
+            def __init__(self) -> None:
+                super().__init__(table_exists=False)
+
+            def execute(self, stmt: Any, params: dict[str, Any] | None = None) -> _FakeResult:
+                if "CREATE TABLE" in str(stmt):
+                    # What psycopg2 + SQLAlchemy raise for "permission denied for schema public"
+                    raise ProgrammingError(
+                        str(stmt),
+                        {},
+                        InsufficientPrivilege("permission denied for schema public"),
+                    )
+                return super().execute(stmt, params)
+
+        # 2. Table missing and CREATE denied -> clean 503, never a 500
+        denied = _CreateDeniedDB()
+        app.dependency_overrides[get_write_db] = lambda: denied
+        with patch("app.database._alerts_table_ready", False):
+            r_denied = TestClient(app).post("/api/alerts", json=payload)
+        self.assertEqual(r_denied.status_code, 503)
+        self.assertEqual(denied.rows, [])
+
     def test_seo_sitemap_entries_and_chunks_7d_cdn_and_24h_ram_cache(self) -> None:
         now = datetime(2026, 11, 22, 10, 30, 0, tzinfo=timezone.utc)
         fake_products = [
@@ -529,6 +574,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
         triggered_ids: list[int] = []
 
         def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
+            if "to_regclass" in sql:
+                return _FakeResult(scalar="price_alerts")
             if "CREATE TABLE IF NOT EXISTS" in sql:
                 return _FakeResult()
             if "FROM public.price_alerts" in sql:

@@ -21,8 +21,10 @@ from collections.abc import Generator
 from pathlib import Path
 
 from dotenv import load_dotenv
+from psycopg2.errors import InsufficientPrivilege
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger(__name__)
@@ -121,6 +123,12 @@ PRICE_ALERTS_DDL = text(
     """
 )
 
+# Read-only existence probe: the app DB role has DML grants on price_alerts but
+# no CREATE on schema public, so the DDL must never run against an existing table.
+PRICE_ALERTS_EXISTS_SQL = text("SELECT to_regclass('public.price_alerts')")
+
+_INSUFFICIENT_PRIVILEGE_SQLSTATE = "42501"
+
 
 def _normalize_pg_url(db_url: str) -> str:
     if db_url.startswith("postgres://"):
@@ -214,16 +222,43 @@ def get_write_engine() -> Engine:
     return _write_engine
 
 
-def ensure_price_alerts_table(conn: Connection) -> None:
-    """Idempotently ensure `public.price_alerts` exists once per worker process."""
+def _is_insufficient_privilege(exc: DBAPIError) -> bool:
+    # SQLAlchemy surfaces the driver's 42501 as a plain ProgrammingError, so
+    # match the wrapped driver error instead of a SQLAlchemy exception class.
+    orig = getattr(exc, "orig", None)
+    return isinstance(orig, InsufficientPrivilege) or (
+        getattr(orig, "pgcode", None) == _INSUFFICIENT_PRIVILEGE_SQLSTATE
+    )
+
+
+def ensure_price_alerts_table(conn: Connection) -> bool:
+    """Idempotently ensure `public.price_alerts` exists once per worker process.
+
+    Returns False when the table is missing and cannot be created (the app DB
+    role lacks CREATE on schema public) so callers fail closed instead of 500.
+    """
     global _alerts_table_ready
     if _alerts_table_ready:
-        return
+        return True
     with _alerts_table_lock:
         if _alerts_table_ready:
-            return
-        conn.execute(PRICE_ALERTS_DDL)
+            return True
+        try:
+            if conn.execute(PRICE_ALERTS_EXISTS_SQL).scalar_one_or_none() is not None:
+                _alerts_table_ready = True
+                return True
+            conn.execute(PRICE_ALERTS_DDL)
+        except DBAPIError as exc:
+            if not _is_insufficient_privilege(exc):
+                raise
+            logger.error(
+                "price_alerts unavailable to the app DB role and CREATE on schema public "
+                "is denied (%s); ensure public.price_alerts exists using an owner role.",
+                exc.orig,
+            )
+            return False
         _alerts_table_ready = True
+        return True
 
 
 def get_db() -> Generator[Connection, None, None]:

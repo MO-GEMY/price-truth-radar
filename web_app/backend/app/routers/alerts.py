@@ -31,7 +31,11 @@ def create_price_alert(
     db: Connection = Depends(get_write_db),
 ) -> AlertCreateResponse:
     response.headers["Cache-Control"] = "no-store"
-    ensure_price_alerts_table(db)
+    if not ensure_price_alerts_table(db):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Price alerts are temporarily unavailable. Please try again later.",
+        )
 
     # 1. Deduplicate active alert for same destination + product_key
     dup_sql = text(
