@@ -1,0 +1,3 @@
+# Asarak (asarak.com) — Google AdSense authorized sellers declaration.
+# Replace this placeholder with your AdSense publisher line upon approval:
+# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0

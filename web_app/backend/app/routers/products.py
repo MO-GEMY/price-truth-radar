@@ -181,7 +181,7 @@ def search_products(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
-    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     cache_key = f"products:search:v2:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:
@@ -383,7 +383,7 @@ def get_product_detail(
     response: Response,
     db: Connection = Depends(get_db),
 ) -> ProductDetailResponse:
-    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     cache_key = f"products:detail:v3:{product_sk}"
     cached = api_cache.get(cache_key)
     if cached is not None:

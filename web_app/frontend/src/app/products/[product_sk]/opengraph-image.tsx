@@ -3,7 +3,7 @@ import { loadProduct } from "@/lib/product-server";
 import { LAUNCH_PRODUCT_COUNT, LAUNCH_STORE_COUNT } from "@/lib/site";
 import { storeDisplayName } from "@/lib/stores";
 
-export const alt = "Price Truth Radar — Product Price Receipt";
+export const alt = "Asarak (أسعارك) — Product Price Receipt";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const runtime = "nodejs";

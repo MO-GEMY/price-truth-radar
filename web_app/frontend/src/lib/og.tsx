@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { SITE_DOMAIN, SITE_NAME } from "./site";
 
 export const OG_SIZE = { width: 1200, height: 630 } as const;
 
@@ -61,14 +62,14 @@ export function makeOgResponse(data: OgCardData): ImageResponse {
               letterSpacing: "0.04em",
             }}
           >
-            PTR
+            ASARAK
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ display: "flex", fontSize: 28, fontWeight: 800, color: "#192722" }}>
-              Price Truth Radar
+              {SITE_NAME}
             </span>
             <span style={{ display: "flex", fontSize: 17, color: "#52605A" }}>
-              Egypt Price Integrity &amp; Cross-Store Comparison
+              Egypt Price Comparison &amp; Deal Verification
             </span>
           </div>
         </div>
@@ -192,7 +193,7 @@ export function makeOgResponse(data: OgCardData): ImageResponse {
           {data.footer ?? "Verify real discounts vs. 60-day recorded price history"}
         </span>
         <span style={{ display: "flex", fontWeight: 700, color: "#005E53" }}>
-          price-truth-radar.vercel.app
+          {SITE_DOMAIN}
         </span>
       </div>
     </div>,

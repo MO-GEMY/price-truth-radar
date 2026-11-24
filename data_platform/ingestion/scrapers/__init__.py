@@ -29,6 +29,7 @@ from .base import (
 )
 from .btech import BTechScraper
 from .expansion_stores import EXPANSION_SCRAPER_CLASSES
+from .expansion_stores_wave2 import WAVE2_EXPANSION_SCRAPER_CLASSES
 from .groceries import (
     GROCERY_SUB_CATEGORIES,
     compute_grocery_barcode_key,
@@ -93,6 +94,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     TwoBScraper.store_name: TwoBScraper,
     **{cls.store_name: cls for cls in PLATFORM_SCRAPER_CLASSES},
     **{cls.store_name: cls for cls in EXPANSION_SCRAPER_CLASSES},
+    **{cls.store_name: cls for cls in WAVE2_EXPANSION_SCRAPER_CLASSES},
 }
 
 # Dynamically register any enabled platform stores declared in `stores_registry.yaml`

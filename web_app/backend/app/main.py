@@ -1,4 +1,4 @@
-"""FastAPI application entrypoint for Price Truth Radar serving backend."""
+"""FastAPI application entrypoint for the Asarak (أسعارك) serving backend."""
 
 from __future__ import annotations
 
@@ -9,21 +9,36 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import alerts, compare, health, highlights, products, radar, seo, stats
 
-app = FastAPI(
-    title="Price Truth Radar API",
-    description="High-scale serving API querying the Neon PostgreSQL gold schema + price drop alerts.",
-    version="1.1.0",
+DEFAULT_CORS_ORIGINS: tuple[str, ...] = (
+    "https://asarak.com",
+    "https://www.asarak.com",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 )
 
-cors_origins_raw = os.getenv("CORS_ORIGINS", "*").strip()
-if cors_origins_raw == "*" or not cors_origins_raw:
-    allow_origins = ["*"]
-else:
-    allow_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+
+def resolve_cors_origins(raw_env: str | None = None) -> list[str]:
+    """Build CORS allow-list always including production Asarak origins + dev localhost."""
+    val = (os.getenv("CORS_ORIGINS", "") if raw_env is None else raw_env).strip()
+    if val == "*":
+        return ["*"]
+    origins: list[str] = list(DEFAULT_CORS_ORIGINS)
+    for item in val.split(","):
+        origin = item.strip().rstrip("/")
+        if origin and origin not in origins:
+            origins.append(origin)
+    return origins
+
+
+app = FastAPI(
+    title="Asarak API",
+    description="High-scale serving API for Asarak (أسعارك) querying the Neon PostgreSQL gold schema + price drop alerts.",
+    version="1.2.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=resolve_cors_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

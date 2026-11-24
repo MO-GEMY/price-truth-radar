@@ -1,25 +1,34 @@
 /**
  * Site-level constants and URL/image validators for SEO surfaces (robots.ts,
- * sitemap.ts, metadata, OpenGraph cards, JSON-LD).
+ * sitemap.ts, metadata, OpenGraph cards, JSON-LD, legal pages).
  */
 
 import type { Category } from "@/types/contract";
 
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ??
-  "https://price-truth-radar.vercel.app"
+  "https://asarak.com"
 )
   .trim()
   .replace(/\/+$/, "");
 
-export const SITE_NAME = "Price Truth Radar";
-export const SITE_NAME_AR = "رادار الحقيقة السعرية";
+export const SITE_DOMAIN = (() => {
+  try {
+    return new URL(SITE_URL).host;
+  } catch {
+    return "asarak.com";
+  }
+})();
+
+export const SITE_NAME = "Asarak";
+export const SITE_NAME_AR = "أسعارك";
 export const SITE_NAME_BILINGUAL = `${SITE_NAME_AR} | ${SITE_NAME}`;
+export const CONTACT_EMAIL = "contact@asarak.com";
 
 export const DEFAULT_OG_IMAGE_PATH = "/opengraph-image";
 
-export const LAUNCH_STORE_COUNT = "172";
-export const LAUNCH_PRODUCT_COUNT = "100,000+";
+export const LAUNCH_STORE_COUNT = "200";
+export const LAUNCH_PRODUCT_COUNT = "112,000+";
 
 export const CANONICAL_CATEGORIES: readonly Category[] = [
   "electronics",

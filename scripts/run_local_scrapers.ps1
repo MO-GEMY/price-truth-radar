@@ -35,9 +35,13 @@
 param(
     [string[]]$Stores = @(
         "2b", "sigma",
-        "jumia", "elghazawy", "homzmart", "decathlon_eg",
-        "misr_pharmacies", "tdawi",
-        "elnekhely", "maximum_hardware", "gamesworldegypt",
+        "jumia", "carrefour_eg", "elghazawy", "fresh_eg",
+        "homzmart", "ikea_eg", "oriental_weavers",
+        "decathlon_eg", "pets_egypt",
+        "misr_pharmacies", "tdawi", "el_ezaby", "chefaa", "seif_pharmacies",
+        "faces_eg", "mazaya_eg",
+        "adidas_eg", "lc_waikiki_eg", "defacto_eg",
+        "elnekhely", "maximum_hardware", "gamesworldegypt", "mobilaty_eg",
         "hedeya"
     ),
     [switch]$IncludeFallback,
@@ -61,7 +65,7 @@ if ($Discovery) {
 }
 
 $FallbackStores = @("egyptlaptop", "dubaiphone", "elaraby", "dalydress")
-$FashionOnlyStores = @("town_team", "dejavu", "dalydress", "activ", "carina", "khotwh", "concrete", "mobaco", "hedeya")
+$FashionOnlyStores = @("town_team", "dejavu", "dalydress", "activ", "carina", "khotwh", "concrete", "mobaco", "hedeya", "lc_waikiki_eg", "defacto_eg", "adidas_eg")
 $GroceriesOnlyStores = @("spinneys", "hyperone", "seoudi", "abu_auf", "gourmet", "imtenan", "metro_market")
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path

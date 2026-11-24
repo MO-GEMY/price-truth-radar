@@ -62,10 +62,10 @@ sitemap_cache = TTLCache(maxsize=16, default_ttl=3600.0)
 def set_cache_headers(
     response: Response,
     *,
-    s_maxage: int = 300,
-    stale_while_revalidate: int = 600,
+    s_maxage: int = 600,
+    stale_while_revalidate: int = 300,
 ) -> None:
-    """Attach CDN/edge-friendly Cache-Control headers for read endpoints."""
+    """Attach Cloudflare/CDN-friendly public Cache-Control headers for read endpoints."""
     response.headers["Cache-Control"] = (
         f"public, s-maxage={s_maxage}, stale-while-revalidate={stale_while_revalidate}"
     )

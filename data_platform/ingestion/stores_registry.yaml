@@ -314,28 +314,18 @@ stores:
   enabled: true
   verified: true
   batch: core_4
-- store_key: select_eg
-  display_name: Select Mobility
-  platform: shopify
-  base_url: https://select.eg
-  category: electronics
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: SSL handshake/cert error
 - store_key: switchplus
   display_name: Switch Plus
   platform: shopify
-  base_url: https://switchplus.com.eg
+  base_url: https://switchpluseg.com
   category: electronics
   vertical: core
   region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: DNS lookup failed
+  enabled: true
+  verified: true
+  batch: core_5
+  notes: Migrated to switchpluseg.com — Apple Authorised Reseller (Shopify JSON, EGP)
+  max_products: 600
 - store_key: aman_stores
   display_name: Aman Stores
   platform: magento_graphql
@@ -490,39 +480,18 @@ stores:
   enabled: true
   verified: true
   batch: core_4
-- store_key: delta_computer
-  display_name: Delta Computer Egypt
-  platform: woocommerce
-  base_url: https://deltacomputereg.com
-  category: electronics
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: DNS lookup failed
-- store_key: compufast
-  display_name: CompuFast Egypt
-  platform: woocommerce
-  base_url: https://compufast.com.eg
-  category: electronics
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: DNS lookup failed
 - store_key: fresh_eg
   display_name: Fresh Electric Egypt
-  platform: magento_graphql
+  platform: custom
   base_url: https://fresh.com.eg
   category: home_appliances
   vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_appliances
-  notes: 404 no store API
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_appliances
+  notes: Official Fresh Egypt Magento 2 GraphQL API (be.fresh.com.eg/graphql, EGP, local_only)
+  max_products: 600
 - store_key: zanussi_eg
   display_name: Zanussi Egypt
   platform: magento_graphql
@@ -545,7 +514,7 @@ stores:
   enabled: false
   verified: false
   batch: expansion_appliances
-  notes: 403 WAF/anti-bot
+  notes: Verified manufacturer product showcase only (no online EGP prices or checkout; Find a Retailer only)
 - store_key: unionaire_eg
   display_name: Unionaire Egypt
   platform: woocommerce
@@ -614,36 +583,15 @@ stores:
 - store_key: hyper_techno
   display_name: Hyper Techno
   platform: woocommerce
-  base_url: https://hypertechno.net
-  category: home_appliances
+  base_url: https://hypertechmall.com
+  category: electronics
   vertical: core
   region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_appliances
-  notes: DNS lookup failed
-- store_key: shaker_group
-  display_name: Shaker Appliances
-  platform: shopify
-  base_url: https://shakerstore.com.eg
-  category: home_appliances
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_appliances
-  notes: DNS lookup failed
-- store_key: black_decker_eg
-  display_name: Black+Decker Egypt
-  platform: shopify
-  base_url: https://blackanddeckeregypt.com
-  category: home_appliances
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_appliances
-  notes: DNS lookup failed
+  enabled: true
+  verified: true
+  batch: core_6
+  notes: Migrated to hypertechmall.com — WooCommerce Store API (EGP)
+  max_products: 600
 - store_key: kenwood_eg
   display_name: Kenwood Egypt
   platform: shopify
@@ -666,28 +614,20 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: 404 no store API
-- store_key: white_whale_eg
-  display_name: White Whale Egypt
-  platform: woocommerce
-  base_url: https://whitewhale.com.eg
-  category: home_appliances
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_appliances
-  notes: Connection refused/reset
 - store_key: carrefour_eg
   display_name: Carrefour Egypt
   platform: custom
   base_url: https://www.carrefouregypt.com
   category: groceries
-  vertical: groceries
+  vertical: core
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: shopify HTTP 503; woo HTTP 503
+  enabled: true
+  verified: true
+  batch: local_core
+  notes: Public robots.txt XML sitemaps (products0..2_en.xml) + Schema.org/Product JSON-LD via standard httpx (local_only)
+  extra_verticals:
+  - groceries
+  max_products: 800
 - store_key: kheir_zaman
   display_name: Kheir Zaman
   platform: custom
@@ -699,28 +639,6 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: shopify non-JSON; woo non-JSON
-- store_key: oscar_grand
-  display_name: Oscar Grand Stores
-  platform: magento_graphql
-  base_url: https://oscarstores.com
-  category: groceries
-  vertical: groceries
-  region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: SSL handshake/cert error
-- store_key: fathalla_market
-  display_name: Fathalla Market
-  platform: custom
-  base_url: https://fathallamarket.com
-  category: groceries
-  vertical: groceries
-  region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: SSL handshake/cert error
 - store_key: breadfast
   display_name: Breadfast
   platform: custom
@@ -761,10 +679,13 @@ stores:
   category: groceries
   vertical: groceries
   region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: WooCommerce API minor_unit bug (returns 0.06 EGP instead of 60 EGP)
+  enabled: true
+  verified: true
+  batch: groceries_2
+  notes: Verified WooCommerce Store API (EGP); min_price_egp=5.0 skips broken per-gram produce entries
+  max_products: 600
+  config:
+    min_price_egp: 5.0
 - store_key: fresh_farm_eg
   display_name: Fresh Farm Egypt
   platform: shopify
@@ -787,17 +708,6 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: 403 Cloudflare challenge
-- store_key: bim_eg
-  display_name: BIM Egypt
-  platform: custom
-  base_url: https://www.bim.eg
-  category: groceries
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: shopify HTTP 404; woo non-JSON
 - store_key: kazyon
   display_name: Kazyon Market
   platform: custom
@@ -820,17 +730,6 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: 403 WAF/anti-bot
-- store_key: al_douha
-  display_name: El Doha Foods
-  platform: shopify
-  base_url: https://eldohafoods.com
-  category: groceries
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: DNS lookup failed
 - store_key: mahmoud_el_far
   display_name: Mahmoud El Far
   platform: woocommerce
@@ -844,26 +743,32 @@ stores:
   notes: woo non-JSON; shopify non-JSON
 - store_key: el_ezaby
   display_name: El Ezaby Pharmacy
-  platform: custom
-  base_url: https://elezabypharmacy.com
+  platform: woocommerce
+  base_url: https://drahmedelezaby.com
   category: health
-  vertical: groceries
+  vertical: core
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: 404 no store API
+  enabled: true
+  verified: true
+  batch: local_pharma
+  notes: Official Dr. Ahmed El Ezaby online store (WooCommerce Store API, EGP, local_only)
+  max_products: 600
+  config:
+    use_impersonation: true
+    min_delay_seconds: 1.5
+    min_price_egp: 5.0
 - store_key: seif_pharmacies
   display_name: Seif Pharmacies
   platform: custom
-  base_url: https://www.seif-online.com
+  base_url: https://seif-online.com
   category: health
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: 404 no store API
+  vertical: core
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_pharma
+  notes: Seif Pharmacies JSON REST API (/api/customer/products/search) via Playwright session (local_only)
+  max_products: 600
 - store_key: misr_pharmacies
   display_name: Misr Pharmacies
   platform: custom
@@ -897,39 +802,18 @@ stores:
   verified: false
   batch: expansion_pharmacy
   notes: woo HTTP 404; shopify non-JSON
-- store_key: fouda_pharmacy
-  display_name: Fouda Pharmacy
-  platform: woocommerce
-  base_url: https://foudapharmacy.com
-  category: health
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: DNS lookup failed
-- store_key: tarshouby
-  display_name: El Tarshouby Pharmacy
-  platform: woocommerce
-  base_url: https://eltarshouby.com
-  category: health
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: DNS lookup failed
 - store_key: chefaa
   display_name: Chefaa
   platform: custom
   base_url: https://chefaa.com
   category: health
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: 404 no store API
+  vertical: core
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_pharma
+  notes: Chefaa Pharmacy SSR Schema.org microdata (.item_content, EGP, local_only)
+  max_products: 600
 - store_key: yodawy
   display_name: Yodawy
   platform: custom
@@ -946,34 +830,25 @@ stores:
   platform: custom
   base_url: https://www.faces.eg
   category: beauty
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: 404 no store API
+  vertical: core
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_beauty
+  notes: Faces Egypt SFCC SSR product tiles (EGP, local_only)
+  max_products: 500
 - store_key: mazaya_eg
   display_name: Mazaya Egypt
-  platform: magento_graphql
-  base_url: https://mazayastores.com
+  platform: custom
+  base_url: https://mazaya.eg
   category: beauty
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: 404 no store API
-- store_key: soukare_eg
-  display_name: SouKare Egypt
-  platform: shopify
-  base_url: https://eg.soukare.com
-  category: health
-  vertical: groceries
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_pharmacy
-  notes: DNS lookup failed
+  vertical: core
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_beauty
+  notes: Mazaya Egypt Magento 2 GraphQL API (backend.mazaya.eg/graphql, EGP, local_only)
+  max_products: 500
 - store_key: lc_waikiki_eg
   display_name: LC Waikiki Egypt
   platform: custom
@@ -981,21 +856,23 @@ stores:
   category: fashion
   vertical: fashion
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: 403 Cloudflare challenge
+  enabled: true
+  verified: true
+  batch: local_fashion
+  notes: LC Waikiki Egypt SSR .product-card catalog (EGP, local_only)
+  max_products: 500
 - store_key: defacto_eg
   display_name: DeFacto Egypt
   platform: custom
-  base_url: https://www.defacto.com/en-eg
+  base_url: https://www.defacto.com.eg
   category: fashion
   vertical: fashion
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: 403 WAF/anti-bot
+  enabled: true
+  verified: true
+  batch: local_fashion
+  notes: DeFacto Egypt official JSON Catalog API (PartialIndexScrollResult, EGP, local_only)
+  max_products: 500
 - store_key: ravin
   display_name: Ravin Jeans
   platform: custom
@@ -1007,28 +884,18 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: 404 no store API
-- store_key: tie_house
-  display_name: Tie House
-  platform: shopify
-  base_url: https://tiehouse.com
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: shopify HTTP 525; woo HTTP 525
 - store_key: tomato_eg
   display_name: Tomato Egypt
   platform: shopify
-  base_url: https://tomato.com.eg
+  base_url: https://www.tomatostores.com
   category: fashion
   vertical: fashion
   region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: DNS lookup failed
+  enabled: true
+  verified: true
+  batch: fashion_5
+  notes: Migrated to tomatostores.com — Egyptian apparel brand (Shopify JSON, EGP)
+  max_products: 600
 - store_key: mitcha
   display_name: Mitcha Egypt
   platform: shopify
@@ -1069,10 +936,11 @@ stores:
   category: fashion
   vertical: fashion
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: 403 Forbidden/WAF
+  enabled: true
+  verified: true
+  batch: local_fashion
+  notes: Standard unmodified Playwright Firefox (headless=False, lazy import, local_only); stops immediately on HTTP 403
+  max_products: 500
 - store_key: aldo_eg
   display_name: ALDO Egypt
   platform: shopify
@@ -1105,17 +973,6 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: 403 Cloudflare
-- store_key: or_kids
-  display_name: OR Kids Egypt
-  platform: shopify
-  base_url: https://orkids.com.eg
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: DNS lookup failed
 - store_key: ikea_eg
   display_name: IKEA Egypt
   platform: custom
@@ -1123,10 +980,11 @@ stores:
   category: home_furniture
   vertical: core
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_home
-  notes: 404 no store API
+  enabled: true
+  verified: true
+  batch: local_home
+  notes: IKEA Egypt official SIK Search JSON API (EGP, local_only)
+  max_products: 600
 - store_key: homzmart
   display_name: Homzmart
   platform: custom
@@ -1202,17 +1060,6 @@ stores:
   verified: false
   batch: expansion_home
   notes: timeout (15s)
-- store_key: mobica
-  display_name: Mobica
-  platform: woocommerce
-  base_url: https://mobica.net
-  category: home_furniture
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_home
-  notes: 404 no store API
 - store_key: taki_eg
   display_name: Taki Vita Mattresses
   platform: shopify
@@ -1224,17 +1071,6 @@ stores:
   verified: false
   batch: expansion_home
   notes: Parked domain (hugedomains)
-- store_key: linen_house_eg
-  display_name: Linen House Egypt
-  platform: shopify
-  base_url: https://linenhouse.com.eg
-  category: home_furniture
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_home
-  notes: DNS lookup failed
 - store_key: el_malek_furniture
   display_name: El Malek Furniture
   platform: woocommerce
@@ -2492,15 +2328,16 @@ stores:
     use_impersonation: true
 - store_key: pets_egypt
   display_name: PetsEgypt
-  platform: shopify
+  platform: custom
   base_url: https://petsegypt.com
   category: pet_care
-  vertical: groceries
+  vertical: core
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: 403 Cloudflare challenge
+  enabled: true
+  verified: true
+  batch: local_pets
+  notes: PetsEgypt SSR __NUXT_DATA__ JSON catalog (EGP, local_only)
+  max_products: 450
 - store_key: samir_and_aly
   display_name: Samir & Aly
   platform: shopify
@@ -2534,17 +2371,6 @@ stores:
   verified: true
   batch: local_pharma
   notes: Verified Magento SSR .product-item scraper (local Egypt IP)
-- store_key: albaraka_optical
-  display_name: Baraka Optical
-  platform: shopify
-  base_url: https://albarakaoptical.com
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_optics
-  notes: non-EGP currency (AED)
 - store_key: amanda_milano
   display_name: Amanda Milano
   platform: shopify
@@ -2567,17 +2393,6 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: shopify non-JSON; woo non-JSON
-- store_key: bernasos
-  display_name: Bernasos
-  platform: woocommerce
-  base_url: https://bernasos.com
-  category: baby_kids
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_books
-  notes: woo HTTP 404; shopify HTTP 404
 - store_key: doctor_m_eg
   display_name: Doctor M Egypt
   platform: shopify
@@ -2600,17 +2415,6 @@ stores:
   verified: true
   batch: local_electronics
   notes: Verified OpenCart SSR .product-thumb scraper (gaming & peripherals)
-- store_key: happy_vision
-  display_name: Happy Vision
-  platform: shopify
-  base_url: https://happyvision.com.eg
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_optics
-  notes: DNS/ConnectError ([Errno 11001] getaddrinfo failed)
 - store_key: highendstore
   display_name: HIGHEND Store
   platform: woocommerce
@@ -2644,28 +2448,6 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: shopify HTTP 404; woo HTTP 404
-- store_key: mamzi
-  display_name: Mamzi Store
-  platform: shopify
-  base_url: https://mamzistore.com
-  category: fashion
-  vertical: fashion
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: non-EGP currency (AED)
-- store_key: mienta_eg
-  display_name: Mienta Egypt
-  platform: shopify
-  base_url: https://mienta.com
-  category: home_appliances
-  vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_home_appliances
-  notes: 'DNS/ConnectError ([SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: )'
 - store_key: mobile_masr
   display_name: Mobile Masr
   platform: custom
@@ -2679,15 +2461,16 @@ stores:
   notes: shopify HTTP 404; woo HTTP 404
 - store_key: oriental_weavers
   display_name: Oriental Weavers
-  platform: magento_graphql
-  base_url: https://orientalweavers.com
+  platform: custom
+  base_url: https://shop.orientalweavers.com
   category: home_furniture
   vertical: core
-  region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_home_furniture
-  notes: magento HTTP 404; shopify HTTP 404
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_home
+  notes: Oriental Weavers Egypt official shop Magento 2 GraphQL API (shop.orientalweavers.com/graphql, EGP, local_only)
+  max_products: 450
 - store_key: ram_electronics
   display_name: RAM Electronics
   platform: woocommerce
@@ -2904,14 +2687,15 @@ stores:
   category: electronics
   vertical: core
   region_mode: local_only
-  enabled: false
-  verified: false
+  enabled: true
+  verified: true
   batch: local_electronics
-  max_products: 1200
-  notes: WAF / HTTP 403 throttling on /wp-json/wc/store/v1/products from local IP; disabled to avoid silent failures
+  max_products: 600
+  notes: Verified WooCommerce Store API (EGP); requires curl_cffi + per_page=20 (per_page=40 hits HTTP 403)
   config:
     use_impersonation: true
-    min_delay_seconds: 2.0
+    per_page: 20
+    min_delay_seconds: 2.5
 - store_key: grow_eg
   display_name: Grow Egypt
   platform: shopify

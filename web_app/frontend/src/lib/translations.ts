@@ -9,8 +9,8 @@
 
 export const translations = {
   en: {
-    "brand.name": "Price Truth Radar",
-    "brand.tagline": "Price tracking across Egyptian retailers",
+    "brand.name": "Asarak",
+    "brand.tagline": "Price tracking & comparison across 200 Egyptian retailers",
 
     "nav.feed": "Check a price",
     "nav.compare": "Compare stores",
@@ -65,9 +65,9 @@ export const translations = {
     "deals.copied": "Link copied",
     "deals.shareFailed": "Couldn't share — link copied instead.",
     "deals.shareScandalText":
-      "🚨 Fake discount scandal: {title} at {store} claims {claimed} EGP but really costs {real} EGP — {pct}% fake inflation. Check it on Price Truth Radar:",
+      "🚨 Fake discount alert: {title} at {store} claims {claimed} EGP but really costs {real} EGP — {pct}% fake inflation. Check it on Asarak:",
     "deals.shareDealText":
-      "✅ Verified real deal: {title} at {store} for {real} EGP — {pct}% below its claimed price. Grab it on Price Truth Radar:",
+      "✅ Verified real deal: {title} at {store} for {real} EGP — {pct}% below its claimed price. Check it on Asarak:",
     "deals.empty": "No highlights for this selection.",
     "deals.emptyHint":
       "The radar is sweeping the stores — check again after the next daily snapshot.",
@@ -358,7 +358,11 @@ export const translations = {
     "common.retry": "Retry",
     "common.egpShort": "EGP",
     "footer.note":
-      "Prices in Egyptian Pounds (EGP) · Automated daily snapshots across Egyptian retailers",
+      "Asarak · Prices in Egyptian Pounds (EGP) · Automated daily snapshots across 200 Egyptian retailers",
+    "footer.about": "About",
+    "footer.privacy": "Privacy Policy",
+    "footer.terms": "Terms & Disclaimer",
+    "footer.contact": "Contact Us",
   },
 
   ar: {
@@ -393,7 +397,7 @@ export const translations = {
     "ui.history60": "آخر ٦٠ يوم",
     "ui.sizesUnavailable": "بيانات توفر المقاسات غير متاحة.",
     "feed.title": "المنتجات المرصودة",
-    "brand.name": "رادار الحقيقة السعرية",
+    "brand.name": "أسعارك",
     "brand.tagline": "الأسعار الحقيقية في مصر، بعيداً عن الخصومات الوهمية.",
 
     "nav.feed": "افحص السعر",
@@ -418,9 +422,9 @@ export const translations = {
     "deals.copied": "تم نسخ الرابط",
     "deals.shareFailed": "تعذّرت المشاركة — تم نسخ الرابط بدلاً منها.",
     "deals.shareScandalText":
-      "🚨 فضيحة خصم وهمي: {title} في {store} يعلن {claimed} ج.م لكن السعر الحقيقي {real} ج.م — تضخيم وهمي {pct}%. تحقق بنفسك على رادار الحقيقة السعرية:",
+      "🚨 تنبيه خصم وهمي: {title} في {store} يعلن {claimed} ج.م لكن السعر الحقيقي {real} ج.م — تضخيم وهمي {pct}%. تحقق بنفسك على أسعارك:",
     "deals.shareDealText":
-      "✅ صفقة حقيقية مؤكدة: {title} في {store} بـ {real} ج.م — أقل من السعر المعلن بـ {pct}%. احجزها من رادار الحقيقة السعرية:",
+      "✅ صفقة حقيقية مؤكدة: {title} في {store} بـ {real} ج.م — أقل من السعر المعلن بـ {pct}%. شوفها على أسعارك:",
     "deals.empty": "مفيش أسعار بارزة للاختيار ده.",
     "deals.emptyHint":
       "الرادار يفحص المتاجر — عد بعد اللقطة اليومية القادمة.",
@@ -710,7 +714,11 @@ export const translations = {
     "common.error": "حدث خطأ أثناء تحميل البيانات.",
     "common.retry": "إعادة المحاولة",
     "common.egpShort": "ج.م",
-    "footer.note": "جميع الأسعار بالجنيه المصري · تتبّع يومي تلقائي عبر المتاجر المصرية",
+    "footer.note": "أسعارك · جميع الأسعار بالجنيه المصري · تتبّع يومي تلقائي عبر 200 متجر مصري",
+    "footer.about": "من نحن",
+    "footer.privacy": "سياسة الخصوصية",
+    "footer.terms": "شروط الاستخدام",
+    "footer.contact": "تواصل معنا",
   },
 } as const;
 

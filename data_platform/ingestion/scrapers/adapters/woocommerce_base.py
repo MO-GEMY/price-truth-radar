@@ -245,6 +245,7 @@ class WooCommerceBaseScraper(BaseScraper):
     min_delay_seconds: float = 1.5
     request_timeout: float = 25.0
     per_page: int = 40
+    min_price_egp: float = 0.0
 
     def _parse_item_variants(
         self,
@@ -384,6 +385,8 @@ class WooCommerceBaseScraper(BaseScraper):
         # Path 2: Standard Store API simple or variable product
         current_price, claimed_original = _extract_wc_paired_prices(item)
         if current_price is None:
+            return []
+        if self.min_price_egp > 0 and float(current_price) < self.min_price_egp:
             return []
 
         item_type = str(item.get("type") or "").strip().lower()

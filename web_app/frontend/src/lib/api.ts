@@ -33,7 +33,12 @@ import {
 } from "./mockData";
 import { normalizeHighlight, observedTimestamp, type PriceHighlight } from "./highlights";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "")
+const DEFAULT_PROD_API_URL = "https://api.asarak.com";
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "production" ? DEFAULT_PROD_API_URL : "")
+)
   .trim()
   .replace(/\/+$/, "");
 

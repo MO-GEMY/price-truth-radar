@@ -27,8 +27,8 @@ const plexArabic = IBM_Plex_Sans_Arabic({
   display: "swap",
 });
 
-const HOME_TITLE = `${SITE_NAME_AR} — اكشف الخصومات الوهمية وقارن أسعار ${LAUNCH_STORE_COUNT} متجر مصري | Price Truth Radar`;
-const HOME_DESCRIPTION = `تابع سجل الأسعار الحقيقي وقارن العروض بالجنيه المصري عبر ${LAUNCH_STORE_COUNT} متجر مصري وأكثر من ${LAUNCH_PRODUCT_COUNT} منتج في الإلكترونيات والأجهزة المنزلية والأزياء والهايبرماركت — Track real EGP price history across ${LAUNCH_STORE_COUNT} Egyptian stores and ${LAUNCH_PRODUCT_COUNT} products.`;
+const HOME_TITLE = `${SITE_NAME_AR} — اكشف الخصومات الوهمية وقارن أسعار ${LAUNCH_STORE_COUNT} متجر مصري | Asarak`;
+const HOME_DESCRIPTION = `أسعارك (Asarak): تابع سجل الأسعار الحقيقي وقارن العروض بالجنيه المصري عبر ${LAUNCH_STORE_COUNT} متجر مصري وأكثر من ${LAUNCH_PRODUCT_COUNT} منتج في الإلكترونيات والأجهزة المنزلية والأزياء والصيدليات والهايبرماركت — Track real EGP price history across ${LAUNCH_STORE_COUNT} Egyptian stores and ${LAUNCH_PRODUCT_COUNT} products.`;
 const DEFAULT_OG_IMAGE = absoluteUrl(DEFAULT_OG_IMAGE_PATH);
 
 export const metadata: Metadata = {
@@ -40,13 +40,13 @@ export const metadata: Metadata = {
   description: HOME_DESCRIPTION,
   applicationName: SITE_NAME_BILINGUAL,
   keywords: [
-    "رادار الحقيقة السعرية",
-    "Price Truth Radar",
+    "أسعارك",
+    "Asarak",
     "مقارنة أسعار مصر",
     "سجل الأسعار مصر",
     "كشف الخصومات الوهمية",
     "عروض البلاك فرايداي مصر",
-    "مقارنة أسعار أمازون ونون وبي تك",
+    "مقارنة أسعار أمازون ونون وبي تك وكارفور",
     "Egypt price tracker",
     "EGP price history",
   ],

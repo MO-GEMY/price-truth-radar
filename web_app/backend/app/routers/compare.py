@@ -25,7 +25,7 @@ def get_cross_store_comparison(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> CompareResponse:
-    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     cache_key = f"compare:{category}:{min_spread_pct:.2f}:{page}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:

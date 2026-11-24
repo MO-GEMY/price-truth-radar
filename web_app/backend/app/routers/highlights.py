@@ -177,7 +177,7 @@ def get_radar_highlights(
     category: CategoryFilter = Query(default="all"),
     db: Connection = Depends(get_db),
 ) -> RadarHighlightsResponse:
-    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     cache_key = f"radar:highlights:v2:{category}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:

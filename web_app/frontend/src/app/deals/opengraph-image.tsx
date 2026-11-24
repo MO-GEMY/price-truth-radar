@@ -2,7 +2,7 @@ import { makeOgResponse } from "@/lib/og";
 import { LAUNCH_PRODUCT_COUNT, LAUNCH_STORE_COUNT } from "@/lib/site";
 
 export const alt =
-  "عروض حقيقية وكشف الخصومات الوهمية — Verified Deals & Fake Discounts | Price Truth Radar";
+  "عروض حقيقية وكشف الخصومات الوهمية — Verified Deals & Fake Discounts | أسعارك (Asarak)";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

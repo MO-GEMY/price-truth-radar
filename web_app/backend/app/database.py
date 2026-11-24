@@ -26,8 +26,16 @@ from sqlalchemy.engine import Connection, Engine
 
 logger = logging.getLogger(__name__)
 
+def _resolve_repo_root() -> Path:
+    env_root = os.getenv("REPO_ROOT", "").strip()
+    if env_root:
+        return Path(env_root)
+    parents = Path(__file__).resolve().parents
+    return parents[min(3, len(parents) - 1)] if parents else Path(".")
+
+
 # Load root .env for local development (ignored in production when env vars are set)
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = _resolve_repo_root()
 load_dotenv(_REPO_ROOT / ".env")
 load_dotenv()
 

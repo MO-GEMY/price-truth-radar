@@ -70,7 +70,7 @@ def get_radar_feed(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> RadarFeedResponse:
-    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     norm_store = store.strip().lower() if (store and store.strip()) else ""
     cache_key = f"radar:feed:v2:{category}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
     cached = api_cache.get(cache_key)

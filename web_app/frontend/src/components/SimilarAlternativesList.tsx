@@ -6,7 +6,7 @@ import type { Category, SimilarAlternative } from "@/types/contract";
 import { productHref } from "@/lib/browse-state";
 import { formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
-import { retailerHref } from "@/lib/offers";
+import { OUTBOUND_LINK_REL, buildAffiliateUrl } from "@/lib/affiliate";
 import { storeDisplayName } from "@/lib/stores";
 import { ProductImage } from "./ProductImage";
 import { StoreBadge } from "./StoreBadge";
@@ -33,7 +33,7 @@ export function SimilarAlternativesList({
       <p className="ptr-muted text-sm">{t("similar.subtitle")}</p>
       <ul className="ptr-offers ptr-similar-list">
         {items.map((item) => {
-          const storeUrl = retailerHref(item.product_url);
+          const storeUrl = buildAffiliateUrl(item.product_url, item.store_name);
           const diffAbs = Math.abs(item.price_diff_egp);
           const isCheaper = item.price_diff_egp <= -1;
           const isHigher = item.price_diff_egp >= 1;
@@ -89,7 +89,7 @@ export function SimilarAlternativesList({
                     className="ptr-button ptr-small-button"
                     href={storeUrl}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel={OUTBOUND_LINK_REL}
                     aria-label={t("detail.openAtStore", {
                       store: storeDisplayName(item.store_name, lang),
                     })}

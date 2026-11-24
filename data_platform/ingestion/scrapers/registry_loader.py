@@ -163,6 +163,8 @@ def build_platform_scraper_class(entry: StoreRegistryEntry) -> Optional[type[Bas
         common_attrs["override_brand"] = bool(cfg["override_brand"])
     if "use_impersonation" in cfg:
         common_attrs["use_impersonation"] = bool(cfg["use_impersonation"])
+    if "min_delay_seconds" in cfg:
+        common_attrs["min_delay_seconds"] = float(cfg["min_delay_seconds"])
 
     cls_name = f"Registry_{entry.store_key}_Scraper"
 
@@ -174,6 +176,10 @@ def build_platform_scraper_class(entry: StoreRegistryEntry) -> Optional[type[Bas
     if entry.platform == "woocommerce":
         if cfg.get("api_path"):
             common_attrs["api_path"] = str(cfg["api_path"])
+        if "per_page" in cfg:
+            common_attrs["per_page"] = int(cfg["per_page"])
+        if "min_price_egp" in cfg:
+            common_attrs["min_price_egp"] = float(cfg["min_price_egp"])
         return type(cls_name, (WooCommerceBaseScraper,), common_attrs)
 
     if entry.platform == "magento_graphql":

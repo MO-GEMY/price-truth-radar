@@ -112,7 +112,7 @@ def get_overview_stats(
     response: Response,
     db: Connection = Depends(get_db),
 ) -> OverviewStatsResponse:
-    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     cache_key = "stats:overview"
     cached = api_cache.get(cache_key)
     if cached is not None:
@@ -147,7 +147,7 @@ def get_categories(
     include_empty: bool = False,
     db: Connection = Depends(get_db),
 ) -> CategoriesResponse:
-    set_cache_headers(response, s_maxage=300, stale_while_revalidate=600)
+    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     cache_key = f"stats:categories:{int(include_empty)}"
     cached = api_cache.get(cache_key)
     if cached is not None:

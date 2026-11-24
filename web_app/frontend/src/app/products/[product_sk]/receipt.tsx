@@ -10,7 +10,7 @@ import { categoryLabelKey, productHref, safeBrowseHref, useBrowseParams } from "
 import { formatDate, formatDateTime, formatNumber, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { isStaleObservation, observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
-import { retailerHref } from "@/lib/offers";
+import { OUTBOUND_LINK_REL, buildAffiliateUrl } from "@/lib/affiliate";
 import { absoluteUrl } from "@/lib/site";
 import { storeDisplayName } from "@/lib/stores";
 import { hasSufficientPriceHistory } from "@/lib/verdicts";
@@ -74,7 +74,7 @@ export function ProductReceipt({ productSk, initial }: {
   const price = formatPrice(product.current_price, lang);
   const timestamp = observedTimestamp(product.last_updated_at);
   const stale = isStaleObservation(timestamp);
-  const storeUrl = retailerHref(product.product_url);
+  const storeUrl = buildAffiliateUrl(product.product_url, product.store_name);
   const compareReady = alternatives.some((offer) => offer.in_stock);
   const hasHistory = history.length > 1;
   const sufficientHistory = hasSufficientPriceHistory(product, history);
@@ -185,7 +185,7 @@ export function ProductReceipt({ productSk, initial }: {
           {product.scarcity_flag && product.in_stock && <p className="text-sm ptr-muted">{t("card.lowStock")}</p>}
           <div className="ptr-decision-actions">
             {!canVisit && compareReady && <a href="#alternatives" className="ptr-button ptr-primary">{t("ui.viewOffers")}</a>}
-            {canVisit && <a href={storeUrl} target="_blank" rel="noopener noreferrer" className="ptr-button ptr-primary">
+            {canVisit && <a href={storeUrl} target="_blank" rel={OUTBOUND_LINK_REL} className="ptr-button ptr-primary">
               {t("detail.openAtStore", { store: label })} <ExternalLink size={15} aria-hidden="true" />
             </a>}
             {canAlert && <button type="button" disabled={!ready} onClick={() => setAlertOpen(true)}

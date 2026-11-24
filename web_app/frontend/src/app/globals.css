@@ -764,3 +764,51 @@ html[lang="ar"] .ptr-hero h1 { max-width: none; }
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after, .skeleton-light::after { animation: none; }
 }
+
+.ptr-footer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ptr-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: .875rem;
+}
+
+.ptr-legal {
+  display: grid;
+  gap: 24px;
+  padding: clamp(20px, 3vw, 36px);
+}
+
+.ptr-legal-block {
+  display: grid;
+  gap: 10px;
+}
+
+.ptr-legal-block h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ptr-ink);
+}
+
+.ptr-legal-block p,
+.ptr-legal-block li {
+  color: var(--ptr-muted);
+  line-height: 1.75;
+}
+
+.ptr-legal-block ul {
+  display: grid;
+  gap: 8px;
+  padding-inline-start: 20px;
+  list-style: disc;
+}
+
+.ptr-legal-en {
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--ptr-line);
+}
