@@ -1,90 +1,140 @@
 /**
- * Config-driven outbound affiliate link wrapper for Asarak (أسعارك).
+ * Lightweight, config-driven Affiliate URL builder for Asarak (أسعارك).
  *
- * Strictly pass-through when a retailer's affiliate credentials are empty,
- * and ready to activate per store via environment variables without touching
- * component code. Always pair outbound retailer links with
- * `target="_blank"` and `rel={OUTBOUND_LINK_REL}`.
+ * Strictly pass-through when affiliate env vars are empty, and safely validates
+ * URLs without throwing on malformed input.
  */
 
-import { retailerHref } from "./offers";
+export const AFFILIATE_LINK_REL = "noopener noreferrer sponsored nofollow";
+export const STANDARD_OUTBOUND_REL = "noopener noreferrer nofollow";
 
-export const OUTBOUND_LINK_REL = "sponsored noopener noreferrer";
-
-interface StoreAffiliateRule {
-  /** Query parameter name appended to the destination URL (e.g. `tag` for Amazon). */
-  param?: string;
-  /** Value for `param` (empty string disables wrapping for this store). */
-  value: string;
-  /**
-   * Optional redirect-network wrapper prefix (e.g. Admitad / ArabClicks deeplink
-   * base ending in `?ulp=`). When non-empty, the destination URL is URL-encoded
-   * and appended to this prefix.
-   */
-  redirectPrefix?: string;
+export function outboundLinkRel(isAffiliate: boolean): string {
+  return isAffiliate ? AFFILIATE_LINK_REL : STANDARD_OUTBOUND_REL;
 }
 
-const AFFILIATE_CONFIG: Readonly<Record<string, StoreAffiliateRule>> = {
-  amazon_eg: {
-    param: "tag",
-    value: (process.env.NEXT_PUBLIC_AFFILIATE_AMAZON_TAG ?? "").trim(),
-  },
-  noon: {
-    param: "utm_source",
-    value: (process.env.NEXT_PUBLIC_AFFILIATE_NOON_ID ?? "").trim(),
-    redirectPrefix: (process.env.NEXT_PUBLIC_AFFILIATE_NOON_PREFIX ?? "").trim(),
-  },
-  jumia: {
-    param: "utm_source",
-    value: (process.env.NEXT_PUBLIC_AFFILIATE_JUMIA_ID ?? "").trim(),
-    redirectPrefix: (process.env.NEXT_PUBLIC_AFFILIATE_JUMIA_PREFIX ?? "").trim(),
-  },
-  btech: {
-    param: "utm_source",
-    value: (process.env.NEXT_PUBLIC_AFFILIATE_BTECH_ID ?? "").trim(),
-    redirectPrefix: (process.env.NEXT_PUBLIC_AFFILIATE_BTECH_PREFIX ?? "").trim(),
-  },
-  carrefour_eg: {
-    param: "utm_source",
-    value: (process.env.NEXT_PUBLIC_AFFILIATE_CARREFOUR_ID ?? "").trim(),
-    redirectPrefix: (process.env.NEXT_PUBLIC_AFFILIATE_CARREFOUR_PREFIX ?? "").trim(),
-  },
-  adidas_eg: {
-    param: "utm_source",
-    value: (process.env.NEXT_PUBLIC_AFFILIATE_ADIDAS_ID ?? "").trim(),
-    redirectPrefix: (process.env.NEXT_PUBLIC_AFFILIATE_ADIDAS_PREFIX ?? "").trim(),
-  },
-};
+export interface AffiliateUrlResult {
+  url: string;
+  isAffiliate: boolean;
+  network?: string;
+}
+
+export interface AffiliateConfigOverride {
+  amazonEgTag?: string;
+  deeplinkMapRaw?: string;
+}
+
+let cachedMapRaw: string | null = null;
+let cachedMap: Readonly<Record<string, string>> = {};
+
+function parseDeeplinkMap(raw: string): Readonly<Record<string, string>> {
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+  if (cachedMapRaw === trimmed) return cachedMap;
+
+  const normalized: Record<string, string> = {};
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      for (const [rawKey, rawVal] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof rawVal !== "string") continue;
+        const template = rawVal.trim();
+        if (!template || !template.includes("{url}")) continue;
+        if (!/^https?:\/\//i.test(template)) continue;
+        const key = rawKey.trim().toLowerCase();
+        if (!key) continue;
+        normalized[key] = template;
+        const stripped = key.replace(/^www\./, "");
+        if (stripped && !normalized[stripped]) {
+          normalized[stripped] = template;
+        }
+      }
+    }
+  } catch {
+    // Malformed JSON — fall back silently to empty map
+  }
+
+  cachedMapRaw = trimmed;
+  cachedMap = normalized;
+  return normalized;
+}
+
+function inferNetworkName(template: string, fallbackKey: string): string {
+  try {
+    const host = new URL(template.replace("{url}", "https://example.com")).hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+    if (host) return host;
+  } catch {
+    // Fallback below
+  }
+  return fallbackKey || "deeplink";
+}
 
 /**
- * Validates `rawUrl` as http/https and applies configured affiliate tracking
- * for `storeName` when active. Returns null for invalid/unsafe URLs.
+ * Safely rewrites an outbound retailer URL when matching affiliate configuration
+ * is present. Always preserves rawUrl on invalid URLs, non-http(s) protocols,
+ * or empty affiliate configuration.
  */
 export function buildAffiliateUrl(
-  rawUrl: string | null | undefined,
-  storeName?: string | null,
-): string | null {
-  if (!rawUrl) return null;
-  const safeUrl = retailerHref(rawUrl);
-  if (!safeUrl) return null;
-
-  const key = (storeName ?? "").trim().toLowerCase();
-  const rule = key ? AFFILIATE_CONFIG[key] : undefined;
-  if (!rule) return safeUrl;
-
-  if (rule.redirectPrefix) {
-    return `${rule.redirectPrefix}${encodeURIComponent(safeUrl)}`;
+  rawUrl: string,
+  storeName?: string,
+  configOverride?: AffiliateConfigOverride,
+): AffiliateUrlResult {
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return { url: rawUrl ?? "", isAffiliate: false };
   }
 
-  if (rule.param && rule.value) {
-    try {
-      const parsed = new URL(safeUrl);
-      parsed.searchParams.set(rule.param, rule.value);
-      return parsed.toString();
-    } catch {
-      return safeUrl;
-    }
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return { url: rawUrl, isAffiliate: false };
   }
 
-  return safeUrl;
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { url: rawUrl, isAffiliate: false };
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const bareHost = host.replace(/^www\./, "");
+
+  const amazonTag = (
+    configOverride?.amazonEgTag ??
+    process.env.NEXT_PUBLIC_AMAZON_EG_TAG ??
+    ""
+  ).trim();
+
+  if ((host === "amazon.eg" || host === "www.amazon.eg") && amazonTag) {
+    parsed.searchParams.set("tag", amazonTag);
+    return {
+      url: parsed.toString(),
+      isAffiliate: true,
+      network: "amazon_eg",
+    };
+  }
+
+  const deeplinkRaw =
+    configOverride?.deeplinkMapRaw ??
+    process.env.NEXT_PUBLIC_AFFILIATE_DEEPLINK_MAP ??
+    "";
+  const deeplinkMap = parseDeeplinkMap(deeplinkRaw);
+
+  const storeKey = (storeName ?? "").trim().toLowerCase();
+  const matchedKey =
+    (bareHost && deeplinkMap[bareHost] ? bareHost : null) ??
+    (host && deeplinkMap[host] ? host : null) ??
+    (storeKey && deeplinkMap[storeKey] ? storeKey : null);
+
+  if (matchedKey) {
+    const template = deeplinkMap[matchedKey];
+    const encoded = encodeURIComponent(rawUrl);
+    const rewritten = template.replace(/\{url\}/g, encoded);
+    return {
+      url: rewritten,
+      isAffiliate: true,
+      network: inferNetworkName(template, matchedKey),
+    };
+  }
+
+  return { url: rawUrl, isAffiliate: false };
 }

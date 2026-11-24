@@ -359,6 +359,8 @@ export const translations = {
     "common.egpShort": "EGP",
     "footer.note":
       "Asarak · Prices in Egyptian Pounds (EGP) · Automated daily snapshots across 200 Egyptian retailers",
+    "footer.affiliateDisclosure":
+      "Some store links may be affiliate links that help keep Asarak free at no extra cost to you.",
     "footer.about": "About",
     "footer.privacy": "Privacy Policy",
     "footer.terms": "Terms & Disclaimer",
@@ -715,6 +717,8 @@ export const translations = {
     "common.retry": "إعادة المحاولة",
     "common.egpShort": "ج.م",
     "footer.note": "أسعارك · جميع الأسعار بالجنيه المصري · تتبّع يومي تلقائي عبر 200 متجر مصري",
+    "footer.affiliateDisclosure":
+      "قد تحتوي بعض روابط المتاجر على روابط تسويق بالعمولة تساعدنا في إبقاء أسعارك مجانياً دون أي تكلفة إضافية عليك.",
     "footer.about": "من نحن",
     "footer.privacy": "سياسة الخصوصية",
     "footer.terms": "شروط الاستخدام",

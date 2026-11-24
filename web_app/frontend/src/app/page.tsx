@@ -9,6 +9,8 @@ import { observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
 import { defaultFilters, FeedFilters, type FeedFilterState, sortOptions, verdictOptions } from "@/components/FeedFilters";
+import { AdSlot } from "@/components/AdSlot";
+import { EditorialGuide } from "@/components/EditorialGuide";
 import { MockBanner } from "@/components/MockBanner";
 import { Pagination } from "@/components/Pagination";
 import { ProductCard } from "@/components/ProductCard";
@@ -185,6 +187,14 @@ export default function HomePage() {
           </>}
         </>}
       </section>
+
+      <AdSlot
+        slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME}
+        format="auto"
+        minHeight={100}
+      />
+
+      <EditorialGuide variant="home" />
     </div>
   );
 }

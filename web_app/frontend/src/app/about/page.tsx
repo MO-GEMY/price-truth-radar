@@ -65,8 +65,9 @@ export default function AboutPage() {
           <h2>الاستقلالية والشفافية</h2>
           <p>
             لا تبيع منصة <strong>{SITE_NAME_AR}</strong> أي منتجات بشكل مباشر ولا تتقاضى أي مقابل من المتاجر لتغيير
-            ترتيب النتائج أو إخفاء الخصومات الوهمية. قد نشارك في برامج التسويق بالعمولة أو نعرض إعلانات لتغطية
-            تكاليف التشغيل والاستضافة دون أي تكلفة إضافية على المستخدم.
+            ترتيب النتائج أو إخفاء الخصومات الوهمية. قد تحتوي بعض روابط المتاجر على روابط تسويق بالعمولة تساعدنا في
+            إبقاء <strong>{SITE_NAME_AR}</strong> مجانياً دون أي تكلفة إضافية عليك، كما قد نعرض إعلانات لتغطية تكاليف
+            التشغيل والاستضافة.
           </p>
           <p>
             للاقتراحات أو إضافة متجر مصري جديد، يسعدنا تواصلك معنا عبر{" "}
@@ -88,6 +89,9 @@ export default function AboutPage() {
             {LAUNCH_PRODUCT_COUNT} products across {LAUNCH_STORE_COUNT} online stores in EGP. By recording daily
             historical price snapshots, {SITE_NAME} helps shoppers verify genuine deals, spot inflated strikethrough
             discounts against 60-day baselines, and compare identical models across retailers.
+          </p>
+          <p>
+            Some store links may be affiliate links that help keep {SITE_NAME} free at no extra cost to you.
           </p>
         </section>
       </article>

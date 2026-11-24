@@ -6,7 +6,9 @@ import type { Category, SimilarAlternative } from "@/types/contract";
 import { productHref } from "@/lib/browse-state";
 import { formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
-import { OUTBOUND_LINK_REL, buildAffiliateUrl } from "@/lib/affiliate";
+import { buildAffiliateUrl, outboundLinkRel } from "@/lib/affiliate";
+import { trackStoreOutbound } from "@/lib/analytics";
+import { retailerHref } from "@/lib/offers";
 import { storeDisplayName } from "@/lib/stores";
 import { ProductImage } from "./ProductImage";
 import { StoreBadge } from "./StoreBadge";
@@ -33,7 +35,8 @@ export function SimilarAlternativesList({
       <p className="ptr-muted text-sm">{t("similar.subtitle")}</p>
       <ul className="ptr-offers ptr-similar-list">
         {items.map((item) => {
-          const storeUrl = buildAffiliateUrl(item.product_url, item.store_name);
+          const safeUrl = retailerHref(item.product_url);
+          const storeLink = safeUrl ? buildAffiliateUrl(safeUrl, item.store_name) : null;
           const diffAbs = Math.abs(item.price_diff_egp);
           const isCheaper = item.price_diff_egp <= -1;
           const isHigher = item.price_diff_egp >= 1;
@@ -84,12 +87,21 @@ export function SimilarAlternativesList({
                 >
                   {t("similar.viewDetails")}
                 </Link>
-                {!sample && storeUrl && item.in_stock && (
+                {!sample && storeLink && item.in_stock && (
                   <a
                     className="ptr-button ptr-small-button"
-                    href={storeUrl}
+                    href={storeLink.url}
                     target="_blank"
-                    rel={OUTBOUND_LINK_REL}
+                    rel={outboundLinkRel(storeLink.isAffiliate)}
+                    onClick={() => trackStoreOutbound({
+                      store: item.store_name,
+                      product_id: item.product_sk,
+                      price: item.current_price,
+                      category,
+                      is_affiliate: storeLink.isAffiliate,
+                      network: storeLink.network,
+                      placement: "similar_alternatives",
+                    })}
                     aria-label={t("detail.openAtStore", {
                       store: storeDisplayName(item.store_name, lang),
                     })}

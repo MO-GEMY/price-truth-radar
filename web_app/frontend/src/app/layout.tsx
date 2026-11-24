@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Inter, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
@@ -100,6 +101,9 @@ export const viewport: Viewport = {
  */
 const EARLY_LANG_SCRIPT = `(function(){try{var l=localStorage.getItem("ptr-lang");if(l==="ar"){var d=document.documentElement;d.lang="ar";d.dir="rtl";d.classList.add("lang-ar");}}catch(e){}})();`;
 
+const ADSENSE_CLIENT = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT ?? "").trim();
+const GA_MEASUREMENT_ID = (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -112,6 +116,13 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: EARLY_LANG_SCRIPT }} />
+        {ADSENSE_CLIENT && (
+          <script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(ADSENSE_CLIENT)}`}
+            crossOrigin="anonymous"
+          />
+        )}
       </head>
       <body className="min-h-screen antialiased">
         <LanguageProvider>
@@ -121,6 +132,17 @@ export default function RootLayout({
             <Footer />
           </div>
         </LanguageProvider>
+        {GA_MEASUREMENT_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA_MEASUREMENT_ID)}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config',${JSON.stringify(GA_MEASUREMENT_ID)},{anonymize_ip:true});`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   );

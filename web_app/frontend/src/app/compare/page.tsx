@@ -8,7 +8,9 @@ import { browseHref, categoryLabelKey, categoryLabels, parseCategory, parsePage,
 import { formatNumber, formatPctPlain, formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { lowestAvailablePrice } from "@/lib/offers";
+import { AdSlot } from "@/components/AdSlot";
 import { AlternativesTable } from "@/components/AlternativesTable";
+import { EditorialGuide } from "@/components/EditorialGuide";
 import { MockBanner } from "@/components/MockBanner";
 import { Pagination } from "@/components/Pagination";
 import { CompareCardSkeletons, ErrorState } from "@/components/states";
@@ -43,7 +45,7 @@ function MatchCard({ match, from, first, sample }: { match: CrossStoreMatch; fro
         <p className="text-sm ptr-muted">
           {t("ui.trackedRange")} · <bdi>{formatPrice(match.lowest_price, lang)} – {formatPrice(match.highest_price, lang)}</bdi>
         </p>
-        <AlternativesTable alternatives={match.listings_json} from={from} sample={sample} />
+        <AlternativesTable alternatives={match.listings_json} category={match.category} from={from} sample={sample} />
       </div>
     </details>
   );
@@ -135,6 +137,12 @@ export default function ComparePage() {
           document.getElementById("compare-results")?.scrollIntoView({ block: "start" });
         }} />}
       </section>
+      <AdSlot
+        slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMPARE}
+        format="auto"
+        minHeight={100}
+      />
+      <EditorialGuide variant="compare" />
     </div>
   );
 }

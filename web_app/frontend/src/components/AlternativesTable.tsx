@@ -6,17 +6,19 @@ import type { AlternativeListing } from "@/types/contract";
 import { productHref } from "@/lib/browse-state";
 import { formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
-import { OUTBOUND_LINK_REL, buildAffiliateUrl } from "@/lib/affiliate";
-import { lowestAvailablePrice, sortOffers, type OfferPrice } from "@/lib/offers";
+import { buildAffiliateUrl, outboundLinkRel } from "@/lib/affiliate";
+import { trackStoreOutbound } from "@/lib/analytics";
+import { lowestAvailablePrice, retailerHref, sortOffers, type OfferPrice } from "@/lib/offers";
 import { storeDisplayName } from "@/lib/stores";
 import { StoreBadge } from "./StoreBadge";
 import { VerdictBadge } from "./VerdictBadge";
 
 export function AlternativesTable({
-  alternatives, currentOffer, from, sample = false,
+  alternatives, currentOffer, category, from, sample = false,
 }: {
   alternatives: AlternativeListing[];
   currentOffer?: OfferPrice;
+  category?: string;
   from?: string;
   sample?: boolean;
 }) {
@@ -28,7 +30,8 @@ export function AlternativesTable({
       {ordered.map((offer) => {
         const cheapest = offer.in_stock && offer.price === lowest;
         const delta = offer.in_stock && lowest !== null ? offer.price - lowest : null;
-        const storeUrl = buildAffiliateUrl(offer.product_url, offer.store_name);
+        const safeUrl = retailerHref(offer.product_url);
+        const storeLink = safeUrl ? buildAffiliateUrl(safeUrl, offer.store_name) : null;
         return (
           <li key={offer.product_sk} className="ptr-offer">
             <div className="min-w-0 space-y-1">
@@ -48,8 +51,17 @@ export function AlternativesTable({
             <VerdictBadge verdict={offer.discount_verdict} size="sm" />
             <div className="ptr-controls">
               <Link className="ptr-button ptr-small-button" href={productHref(offer.product_sk, from, sample)}>{t("detail.viewLocal")}</Link>
-              {!sample && storeUrl && offer.in_stock && <a className="ptr-button ptr-small-button" href={storeUrl}
-                target="_blank" rel={OUTBOUND_LINK_REL}
+              {!sample && storeLink && offer.in_stock && <a className="ptr-button ptr-small-button" href={storeLink.url}
+                target="_blank" rel={outboundLinkRel(storeLink.isAffiliate)}
+                onClick={() => trackStoreOutbound({
+                  store: offer.store_name,
+                  product_id: offer.product_sk,
+                  price: offer.price,
+                  category,
+                  is_affiliate: storeLink.isAffiliate,
+                  network: storeLink.network,
+                  placement: "alternatives_table",
+                })}
                 aria-label={t("detail.openAtStore", { store: storeDisplayName(offer.store_name, lang) })}>
                 {t("detail.openAtStoreGeneric")} <ExternalLink size={13} aria-hidden="true" />
               </a>}

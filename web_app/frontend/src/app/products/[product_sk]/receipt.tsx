@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, BellRing, ExternalLink } from "lucide-react";
 import type { ProductDetailResponse } from "@/types/contract";
 import { ApiError, fetchProductDetail, type ApiResult } from "@/lib/api";
+import { trackStoreOutbound, trackViewProduct } from "@/lib/analytics";
 import { categoryLabelKey, productHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
 import { formatDate, formatDateTime, formatNumber, formatPackSize, formatPctPlain, formatPrice, formatSubCategory, formatUnitPrice } from "@/lib/format";
 import { isStaleObservation, observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
-import { OUTBOUND_LINK_REL, buildAffiliateUrl } from "@/lib/affiliate";
+import { buildAffiliateUrl, outboundLinkRel } from "@/lib/affiliate";
+import { retailerHref } from "@/lib/offers";
 import { absoluteUrl } from "@/lib/site";
 import { storeDisplayName } from "@/lib/stores";
 import { hasSufficientPriceHistory } from "@/lib/verdicts";
+import { AdSlot } from "@/components/AdSlot";
 import { AlternativesTable } from "@/components/AlternativesTable";
 import { AttributesPanel } from "@/components/AttributesPanel";
 import { MockBanner } from "@/components/MockBanner";
@@ -50,6 +53,7 @@ export function ProductReceipt({ productSk, initial }: {
     missing?: boolean;
   } | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
+  const trackedSkRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (retry === 0) return;
@@ -62,11 +66,26 @@ export function ProductReceipt({ productSk, initial }: {
     return () => controller.abort();
   }, [productSk, retry]);
 
+  const loaded = retry ? response?.result : initial;
+  const loadedProduct = loaded?.source === "api" ? loaded.data.product : null;
+
+  useEffect(() => {
+    if (!loadedProduct || trackedSkRef.current === loadedProduct.product_sk) return;
+    trackedSkRef.current = loadedProduct.product_sk;
+    trackViewProduct({
+      productSk: loadedProduct.product_sk,
+      productTitle: loadedProduct.product_title,
+      storeName: loadedProduct.store_name,
+      category: loadedProduct.category,
+      priceEgp: loadedProduct.current_price,
+      verdict: loadedProduct.discount_verdict,
+    });
+  }, [loadedProduct]);
+
   if (retry > 0 && response?.attempt !== retry) {
     return <div className="ptr-wrap ptr-page" role="status"><span className="sr-only">{t("common.loading")}</span><DetailSkeleton /></div>;
   }
   if (retry > 0 && response?.missing) return <MissingProduct />;
-  const loaded = retry ? response?.result : initial;
   if (!loaded) return <div className="ptr-wrap ptr-page"><ErrorState onRetry={() => setRetry((value) => value + 1)} /></div>;
 
   const { product, history, alternatives, similar_alternatives = [], variants = [] } = loaded.data;
@@ -74,7 +93,8 @@ export function ProductReceipt({ productSk, initial }: {
   const price = formatPrice(product.current_price, lang);
   const timestamp = observedTimestamp(product.last_updated_at);
   const stale = isStaleObservation(timestamp);
-  const storeUrl = buildAffiliateUrl(product.product_url, product.store_name);
+  const safeStoreUrl = retailerHref(product.product_url);
+  const storeLink = safeStoreUrl ? buildAffiliateUrl(safeStoreUrl, product.store_name) : null;
   const compareReady = alternatives.some((offer) => offer.in_stock);
   const hasHistory = history.length > 1;
   const sufficientHistory = hasSufficientPriceHistory(product, history);
@@ -85,7 +105,7 @@ export function ProductReceipt({ productSk, initial }: {
   const pack = formatPackSize(product.attributes_json);
   const unit = formatUnitPrice(product, lang);
   const live = loaded.source === "api";
-  const canVisit = live && storeUrl && product.in_stock;
+  const canVisit = live && Boolean(storeLink) && product.in_stock;
   const canAlert = live && product.current_price > 0.01;
   const variantCount = Math.max(1, product.variant_count ?? 1, variants.length);
   const hasMultipleVariants = Boolean(product.has_multiple_variants || variantCount > 1);
@@ -185,7 +205,17 @@ export function ProductReceipt({ productSk, initial }: {
           {product.scarcity_flag && product.in_stock && <p className="text-sm ptr-muted">{t("card.lowStock")}</p>}
           <div className="ptr-decision-actions">
             {!canVisit && compareReady && <a href="#alternatives" className="ptr-button ptr-primary">{t("ui.viewOffers")}</a>}
-            {canVisit && <a href={storeUrl} target="_blank" rel={OUTBOUND_LINK_REL} className="ptr-button ptr-primary">
+            {canVisit && storeLink && <a href={storeLink.url} target="_blank" rel={outboundLinkRel(storeLink.isAffiliate)}
+              onClick={() => trackStoreOutbound({
+                store: product.store_name,
+                product_id: product.product_sk,
+                price: product.current_price,
+                category: product.category,
+                is_affiliate: storeLink.isAffiliate,
+                network: storeLink.network,
+                placement: "product_hero",
+              })}
+              className="ptr-button ptr-primary">
               {t("detail.openAtStore", { store: label })} <ExternalLink size={15} aria-hidden="true" />
             </a>}
             {canAlert && <button type="button" disabled={!ready} onClick={() => setAlertOpen(true)}
@@ -240,6 +270,7 @@ export function ProductReceipt({ productSk, initial }: {
             <h2>{t("detail.alternatives")}</h2>
             <AlternativesTable
               alternatives={alternatives}
+              category={product.category}
               from={from ?? undefined}
               sample={!live}
               currentOffer={{ price: product.current_price, in_stock: product.in_stock }}
@@ -259,6 +290,11 @@ export function ProductReceipt({ productSk, initial }: {
           </>
         )}
       </section>
+      <AdSlot
+        slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_PRODUCT}
+        format="auto"
+        minHeight={120}
+      />
       <section className="surface ptr-section">
         <h2>{t("detail.history")}</h2>
         {history.length === 0 ? (

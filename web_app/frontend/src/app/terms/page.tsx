@@ -53,8 +53,9 @@ export default function TermsPage() {
         <section className="ptr-legal-block">
           <h2>4. الإفصاح عن الروابط الإعلانية والتسويق بالعمولة</h2>
           <p>
-            قد تحتوي بعض الروابط المؤدية إلى المتاجر على معرّفات تسويق بالعمولة (Affiliate Links)، ما يعني أن الموقع
-            قد يحصل على عمولة رمزية عند الشراء من خلالها دون أي زيادة في السعر على المستخدم.
+            قد تحتوي بعض روابط المتاجر على روابط تسويق بالعمولة (بما في ذلك برامج الشراكة مع المتاجر المصرية مثل
+            برنامج Amazon Associates وشبكات التسويق بالعمولة المعتمدة) تساعدنا في إبقاء <strong>{SITE_NAME_AR}</strong>{" "}
+            مجانياً دون أي تكلفة إضافية عليك. لا تؤثر هذه الشراكات إطلاقاً على ترتيب الأسعار أو تقييم مصداقية الخصومات.
           </p>
         </section>
 
@@ -77,8 +78,12 @@ export default function TermsPage() {
           <p>
             {SITE_NAME} ({SITE_DOMAIN}) is an independent price comparison and historical tracking service. Prices,
             discounts, shipping fees, and stock availability change frequently on retailer websites; always verify the
-            final checkout details directly on the retailer&apos;s page before purchasing. Outbound store links may
-            include affiliate tracking parameters at no extra cost to you.
+            final checkout details directly on the retailer&apos;s page before purchasing.
+          </p>
+          <p>
+            <strong>Affiliate Disclosure:</strong> Some store links may be affiliate links (including Amazon Associates
+            and partner affiliate networks) that help keep {SITE_NAME} free at no extra cost to you. Affiliate
+            partnerships never influence price rankings or discount truth verdicts.
           </p>
         </section>
       </article>

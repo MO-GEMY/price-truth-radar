@@ -42,27 +42,37 @@ export default function PrivacyPage() {
         </section>
 
         <section className="ptr-legal-block">
-          <h2>2. ملفات تعريف الارتباط (Cookies) والتحليلات</h2>
+          <h2>2. ملفات تعريف الارتباط (Cookies) وقياس الزيارات (Google Analytics)</h2>
           <p>
-            قد يستخدم الموقع ملفات تعريف الارتباط وتقنيات قياس الأداء والتحليلات لفهم حركة الزيارات وتحسين سرعة
-            الموقع وتجربة البحث. يمكنك التحكم في ملفات تعريف الارتباط أو تعطيلها في أي وقت من خلال إعدادات متصفحك.
+            نستخدم <strong>Google Analytics (GA4)</strong> لقياس حركة الزيارات بشكل مجهول الهوية، وفهم الصفحات الأكثر
+            استخداماً، وتحسين سرعة البحث وتجربة التصفح دون ربط هذه الإحصائيات بهويتك الشخصية. يتم إرسال بيانات القياس
+            في صورة تقارير مجمّعة فقط، كما يمكنك تعطيل ملفات تعريف الارتباط في أي وقت عبر إعدادات متصفحك أو باستخدام{" "}
+            <a
+              className="ptr-link"
+              href="https://tools.google.com/dlpage/gaoptout"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              إضافة تعطيل Google Analytics
+            </a>
+            .
           </p>
         </section>
 
         <section className="ptr-legal-block">
           <h2>3. الإعلانات وخدمات الطرف الثالث (Google AdSense)</h2>
           <p>
-            قد نعرض إعلانات مقدمة من شبكات إعلانية خارجية بما في ذلك <strong>Google AdSense</strong> لدعم استمرارية
-            الخدمة مجاناً:
+            نستعين بشبكات إعلانية خارجية بما في ذلك <strong>Google AdSense</strong> لدعم استمرارية خدمة تتبع ومقارنة
+            الأسعار مجاناً:
           </p>
           <ul>
             <li>
               يستخدم موردو الطرف الثالث، بما في ذلك شركة Google، ملفات تعريف الارتباط لعرض إعلانات بناءً على زياراتك
-              السابقة لموقعنا أو لمواقع أخرى على الإنترنت.
+              السابقة لموقعنا ({SITE_DOMAIN}) أو لمواقع أخرى على الإنترنت.
             </li>
             <li>
               يتيح استخدام Google لملفات تعريف الارتباط الإعلانية لها ولشركائها عرض إعلانات ملائمة للمستخدمين بناءً
-              على تصفحهم.
+              على تصفحهم لموقعنا ومواقع أخرى على الويب.
             </li>
             <li>
               يمكنك إيقاف الإعلانات المخصصة في أي وقت عبر زيارة{" "}
@@ -72,12 +82,12 @@ export default function PrivacyPage() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                إعدادات إعلانات Google
+                إعدادات إعلانات Google (adssettings.google.com)
               </a>{" "}
               أو موقع{" "}
               <a
                 className="ptr-link"
-                href="https://www.aboutads.info/choices/"
+                href="https://www.aboutads.info"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -113,18 +123,44 @@ export default function PrivacyPage() {
           <h2>Privacy Policy (English Summary)</h2>
           <p>
             {SITE_NAME} ({SITE_DOMAIN}) does not require account registration. Optional price-drop alert emails or
-            Telegram identifiers are used solely to notify you when a tracked product reaches your target price. We
-            may use cookies, analytics, and third-party advertising networks including Google AdSense, which may use
-            cookies to serve relevant ads. You can manage ad personalization at{" "}
-            <a
-              className="ptr-link"
-              href="https://adssettings.google.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Google Ad Settings
-            </a>
-            . For privacy or deletion requests, email{" "}
+            Telegram identifiers are used solely to notify you when a tracked product reaches your target price.
+          </p>
+          <ul>
+            <li>
+              <strong>Google Analytics (GA4):</strong> We use Google Analytics for anonymous traffic measurement,
+              performance diagnostics, and aggregate usage statistics. No personally identifiable information is sold
+              or shared with marketing brokers.
+            </li>
+            <li>
+              <strong>Google AdSense &amp; Third-Party Cookies:</strong> Third-party vendors, including Google, use
+              cookies to serve ads based on a user&apos;s prior visits to {SITE_DOMAIN} or other websites. Google&apos;s
+              use of advertising cookies enables it and its partners to serve ads based on visits to this site and/or
+              other sites on the Internet.
+            </li>
+            <li>
+              <strong>Opt-Out Controls:</strong> Users may opt out of personalized advertising at any time by visiting{" "}
+              <a
+                className="ptr-link"
+                href="https://adssettings.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Google Ads Settings (adssettings.google.com)
+              </a>{" "}
+              or by visiting{" "}
+              <a
+                className="ptr-link"
+                href="https://www.aboutads.info"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                www.aboutads.info
+              </a>{" "}
+              to opt out of a third-party vendor&apos;s use of cookies for personalized advertising.
+            </li>
+          </ul>
+          <p>
+            For privacy or data deletion requests, email{" "}
             <a className="ptr-link" href={`mailto:${CONTACT_EMAIL}`}>
               {CONTACT_EMAIL}
             </a>

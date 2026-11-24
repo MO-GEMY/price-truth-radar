@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 import type { SearchResponse } from "@/types/contract";
 import { fetchSearch, type ApiResult } from "@/lib/api";
+import { trackSearchProduct } from "@/lib/analytics";
 import { productHref } from "@/lib/browse-state";
 import { cleanSearchQuery, hasArabicChars, normalizeArabicAggressive } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
@@ -67,6 +68,12 @@ export function useProductSearch(from: string) {
       const ready = { query: input, link, status: "ready", result } as const;
       lastSearch = ready;
       setState(ready);
+      trackSearchProduct({
+        query: input,
+        isUrl: link,
+        matchType: result.data.match_type,
+        resultsCount: result.data.items.length,
+      });
       if (link && result.data.match_type === "url_exact" && result.data.items.length === 1) {
         router.push(productHref(result.data.items[0].product_sk, from, result.source === "mock"));
       }

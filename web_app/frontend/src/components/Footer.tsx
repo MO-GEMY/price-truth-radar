@@ -18,6 +18,7 @@ export function Footer() {
       <div className="ptr-wrap ptr-footer-inner">
         <div className="ptr-footer-meta">
           <p>{t("footer.note")}</p>
+          <p className="ptr-footer-disclosure">{t("footer.affiliateDisclosure")}</p>
           <nav className="ptr-footer-links" aria-label={t("footer.about")}>
             {LEGAL_LINKS.map(({ href, key }) => (
               <Link key={href} href={href} className="ptr-link">

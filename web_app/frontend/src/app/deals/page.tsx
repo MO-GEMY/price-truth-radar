@@ -9,6 +9,8 @@ import { formatDateTime, formatNumber, formatPctPlain, formatPrice } from "@/lib
 import { isStaleObservation, type PriceHighlight } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
 import { absoluteUrl } from "@/lib/site";
+import { AdSlot } from "@/components/AdSlot";
+import { EditorialGuide } from "@/components/EditorialGuide";
 import { MockBanner } from "@/components/MockBanner";
 import { ProductImage } from "@/components/ProductImage";
 import { ShareButton } from "@/components/ShareButton";
@@ -175,6 +177,12 @@ export default function DealsPage() {
             canSharePrice={bucket?.source === "api" && Boolean(checked) && !stale} />
         ))}
       </section>
+      <AdSlot
+        slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_DEALS}
+        format="auto"
+        minHeight={100}
+      />
+      <EditorialGuide variant="deals" />
     </div>
   );
 }
