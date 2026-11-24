@@ -1,22 +1,18 @@
 {{
     config(
         schema='gold',
-        materialized='table',
+        materialized='incremental',
+        unique_key='product_sk',
+        incremental_strategy='delete+insert',
+        on_schema_change='sync_all_columns',
         post_hook=[
             "CREATE EXTENSION IF NOT EXISTS pg_trgm",
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_product_sk",
-            "CREATE UNIQUE INDEX idx_mart_verdicts_product_sk ON {{ this }} (product_sk)",
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_canonical_key",
-            "CREATE INDEX idx_mart_verdicts_canonical_key ON {{ this }} (canonical_product_key) WHERE canonical_product_key IS NOT NULL",
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_parent_key",
-            "CREATE INDEX idx_mart_verdicts_parent_key ON {{ this }} (parent_product_key)",
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_search_doc_trgm",
-            "CREATE INDEX idx_mart_verdicts_search_doc_trgm ON {{ this }} USING GIN (search_document gin_trgm_ops)",
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_title_trgm",
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_store_name",
-            "CREATE INDEX idx_mart_verdicts_store_name ON {{ this }} (store_name)",
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_verdicts_non_normal_verdict",
-            "CREATE INDEX idx_mart_verdicts_non_normal_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict <> 'NORMAL_PRICE'"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_mart_verdicts_product_sk ON {{ this }} (product_sk)",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_canonical_key ON {{ this }} (canonical_product_key) WHERE canonical_product_key IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_parent_key ON {{ this }} (parent_product_key)",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_search_doc_trgm ON {{ this }} USING GIN (search_document gin_trgm_ops)",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_store_name ON {{ this }} (store_name)",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_non_normal_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict <> 'NORMAL_PRICE'"
         ]
     )
 }}
@@ -53,12 +49,43 @@ WITH staged_base AS MATERIALIZED (
     FROM {{ ref('stg_products') }}
 ),
 
-current_products_base AS (
+current_products_all AS (
     SELECT DISTINCT ON (product_sk)
         *
     FROM staged_base
     ORDER BY product_sk, snapshot_date DESC, scraped_at DESC
 ),
+
+{% if is_incremental() %}
+-- Detect SKUs with new snapshots, price/stock/title changes, or changed canonical_product_key,
+-- then expand to sibling SKUs sharing the same parent_product_key so sibling variant rollups
+-- (`sibling_count`, `min/max_variant_price`, `is_primary_variant`) stay 100% consistent.
+changed_parents AS MATERIALIZED (
+    SELECT DISTINCT cp.parent_product_key
+    FROM current_products_all cp
+    LEFT JOIN {{ this }} t
+        ON t.product_sk = cp.product_sk
+    WHERE t.product_sk IS NULL
+       OR cp.scraped_at > t.last_updated_at
+       OR cp.canonical_product_key IS DISTINCT FROM t.canonical_product_key
+       OR cp.current_price IS DISTINCT FROM t.current_price
+       OR cp.claimed_original_price IS DISTINCT FROM t.claimed_original_price
+       OR cp.in_stock IS DISTINCT FROM t.in_stock
+       OR cp.product_title IS DISTINCT FROM t.product_title
+),
+
+current_products_base AS MATERIALIZED (
+    SELECT cp.*
+    FROM current_products_all cp
+    INNER JOIN changed_parents ap
+        ON cp.parent_product_key = ap.parent_product_key
+),
+{% else %}
+current_products_base AS (
+    SELECT *
+    FROM current_products_all
+),
+{% endif %}
 
 -- Compute sibling variant rollup inline via window functions (O(N log N), zero self-join).
 current_products AS (
@@ -80,15 +107,15 @@ current_products AS (
 -- conflicting variant_id, variant_label, or dimension token (e.g. 120x180 vs 200x300).
 variant_conflict_signals AS (
     SELECT
-        product_sk,
+        sb.product_sk,
         (
-            COUNT(DISTINCT variant_id) > 1
-            OR COUNT(DISTINCT LOWER(TRIM(variant_label))) > 1
+            COUNT(DISTINCT sb.variant_id) > 1
+            OR COUNT(DISTINCT LOWER(TRIM(sb.variant_label))) > 1
             OR COUNT(
                 DISTINCT NULLIF(
                     REGEXP_REPLACE(
                         COALESCE(
-                            (REGEXP_MATCH(LOWER(product_title), '([0-9]{2,3}\s*[x*×]\s*[0-9]{2,3})'))[1],
+                            (REGEXP_MATCH(LOWER(sb.product_title), '([0-9]{2,3}\s*[x*×]\s*[0-9]{2,3})'))[1],
                             ''
                         ),
                         '\s+',
@@ -99,16 +126,24 @@ variant_conflict_signals AS (
                 )
             ) > 1
         )::BOOLEAN AS has_variant_label_conflict
-    FROM staged_base
-    GROUP BY product_sk
+    FROM staged_base sb
+    {% if is_incremental() %}
+    INNER JOIN current_products_base cp
+        ON sb.product_sk = cp.product_sk
+    {% endif %}
+    GROUP BY sb.product_sk
 ),
 
 product_latest_dates AS (
     SELECT
-        product_sk,
-        MAX(snapshot_date) AS latest_date
-    FROM {{ ref('fct_price_history') }}
-    GROUP BY product_sk
+        h.product_sk,
+        MAX(h.snapshot_date) AS latest_date
+    FROM {{ ref('fct_price_history') }} h
+    {% if is_incremental() %}
+    INNER JOIN current_products_base cp
+        ON h.product_sk = cp.product_sk
+    {% endif %}
+    GROUP BY h.product_sk
 ),
 
 history_stats AS (

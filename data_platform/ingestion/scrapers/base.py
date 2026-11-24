@@ -803,6 +803,7 @@ class BaseScraper(ABC):
         tracked_external_ids: Optional[set[str]] = None,
         start_page: int = 0,
         start_cursor: Optional[str] = None,
+        expand_max_pages: Optional[int] = None,
     ) -> None:
         self.http = http_client
         self.mode: ScrapeMode = mode
@@ -810,6 +811,8 @@ class BaseScraper(ABC):
         self.tracked_external_ids: set[str] = set(tracked_external_ids or ())
         self.start_page: int = max(0, int(start_page or 0))
         self.start_cursor: Optional[str] = start_cursor
+        if expand_max_pages is not None and expand_max_pages > 0:
+            self.expand_max_pages = int(expand_max_pages)
         self.next_page: int = self.start_page
         self.next_cursor: Optional[str] = self.start_cursor
         self.exhausted_catalog: bool = False

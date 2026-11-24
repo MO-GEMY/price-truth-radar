@@ -1,15 +1,17 @@
 {{
     config(
         schema='gold',
-        materialized='table',
+        materialized='incremental',
+        unique_key=['product_sk', 'snapshot_date'],
+        incremental_strategy='delete+insert',
+        on_schema_change='sync_all_columns',
         post_hook=[
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_fct_price_history_sk_date",
-            "CREATE INDEX idx_fct_price_history_sk_date ON {{ this }} (product_sk, snapshot_date ASC)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_fct_price_history_sk_date ON {{ this }} (product_sk, snapshot_date ASC)"
         ]
     )
 }}
 
-WITH daily_prices AS (
+WITH staged_prices AS (
     SELECT
         product_sk,
         snapshot_date,
@@ -20,6 +22,53 @@ WITH daily_prices AS (
     FROM {{ ref('stg_products') }}
 ),
 
+{% if is_incremental() %}
+-- Identify only SKUs that have new snapshot dates or modified price/stock/size fields.
+-- For each touched SKU, record the earliest modified/new date so every rolling 60-day
+-- window from that date forward is recomputed with 100% accuracy.
+touched_sks AS MATERIALIZED (
+    SELECT
+        s.product_sk,
+        MIN(s.snapshot_date) AS min_touched_date
+    FROM staged_prices s
+    LEFT JOIN {{ this }} t
+        ON t.product_sk = s.product_sk
+       AND t.snapshot_date = s.snapshot_date
+    WHERE t.product_sk IS NULL
+       OR t.price IS DISTINCT FROM s.price
+       OR t.claimed_original_price IS DISTINCT FROM s.claimed_original_price
+       OR t.in_stock IS DISTINCT FROM s.in_stock
+       OR t.available_sizes_count IS DISTINCT FROM s.available_sizes_count
+    GROUP BY s.product_sk
+),
+
+daily_prices AS (
+    SELECT
+        s.product_sk,
+        s.snapshot_date,
+        s.price,
+        s.claimed_original_price,
+        s.in_stock,
+        s.available_sizes_count,
+        ts.min_touched_date
+    FROM staged_prices s
+    INNER JOIN touched_sks ts
+        ON s.product_sk = ts.product_sk
+),
+{% else %}
+daily_prices AS (
+    SELECT
+        product_sk,
+        snapshot_date,
+        price,
+        claimed_original_price,
+        in_stock,
+        available_sizes_count,
+        DATE '1900-01-01' AS min_touched_date
+    FROM staged_prices
+),
+{% endif %}
+
 -- Single window pass to separate 1-day SKUs (no join needed!) from multi-day SKUs.
 daily_with_counts AS MATERIALIZED (
     SELECT
@@ -29,6 +78,7 @@ daily_with_counts AS MATERIALIZED (
         claimed_original_price,
         in_stock,
         available_sizes_count,
+        min_touched_date,
         COUNT(*) OVER (PARTITION BY product_sk) AS day_count
     FROM daily_prices
 ),
@@ -54,6 +104,7 @@ single_day_results AS (
         available_sizes_count
     FROM daily_with_counts
     WHERE day_count = 1
+      AND snapshot_date >= min_touched_date
 ),
 
 multi_day_results AS (
@@ -75,6 +126,7 @@ multi_day_results AS (
         WHERE u.hist_date BETWEEN (d.snapshot_date - INTERVAL '59 days')::DATE AND d.snapshot_date
     ) m
     WHERE d.day_count > 1
+      AND d.snapshot_date >= d.min_touched_date
 )
 
 SELECT

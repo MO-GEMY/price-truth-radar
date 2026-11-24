@@ -1,10 +1,12 @@
 {{
     config(
         schema='gold',
-        materialized='table',
+        materialized='incremental',
+        unique_key='canonical_product_key',
+        incremental_strategy='delete+insert',
+        on_schema_change='sync_all_columns',
         post_hook=[
-            "DROP INDEX IF EXISTS {{ this.schema }}.idx_mart_cross_store_canonical_key",
-            "CREATE UNIQUE INDEX idx_mart_cross_store_canonical_key ON {{ this }} (canonical_product_key)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_mart_cross_store_canonical_key ON {{ this }} (canonical_product_key)"
         ]
     )
 }}
@@ -68,6 +70,7 @@ WITH candidates AS (
         product_url,
         discount_verdict
     FROM {{ ref('mart_product_verdicts') }}
+    WHERE canonical_product_key IS NOT NULL
 ),
 
 matched_raw AS (
@@ -151,31 +154,47 @@ aggregated AS (
     FROM matched_base
     GROUP BY effective_match_key
     HAVING COUNT(DISTINCT store_name) >= 2
+),
+
+final_rows AS (
+    SELECT
+        a.effective_match_key::VARCHAR AS canonical_product_key,
+        lr.product_title_clean::TEXT AS product_title_clean,
+        a.category::VARCHAR AS category,
+        a.brand::VARCHAR AS brand,
+        a.stores_count::INTEGER AS stores_count,
+        a.lowest_price::NUMERIC(12,2) AS lowest_price,
+        lr.lowest_price_store::VARCHAR AS lowest_price_store,
+        a.highest_price::NUMERIC(12,2) AS highest_price,
+        (a.highest_price - a.lowest_price)::NUMERIC(12,2) AS price_spread_egp,
+        COALESCE(
+            LEAST(
+                999.99,
+                ROUND(
+                    ((a.highest_price - a.lowest_price) / NULLIF(a.lowest_price, 0)) * 100.0,
+                    2
+                )
+            ),
+            0.00
+        )::NUMERIC(5,2) AS price_spread_pct,
+        a.listings_json::JSONB AS listings_json
+    FROM aggregated a
+    INNER JOIN lowest_ranked lr
+        ON a.effective_match_key = lr.effective_match_key
+       AND lr.rn = 1
 )
 
-SELECT
-    a.effective_match_key::VARCHAR AS canonical_product_key,
-    lr.product_title_clean::TEXT AS product_title_clean,
-    a.category::VARCHAR AS category,
-    a.brand::VARCHAR AS brand,
-    a.stores_count::INTEGER AS stores_count,
-    a.lowest_price::NUMERIC(12,2) AS lowest_price,
-    lr.lowest_price_store::VARCHAR AS lowest_price_store,
-    a.highest_price::NUMERIC(12,2) AS highest_price,
-    (a.highest_price - a.lowest_price)::NUMERIC(12,2) AS price_spread_egp,
-    COALESCE(
-        LEAST(
-            999.99,
-            ROUND(
-                ((a.highest_price - a.lowest_price) / NULLIF(a.lowest_price, 0)) * 100.0,
-                2
-            )
-        ),
-        0.00
-    )::NUMERIC(5,2) AS price_spread_pct,
-    a.listings_json::JSONB AS listings_json
-FROM aggregated a
-INNER JOIN lowest_ranked lr
-    ON a.effective_match_key = lr.effective_match_key
-   AND lr.rn = 1
-ORDER BY price_spread_pct DESC, a.canonical_product_key ASC
+SELECT f.*
+FROM final_rows f
+{% if is_incremental() %}
+LEFT JOIN {{ this }} t
+    ON t.canonical_product_key = f.canonical_product_key
+WHERE t.canonical_product_key IS NULL
+   OR t.stores_count IS DISTINCT FROM f.stores_count
+   OR t.lowest_price IS DISTINCT FROM f.lowest_price
+   OR t.highest_price IS DISTINCT FROM f.highest_price
+   OR t.lowest_price_store IS DISTINCT FROM f.lowest_price_store
+   OR t.product_title_clean IS DISTINCT FROM f.product_title_clean
+   OR t.listings_json IS DISTINCT FROM f.listings_json
+{% endif %}
+ORDER BY f.price_spread_pct DESC, f.canonical_product_key ASC

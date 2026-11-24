@@ -238,6 +238,7 @@ class ShopifyBaseScraper(BaseScraper):
     override_brand: bool = False
     default_limit: int = 180
     discover_limit: int = 950
+    expand_max_pages: int = 6
     groceries_limit: int = 180
     discover_groceries_limit: int = 750
     max_variants_per_product: int = 12
@@ -582,7 +583,7 @@ class ShopifyBaseScraper(BaseScraper):
             start_ep = 0
             start_p = 0
 
-        max_pages_budget = max(1, min(self.expand_max_pages, 6))
+        max_pages_budget = max(1, self.expand_max_pages)
         req_limit = min(self.per_page, max(50, target_limit))
         pages_used = 0
         cur_ep = start_ep

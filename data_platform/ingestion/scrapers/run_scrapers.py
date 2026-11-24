@@ -83,6 +83,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Maximum products to collect per store (defaults to each scraper's target for the selected --mode).",
     )
     parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=None,
+        help="Optional per-store page budget override for `--mode expand` (defaults to each adapter's expand_max_pages).",
+    )
+    parser.add_argument(
         "--match-db",
         action="store_true",
         help="Read latest snapshot_date rows across all stores from Neon, run cross-store matching, and update canonical_product_key.",
@@ -262,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("Provide --store <slug|all>, --batch <name>, and/or --match-db")
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be a positive integer")
+    if args.max_pages is not None and args.max_pages <= 0:
+        parser.error("--max-pages must be a positive integer")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -341,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
                 tracked_external_ids=tracked_ids,
                 start_page=checkpoint.last_page if checkpoint else 0,
                 start_cursor=checkpoint.last_cursor if checkpoint else None,
+                expand_max_pages=args.max_pages,
             )
             effective_limit = (
                 scraper.get_target_limit(scrape_mode, target_vertical)
