@@ -12,7 +12,12 @@ import {
   Sun,
   Tag,
 } from "lucide-react";
-import { browseHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
+import {
+  browseHref,
+  safeBrowseHref,
+  setBrowseParams,
+  useBrowseParams,
+} from "@/lib/browse-state";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { AsarakLogo } from "./AsarakLogo";
@@ -38,7 +43,7 @@ export function Header() {
   const active = origin ?? pathname;
 
   return (
-    <header className="ptr-mast">
+    <header className="ptr-mast" data-tour="mast">
       <a href="#main-content" className="ptr-skip">
         {t("ui.skip")}
       </a>
@@ -51,7 +56,7 @@ export function Header() {
           <AsarakLogo variant="auto" size="md" />
         </Link>
 
-        <nav className="ptr-nav" aria-label={t("ui.navigation")}>
+        <nav className="ptr-nav" aria-label={t("ui.navigation")} data-tour="nav">
           {destinations.map(({ href, text, icon: Icon, wideOnly }) => (
             <Link
               key={href}
@@ -71,6 +76,23 @@ export function Header() {
         </nav>
 
         <div className="ptr-mast-actions">
+          <Link
+            href="/?tour=1"
+            className="ptr-button ptr-tour-replay"
+            onClick={
+              pathname === "/"
+                ? (event) => {
+                    // Already on the homepage: set the param through the
+                    // browse-state store so the tour opens without a reload.
+                    event.preventDefault();
+                    setBrowseParams({ tour: "1" });
+                  }
+                : undefined
+            }
+          >
+            <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
+            <span>{t("tour.replay")}</span>
+          </Link>
           <button
             type="button"
             className="ptr-theme-toggle"

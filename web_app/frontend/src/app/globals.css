@@ -2988,3 +2988,159 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   color: var(--asarak-ink);
   font-weight: 600;
 }
+
+/* ==========================================================================
+   First-Visit Onboarding Tour (Spotlight) — src/components/OnboardingTour.tsx
+   ========================================================================== */
+
+.asarak-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+
+.asarak-tour-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 25, 46, 0.62);
+}
+
+.asarak-tour-spotlight {
+  position: fixed;
+  z-index: 81;
+  border: 2px solid var(--asarak-emerald);
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(11, 25, 46, 0.62);
+  pointer-events: none;
+  transition:
+    top 0.35s ease,
+    left 0.35s ease,
+    width 0.35s ease,
+    height 0.35s ease;
+}
+
+.asarak-tour-card {
+  position: fixed;
+  z-index: 82;
+  max-width: calc(100vw - 24px);
+  padding: 20px;
+  border: 1px solid var(--asarak-border);
+  border-radius: var(--asarak-radius-lg);
+  background: var(--asarak-card);
+  color: var(--asarak-ink);
+  box-shadow: var(--asarak-shadow-lg);
+  outline: none;
+}
+
+.asarak-tour-card--centered {
+  top: 50%;
+  left: 50%;
+  width: min(360px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+}
+
+/* Mobile: docked full-width card. The component sets `top` instead of
+   `bottom` when the spotlight target sits at the bottom of the screen
+   (Step 4's fixed bottom tab bar), so the card never covers the target. */
+.asarak-tour-card--docked {
+  left: 12px;
+  right: 12px;
+  width: auto;
+}
+
+.asarak-tour-close {
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--asarak-border);
+  border-radius: 8px;
+  background: var(--asarak-card);
+  color: var(--asarak-ink-muted);
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.asarak-tour-close:hover {
+  border-color: var(--asarak-emerald);
+  color: var(--asarak-ink);
+  background: var(--asarak-emerald-soft);
+}
+
+.asarak-tour-progress {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--asarak-emerald-text);
+}
+
+.asarak-tour-dots {
+  display: flex;
+  gap: 6px;
+  margin-block-end: 12px;
+}
+
+.asarak-tour-dot {
+  width: 22px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--asarak-border-strong);
+}
+
+.asarak-tour-dot--active {
+  background: var(--asarak-emerald);
+}
+
+.asarak-tour-title {
+  margin: 0 0 8px;
+  padding-inline-end: 34px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.asarak-tour-body {
+  margin: 0 0 18px;
+  font-size: 0.9375rem;
+  color: var(--asarak-ink-muted);
+}
+
+.asarak-tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.asarak-tour-actions-spacer {
+  flex: 1;
+}
+
+/* Navbar replay button ("Quick Tour") in the masthead actions. */
+.ptr-tour-replay {
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+@media (max-width: 639px) {
+  .asarak-tour-card {
+    padding: 16px;
+  }
+  .ptr-tour-replay {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asarak-tour-spotlight {
+    transition: none;
+  }
+}

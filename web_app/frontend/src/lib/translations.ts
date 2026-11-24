@@ -17,6 +17,27 @@ export const translations = {
     "nav.deals": "Price highlights",
     "nav.coupons": "Coupons",
     "nav.addStore": "Add store",
+
+    "tour.replay": "Quick Tour",
+    "tour.stepOf": "Step {current} of {total}",
+    "tour.start": "Start Tour",
+    "tour.skip": "Skip",
+    "tour.back": "Back",
+    "tour.next": "Next",
+    "tour.finish": "Start Exploring",
+    "tour.welcome.title": "Welcome to Asarak",
+    "tour.welcome.body":
+      "Asarak compares prices across 200+ Egyptian stores and exposes fake vs. real discounts — using tracked daily price history, not the store's own claims. This tour takes about 15 seconds.",
+    "tour.search.title": "Search any product",
+    "tour.search.body":
+      "Type a product name or paste a store link here to check its real price — or pick a category below to compare the same product across stores.",
+    "tour.deals.title": "Real deals, tracked daily",
+    "tour.deals.body":
+      "Every listing here is checked against its tracked 60-day price history and compared across stores side by side, so genuine deals and all-time lows stand out from discounts that only look big.",
+    "tour.alerts.title": "Never miss a price drop",
+    "tour.alerts.body":
+      "Open any product to set a free Telegram price-drop alert, and check the Coupons tab for verified-only promo codes — every code is tested before it is published.",
+
     "ui.skip": "Skip to content",
     "ui.navigation": "Main navigation",
     "ui.example": "Example",
@@ -473,6 +494,26 @@ export const translations = {
     "nav.deals": "أبرز الأسعار",
     "nav.coupons": "الكوبونات",
     "nav.addStore": "أضف متجرك",
+
+    "tour.replay": "جولة سريعة",
+    "tour.stepOf": "خطوة {current} من {total}",
+    "tour.start": "ابدأ الجولة",
+    "tour.skip": "تخطي",
+    "tour.back": "رجوع",
+    "tour.next": "التالي",
+    "tour.finish": "ابدأ التصفح",
+    "tour.welcome.title": "أهلاً بيك في أسعارك",
+    "tour.welcome.body":
+      "أسعارك بيقارن الأسعار عبر أكثر من 200 متجر مصري وبيكشف الخصومات الوهمية من الحقيقية — بناءً على سجل أسعار يومي مرصود، مش كلام المتاجر. الجولة دي هتاخد حوالي 15 ثانية.",
+    "tour.search.title": "ابحث عن أي منتج",
+    "tour.search.body":
+      "اكتب اسم منتج أو الصق رابط متجر هنا عشان تفحص سعره الحقيقي — أو اختر فئة من تحت عشان تقارن نفس المنتج عبر المتاجر.",
+    "tour.deals.title": "عروض حقيقية، مرصودة يومياً",
+    "tour.deals.body":
+      "كل منتج هنا بيتقارن بسجل سعره المرصود لآخر 60 يوم وبيتقارن عبر المتاجر جنب بعض، فالعروض الحقيقية وأقل الأسعار التاريخية بتبان بوضوح من الخصومات اللي شكلها كبير بس.",
+    "tour.alerts.title": "متفوتش أي نزول في السعر",
+    "tour.alerts.body":
+      "افتح أي منتج وفعّل تنبيه تليجرام مجاني لما سعره ينزل، وشوف تبويب الكوبونات لأكواد خصم مُجرَّبة بس — كل كود بنختبره قبل ما ننشره.",
 
     "deals.title": "أبرز الأسعار",
     "deals.subtitle":

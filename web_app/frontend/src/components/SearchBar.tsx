@@ -256,7 +256,7 @@ export function SearchBar({
   }
 
   return (
-    <form className="ptr-search" role="search" onSubmit={submit}>
+    <form className="ptr-search" role="search" onSubmit={submit} data-tour="search">
       <label htmlFor="ptr-search-query" className="sr-only">
         {t("search.label")}
       </label>

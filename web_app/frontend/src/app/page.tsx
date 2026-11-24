@@ -35,6 +35,7 @@ import {
 import { AdSlot } from "@/components/AdSlot";
 import { EditorialGuide } from "@/components/EditorialGuide";
 import { MockBanner } from "@/components/MockBanner";
+import { OnboardingTour } from "@/components/OnboardingTour";
 import { Pagination } from "@/components/Pagination";
 import { ProductCard } from "@/components/ProductCard";
 import { SearchBar, useProductSearch } from "@/components/SearchBar";
@@ -243,6 +244,7 @@ export default function HomePage() {
 
   return (
     <>
+      <OnboardingTour />
       <section className="asarak-hero-greeting">
         <div className="ptr-wrap">
           <div className="asarak-hero-center">
@@ -470,6 +472,7 @@ export default function HomePage() {
       <div className="ptr-wrap ptr-page">
         <section
           id="radar-results"
+          data-tour="deals"
           className="min-w-0 space-y-4"
           aria-busy={searchState ? searchState.status === "loading" : loading}
         >
