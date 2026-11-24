@@ -511,3 +511,5 @@ class CouponsRefreshResponse(BaseModel):
     count: int
     refreshed_at: Optional[str] = None
     error: Optional[str] = None
+    # Why each source row was not published, e.g. "noon/CODE10: expired"
+    skipped: list[str] = Field(default_factory=list)

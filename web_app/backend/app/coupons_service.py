@@ -2,14 +2,21 @@
 
 Loads curated Egyptian store promo codes from:
   1. `COUPONS_SHEET_CSV_URL` (published Google Sheet CSV, refreshed every 30 min, 5s timeout)
-  2. Local fallback `data/coupons.json` shipped in the repository
+  2. Local fallback `data/coupons.json` shipped in the repository (kept empty; same rules apply)
 
 Guarantees:
   - ZERO Neon DB reads or writes.
   - On fetch/parse errors, retains the last known good in-memory snapshot (or local
     `data/coupons.json`) and logs a warning without ever failing API requests.
-  - Strictly filters out inactive (`active != TRUE`) and expired coupons evaluated
-    in `Africa/Cairo` timezone.
+  - Publishes ONLY coupons that are all of: active (`active = TRUE`), not expired
+    (`expires_at` in the future, evaluated in `Africa/Cairo`), and verified
+    (`verified = TRUE` with `verified_at` within `COUPONS_VERIFIED_MAX_AGE_DAYS`).
+    Anything else is dropped at load time and re-checked on every read.
+
+Sheet columns: store_id, store_name_ar, code, title_ar, discount_type, value, max_discount,
+min_order, scope, category, affiliate_url, expires_at, active, notes_ar, verified, verified_at.
+`verified_at` is the date (YYYY-MM-DD) the code was last applied successfully at the
+store's checkout; never publish a code that has not been tested that way.
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ VALID_DISCOUNT_TYPES: frozenset[str] = frozenset({"percent", "fixed"})
 VALID_SCOPES: frozenset[str] = frozenset({"general", "bank", "first_order", "seasonal"})
 REFRESH_INTERVAL_SECONDS: float = 1800.0  # 30 minutes
 FETCH_TIMEOUT_SECONDS: float = 5.0
+DEFAULT_VERIFIED_MAX_AGE_DAYS: int = 30
 
 try:
     CAIRO_TZ = ZoneInfo("Africa/Cairo")
@@ -83,6 +91,8 @@ class CouponRecord(BaseModel):
     expires_at: Optional[str] = None
     active: bool = True
     notes_ar: str = ""
+    verified: bool = False
+    verified_at: Optional[str] = None
 
 
 class ApplicableCoupon(BaseModel):
@@ -97,6 +107,9 @@ class ApplicableCoupon(BaseModel):
     estimated_savings: float
     affiliate_url: Optional[str] = None
     notes_ar: str = ""
+    # Let cached pages (ISR/CDN) hide a coupon once it expires
+    expires_at: Optional[str] = None
+    verified_at: Optional[str] = None
 
 
 def _parse_bool(raw: Any) -> bool:
@@ -159,16 +172,63 @@ def is_coupon_expired(expires_at: Optional[str], now: Optional[datetime] = None)
     return ref_now > deadline
 
 
-def _normalize_row(raw: dict[str, Any], *, now: Optional[datetime] = None) -> Optional[CouponRecord]:
+def _verified_max_age_days() -> int:
+    raw = os.getenv("COUPONS_VERIFIED_MAX_AGE_DAYS", "").strip()
+    if not raw:
+        return DEFAULT_VERIFIED_MAX_AGE_DAYS
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return DEFAULT_VERIFIED_MAX_AGE_DAYS
+
+
+def is_verification_stale(verified_at: Optional[str], *, now: Optional[datetime] = None) -> bool:
+    """Return True unless `verified_at` is a real date inside the re-verification window.
+
+    Fails closed: a missing/unparseable date, a future date, or one older than
+    `COUPONS_VERIFIED_MAX_AGE_DAYS` (default 30) all count as not verified.
+    """
+    deadline = _parse_expiry_cairo(verified_at) if verified_at and str(verified_at).strip() else None
+    if deadline is None:
+        return True
+    ref_now = now.astimezone(CAIRO_TZ) if (now and now.tzinfo) else (now.replace(tzinfo=CAIRO_TZ) if now else cairo_now())
+    age_days = (ref_now.date() - deadline.date()).days
+    return age_days < 0 or age_days > _verified_max_age_days()
+
+
+def is_coupon_servable(coupon: CouponRecord, *, now: Optional[datetime] = None) -> bool:
+    """Active, unexpired and recently verified — re-evaluated on every read."""
+    return (
+        coupon.active
+        and coupon.verified
+        and bool(coupon.expires_at)
+        and not is_coupon_expired(coupon.expires_at, now=now)
+        and not is_verification_stale(coupon.verified_at, now=now)
+    )
+
+
+def _normalize_row(
+    raw: dict[str, Any],
+    *,
+    now: Optional[datetime] = None,
+    dropped: Optional[list[str]] = None,
+) -> Optional[CouponRecord]:
+    """Validate one source row; returns None (recording the reason) unless it is servable."""
     if not isinstance(raw, dict):
         return None
     cleaned = {str(k).strip().lower(): v for k, v in raw.items() if k is not None}
 
-    if not _parse_bool(cleaned.get("active")):
-        return None
-
     store_id = str(cleaned.get("store_id") or "").strip().lower()
     code = str(cleaned.get("code") or "").strip().upper()
+
+    def reject(reason: str) -> None:
+        if dropped is not None:
+            dropped.append(f"{store_id or '?'}/{code or '?'}: {reason}")
+
+    if not _parse_bool(cleaned.get("active")):
+        reject("inactive")
+        return None
+
     store_name_ar = str(cleaned.get("store_name_ar") or "").strip()
     title_ar = str(cleaned.get("title_ar") or "").strip()
     discount_type = str(cleaned.get("discount_type") or "").strip().lower()
@@ -177,17 +237,34 @@ def _normalize_row(raw: dict[str, Any], *, now: Optional[datetime] = None) -> Op
     value = _parse_optional_float(cleaned.get("value"))
 
     if not store_id or not code or value is None:
+        reject("missing store_id, code or value")
         return None
     if discount_type not in VALID_DISCOUNT_TYPES:
+        reject(f"unknown discount_type '{discount_type}'")
         return None
     if discount_type == "percent" and value > 100.0:
+        reject("percent value above 100")
         return None
     if scope not in VALID_SCOPES:
+        reject(f"unknown scope '{scope}'")
         return None
 
     expires_raw = cleaned.get("expires_at")
     expires_at = str(expires_raw).strip() if expires_raw is not None and str(expires_raw).strip() else None
+    if not expires_at:
+        # An open-ended code has no expiry check, so it is never published
+        reject("missing expires_at")
+        return None
     if is_coupon_expired(expires_at, now=now):
+        reject("expired")
+        return None
+
+    if not _parse_bool(cleaned.get("verified")):
+        reject("not verified")
+        return None
+    verified_at = str(cleaned.get("verified_at") or "").strip()
+    if is_verification_stale(verified_at, now=now):
+        reject(f"verified_at missing, in the future, or older than {_verified_max_age_days()} days")
         return None
 
     affiliate_raw = cleaned.get("affiliate_url")
@@ -212,11 +289,26 @@ def _normalize_row(raw: dict[str, Any], *, now: Optional[datetime] = None) -> Op
         expires_at=expires_at,
         active=True,
         notes_ar=str(cleaned.get("notes_ar") or "").strip(),
+        verified=True,
+        verified_at=verified_at,
     )
 
 
-def parse_coupons_csv(csv_text: str, *, now: Optional[datetime] = None) -> list[CouponRecord]:
-    """Parse a Google Sheet CSV export into validated, active, non-expired coupons."""
+def _log_dropped(source: str, dropped: list[str]) -> None:
+    if dropped:
+        logger.warning("[coupons] Skipped %d row(s) from %s: %s", len(dropped), source, "; ".join(dropped))
+
+
+def parse_coupons_csv(
+    csv_text: str,
+    *,
+    now: Optional[datetime] = None,
+    dropped: Optional[list[str]] = None,
+) -> list[CouponRecord]:
+    """Parse a Google Sheet CSV export into verified, active, non-expired coupons.
+
+    Rows that fail validation are skipped; their reasons are appended to `dropped`.
+    """
     cleaned_text = csv_text.lstrip("\ufeff")
     if not cleaned_text.strip():
         raise ValueError("Coupons CSV payload is empty")
@@ -224,15 +316,20 @@ def parse_coupons_csv(csv_text: str, *, now: Optional[datetime] = None) -> list[
     if not reader.fieldnames:
         raise ValueError("Coupons CSV missing header row")
     headers = {str(h).strip().lower() for h in reader.fieldnames if h}
-    required = {"store_id", "code", "discount_type", "value", "active"}
+    required = {"store_id", "code", "discount_type", "value", "expires_at", "active", "verified", "verified_at"}
     if not required.issubset(headers):
         missing = sorted(required - headers)
         raise ValueError(f"Coupons CSV missing required columns: {', '.join(missing)}")
 
     coupons: list[CouponRecord] = []
+    row_drops: list[str] = []
     seen: set[tuple[str, str]] = set()
     for row in reader:
-        rec = _normalize_row(row, now=now)
+        # Ignore DictReader's overflow key and its None fillers so stray commas stay "blank"
+        cells = [value for key, value in row.items() if key is not None and value is not None]
+        if not any(str(value).strip() for value in cells):
+            continue  # blank / formatted-only trailing row
+        rec = _normalize_row(row, now=now, dropped=row_drops)
         if rec is None:
             continue
         key = (rec.store_id, rec.code)
@@ -240,11 +337,14 @@ def parse_coupons_csv(csv_text: str, *, now: Optional[datetime] = None) -> list[
             continue
         seen.add(key)
         coupons.append(rec)
+    if dropped is not None:
+        dropped.extend(row_drops)
+    _log_dropped("sheet CSV", row_drops)
     return coupons
 
 
 def load_local_coupons(*, now: Optional[datetime] = None) -> list[CouponRecord]:
-    """Load fallback coupons from `data/coupons.json`."""
+    """Load fallback coupons from `data/coupons.json` (same verification rules as the sheet)."""
     for path in _candidate_local_paths():
         if not path.is_file():
             continue
@@ -257,9 +357,10 @@ def load_local_coupons(*, now: Optional[datetime] = None) -> list[CouponRecord]:
             logger.warning("[coupons] Expected JSON list in %s", path)
             continue
         coupons: list[CouponRecord] = []
+        dropped: list[str] = []
         seen: set[tuple[str, str]] = set()
         for row in payload:
-            rec = _normalize_row(row, now=now)
+            rec = _normalize_row(row, now=now, dropped=dropped)
             if rec is None:
                 continue
             key = (rec.store_id, rec.code)
@@ -267,6 +368,7 @@ def load_local_coupons(*, now: Optional[datetime] = None) -> list[CouponRecord]:
                 continue
             seen.add(key)
             coupons.append(rec)
+        _log_dropped(f"local file {path.name}", dropped)
         return coupons
     return []
 
@@ -319,10 +421,10 @@ class CouponStore:
             self._source = "uninitialized"
             self._last_refreshed_utc = None
 
-    def _fetch_remote_csv(self, url: str) -> list[CouponRecord]:
+    def _fetch_remote_csv(self, url: str, skipped: list[str]) -> list[CouponRecord]:
         resp = httpx.get(url, timeout=FETCH_TIMEOUT_SECONDS, follow_redirects=True)
         resp.raise_for_status()
-        return parse_coupons_csv(resp.text)
+        return parse_coupons_csv(resp.text, dropped=skipped)
 
     def refresh(self, *, force: bool = True) -> dict[str, Any]:
         """Attempt reload from `COUPONS_SHEET_CSV_URL` (or local fallback).
@@ -344,8 +446,9 @@ class CouponStore:
                 }
 
         if sheet_url:
+            skipped: list[str] = []
             try:
-                loaded = self._fetch_remote_csv(sheet_url)
+                loaded = self._fetch_remote_csv(sheet_url, skipped)
                 with self._lock:
                     self._coupons = loaded
                     self._loaded_at = time.monotonic()
@@ -357,6 +460,7 @@ class CouponStore:
                     "source": "sheet_csv",
                     "count": len(loaded),
                     "refreshed_at": now_iso,
+                    "skipped": list(skipped),
                 }
             except Exception as exc:
                 logger.warning(
@@ -431,7 +535,8 @@ class CouponStore:
 
         filtered: list[CouponRecord] = []
         for c in snapshot:
-            if not c.active or is_coupon_expired(c.expires_at, now=ref_now):
+            # Re-checked here so a retained snapshot never outlives a coupon
+            if not is_coupon_servable(c, now=ref_now):
                 continue
             if target_store and c.store_id != target_store:
                 continue
@@ -474,6 +579,8 @@ class CouponStore:
                     estimated_savings=round(price - est, 2),
                     affiliate_url=coupon.affiliate_url,
                     notes_ar=coupon.notes_ar,
+                    expires_at=coupon.expires_at,
+                    verified_at=coupon.verified_at,
                 )
             )
 

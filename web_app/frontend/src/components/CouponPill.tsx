@@ -5,6 +5,8 @@ import { Check, Copy, Tag } from "lucide-react";
 import type { ApplicableCoupon } from "@/types/contract";
 import { formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
+import { isCouponExpired } from "@/lib/coupons";
+import { useCairoToday } from "@/lib/use-cairo-today";
 
 export function CouponPill({
   coupons,
@@ -17,9 +19,12 @@ export function CouponPill({
 }) {
   const { lang, t } = useLanguage();
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  // Product pages are cached for a day: retire codes that expired since the page was rendered
+  const today = useCairoToday();
+  const live = (coupons ?? []).filter((coupon) => !isCouponExpired(coupon, today));
 
-  if (!coupons || coupons.length === 0) return null;
-  const best = coupons[0];
+  if (live.length === 0) return null;
+  const best = live[0];
   const displayEst =
     typeof estimatedPrice === "number" && estimatedPrice > 0
       ? estimatedPrice

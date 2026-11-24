@@ -359,6 +359,10 @@ export interface CouponItem {
   expires_at?: string | null;
   active: boolean;
   notes_ar: string;
+  /** YYYY-MM-DD the code was last applied successfully at the store's checkout. */
+  verified_at?: string | null;
+  /** Optional so responses cached before verification existed still type-check. */
+  verified?: boolean | null;
 }
 
 export interface ApplicableCoupon {
@@ -373,6 +377,8 @@ export interface ApplicableCoupon {
   estimated_savings: number;
   affiliate_url?: string | null;
   notes_ar: string;
+  expires_at?: string | null;
+  verified_at?: string | null;
 }
 
 export interface CouponsListResponse {

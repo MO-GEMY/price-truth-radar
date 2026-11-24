@@ -427,7 +427,7 @@ export interface SubmissionsConfig {
   telegram_bot_username?: string;
 }
 
-/** GET /api/v1/coupons — zero-Neon in-memory active promo codes. */
+/** GET /api/v1/coupons — zero-Neon in-memory promo codes that are verified, active and unexpired. */
 export async function fetchCoupons(
   params?: { store_id?: string; scope?: CouponScope | "all"; category?: string },
   signal?: AbortSignal,

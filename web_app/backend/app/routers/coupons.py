@@ -24,7 +24,7 @@ def list_coupons(
     scope: Optional[CouponScope] = Query(default=None),
     category: Optional[str] = Query(default=None, max_length=60),
 ) -> CouponsListResponse:
-    """Return active, non-expired coupons from RAM (zero Neon queries)."""
+    """Return verified, active, non-expired coupons from RAM (zero Neon queries)."""
     response.headers["Cache-Control"] = COUPONS_CACHE_HEADER
     response.headers["CDN-Cache-Control"] = COUPONS_CACHE_HEADER
 
@@ -67,4 +67,5 @@ def refresh_coupons(
         count=int(result.get("count") or 0),
         refreshed_at=result.get("refreshed_at"),
         error=result.get("error"),
+        skipped=[str(item) for item in result.get("skipped") or []],
     )

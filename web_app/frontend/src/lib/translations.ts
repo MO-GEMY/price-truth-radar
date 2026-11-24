@@ -415,6 +415,10 @@ export const translations = {
     "coupons.fixedOff": "{amount} OFF",
     "coupons.empty": "No active coupons match the selected filters right now.",
     "coupons.emptyHint": "Try clearing the store or scope filter, or check back soon for new codes.",
+    "coupons.emptyNone": "No verified coupons right now.",
+    "coupons.emptyNoneHint":
+      "We only publish codes we've applied ourselves at the store's checkout. Check back soon.",
+    "coupons.verifiedOn": "Tested on {date}",
     "coupons.count": "{count} active codes",
     "coupons.estAfterCode": "Est. after code",
     "coupons.codeLabel": "Code",
@@ -828,6 +832,10 @@ export const translations = {
     "coupons.fixedOff": "خصم {amount}",
     "coupons.empty": "لا توجد كوبونات نشطة مطابقة لهذه الفلاتر حالياً.",
     "coupons.emptyHint": "جرّب تغيير نوع العرض أو اختيار «كل المتاجر»، وتابع الصفحة لأحدث الأكواد.",
+    "coupons.emptyNone": "لا توجد أكواد مُجرَّبة متاحة حالياً.",
+    "coupons.emptyNoneHint":
+      "لا ننشر إلا الأكواد التي جرّبناها بأنفسنا عند إتمام الطلب في المتجر. تابعنا قريباً.",
+    "coupons.verifiedOn": "مُجرَّب بتاريخ {date}",
     "coupons.count": "{count} كوبون نشط",
     "coupons.estAfterCode": "السعر المتوقع بعد الكود",
     "coupons.codeLabel": "كود",

@@ -1,5 +1,6 @@
 """Unit tests for:
-  1. Zero-Neon Coupons service (CSV parsing, Africa/Cairo expiry, price math, fallback, API endpoints & RAM overlay).
+  1. Zero-Neon Coupons service (CSV parsing, Africa/Cairo expiry, verification gate, price math,
+     fallback, API endpoints & RAM overlay).
   2. Passive Scraper Coupon Radar (Arabic/English extraction, false-positive guard, draft queue file).
   3. Stateless Telegram `/start` webhook & strict numeric Chat ID validation.
   4. Neon storage guardrails (`fct_price_history` change-only deduplication + 3-day raw retention & VACUUM outside tx).
@@ -33,6 +34,9 @@ from app.coupons_service import (  # noqa: E402
     compute_coupon_price,
     coupon_store,
     is_coupon_expired,
+    is_coupon_servable,
+    is_verification_stale,
+    load_local_coupons,
     parse_coupons_csv,
 )
 from app.database import get_db, get_write_db  # noqa: E402
@@ -41,12 +45,33 @@ from data_platform.ingestion.scrapers import base as scraper_base  # noqa: E402
 from data_platform.ingestion.scrapers import coupon_radar, run_scrapers  # noqa: E402
 
 
-SAMPLE_CSV = """\ufeffstore_id,store_name_ar,code,title_ar,discount_type,value,max_discount,min_order,scope,category,affiliate_url,expires_at,active,notes_ar
-noon,نون مصر,SAVE10,خصم 10% على نون,percent,10,150,500,general,all,https://www.noon.com/egypt-ar/,2027-12-31,TRUE,خصم عام
-amazon_eg,أمازون مصر,EXPIRED50,كود منتهي,fixed,50,50,100,seasonal,all,https://amazon.eg,2020-01-01,TRUE,منتهي
-btech,بي تك,INACTIVE20,كود غير مفعل,percent,20,200,500,bank,electronics,https://btech.com,2027-12-31,FALSE,غير نشط
-2b,تو بي,FLAT200,خصم 200 جنيه,fixed,200,,1000,first_order,electronics,https://2b.com.eg,2027-06-30,true,لأول طلب
+# Verified reference time for every coupon test below (Africa/Cairo).
+NOW = datetime(2026, 11, 24, 15, 0, tzinfo=CAIRO_TZ)
+
+SAMPLE_CSV = """\ufeffstore_id,store_name_ar,code,title_ar,discount_type,value,max_discount,min_order,scope,category,affiliate_url,expires_at,active,notes_ar,verified,verified_at
+noon,نون مصر,SAVE10,خصم 10% على نون,percent,10,150,500,general,all,https://www.noon.com/egypt-ar/,2027-12-31,TRUE,خصم عام,TRUE,2026-11-20
+amazon_eg,أمازون مصر,EXPIRED50,كود منتهي,fixed,50,50,100,seasonal,all,https://amazon.eg,2020-01-01,TRUE,منتهي,TRUE,2026-11-20
+btech,بي تك,INACTIVE20,كود غير مفعل,percent,20,200,500,bank,electronics,https://btech.com,2027-12-31,FALSE,غير نشط,TRUE,2026-11-20
+2b,تو بي,FLAT200,خصم 200 جنيه,fixed,200,,1000,first_order,electronics,https://2b.com.eg,2027-06-30,true,لأول طلب,true,2026-11-01
+raneen,رنين,UNVERIFIED30,كود غير مُجرَّب,percent,30,300,1000,general,all,https://raneen.com,2027-12-31,TRUE,,FALSE,2026-11-20
+raneen,رنين,NODATE35,بدون تاريخ تجربة,percent,35,300,1000,general,all,https://raneen.com,2027-12-31,TRUE,,TRUE,
+raneen,رنين,STALE40,تجربة قديمة,percent,40,300,1000,general,all,https://raneen.com,2027-12-31,TRUE,,TRUE,2026-09-01
+raneen,رنين,FUTURE45,تاريخ في المستقبل,percent,45,300,1000,general,all,https://raneen.com,2027-12-31,TRUE,,TRUE,2026-12-25
+btech,بي تك,NOEXP50,بدون تاريخ انتهاء,fixed,50,50,100,general,all,https://btech.com,,TRUE,,TRUE,2026-11-20
+,,,,,,,,,,,,,,,,
+,,
 """
+
+# The sheet as published before the verification columns existed: the single unverified
+# sample row that was live on 2026-11-24.
+_LEGACY_HEADER, _LEGACY_NOON, *_ = SAMPLE_CSV.lstrip("\ufeff").splitlines()
+LEGACY_CSV = (
+    "\ufeff"
+    + ",".join(_LEGACY_HEADER.split(",")[:14])
+    + "\n"
+    + ",".join(_LEGACY_NOON.split(",")[:14])
+    + "\n"
+)
 
 
 class _FakeResult:
@@ -109,12 +134,110 @@ class TestCouponsSystem(unittest.TestCase):
         self.assertEqual(items[0].store_id, "noon")
         self.assertEqual(items[0].max_discount, 150.0)
         self.assertEqual(items[1].min_order, 1000.0)
+        self.assertTrue(items[0].verified)
+        self.assertEqual(items[0].verified_at, "2026-11-20")
 
         # Boundary test on Africa/Cairo end-of-day expiry
         before_midnight = datetime(2026, 11, 24, 23, 59, 58, tzinfo=CAIRO_TZ)
         after_midnight = datetime(2026, 11, 25, 0, 0, 1, tzinfo=CAIRO_TZ)
         self.assertFalse(is_coupon_expired("2026-11-24", now=before_midnight))
         self.assertTrue(is_coupon_expired("2026-11-24", now=after_midnight))
+
+    def test_unverified_stale_and_open_ended_rows_are_dropped_with_a_reason(self) -> None:
+        dropped: list[str] = []
+        items = parse_coupons_csv(SAMPLE_CSV, now=NOW, dropped=dropped)
+
+        self.assertEqual([c.code for c in items], ["SAVE10", "FLAT200"])
+        # One entry per rejected row, naming the store/code and why
+        self.assertEqual(len(dropped), 7)
+        joined = " | ".join(dropped)
+        self.assertIn("amazon_eg/EXPIRED50: expired", joined)
+        self.assertIn("btech/INACTIVE20: inactive", joined)
+        self.assertIn("raneen/UNVERIFIED30: not verified", joined)
+        self.assertIn("raneen/NODATE35: verified_at", joined)
+        self.assertIn("raneen/STALE40: verified_at", joined)
+        self.assertIn("raneen/FUTURE45: verified_at", joined)
+        self.assertIn("btech/NOEXP50: missing expires_at", joined)
+
+    def test_verification_window_is_bounded_by_cairo_calendar_days(self) -> None:
+        for bogus in (None, "", "   ", "n/a", "not-a-date", "31/12/2026"):
+            self.assertTrue(is_verification_stale(bogus, now=NOW), repr(bogus))
+        # 30 days old today still counts; a date in the future never does
+        self.assertFalse(is_verification_stale("2026-10-25", now=NOW))
+        self.assertTrue(is_verification_stale("2026-10-24", now=NOW))
+        self.assertTrue(is_verification_stale("2026-11-25", now=NOW))
+        with patch.dict(os.environ, {"COUPONS_VERIFIED_MAX_AGE_DAYS": "10"}):
+            self.assertFalse(is_verification_stale("2026-11-14", now=NOW))
+            self.assertTrue(is_verification_stale("2026-11-13", now=NOW))
+            # FLAT200 was verified 23 days ago: fine for a 30-day window, not for a 10-day one
+            self.assertEqual([c.code for c in parse_coupons_csv(SAMPLE_CSV, now=NOW)], ["SAVE10"])
+
+    def test_sheet_without_verification_columns_is_rejected(self) -> None:
+        # Drop the header cells themselves: an explicit schema error beats silently serving rows
+        with self.assertRaisesRegex(ValueError, "missing required columns: expires_at, verified, verified_at"):
+            parse_coupons_csv(LEGACY_CSV.replace(",expires_at,", ",", 1), now=NOW)
+        with self.assertRaisesRegex(ValueError, "missing required columns: verified, verified_at"):
+            parse_coupons_csv(LEGACY_CSV, now=NOW)
+
+    def test_servable_requires_active_expiry_and_fresh_verification(self) -> None:
+        good = CouponRecord(
+            store_id="noon",
+            store_name_ar="نون",
+            code="NOON10",
+            title_ar="خصم 10%",
+            discount_type="percent",
+            value=10.0,
+            expires_at="2026-11-24",
+            verified=True,
+            verified_at="2026-11-20",
+        )
+        self.assertTrue(is_coupon_servable(good, now=NOW))
+        self.assertFalse(is_coupon_servable(good.model_copy(update={"active": False}), now=NOW))
+        self.assertFalse(is_coupon_servable(good.model_copy(update={"verified": False}), now=NOW))
+        self.assertFalse(is_coupon_servable(good.model_copy(update={"expires_at": None}), now=NOW))
+        self.assertFalse(is_coupon_servable(good.model_copy(update={"verified_at": None}), now=NOW))
+        # Valid through the end of 2026-11-24 in Cairo, gone one second after midnight
+        self.assertTrue(is_coupon_servable(good, now=datetime(2026, 11, 24, 23, 59, 58, tzinfo=CAIRO_TZ)))
+        self.assertFalse(is_coupon_servable(good, now=datetime(2026, 11, 25, 0, 0, 1, tzinfo=CAIRO_TZ)))
+
+    def test_retained_snapshot_is_rechecked_on_every_read(self) -> None:
+        store = CouponStore(refresh_interval_seconds=1800.0)
+        with patch.dict(os.environ, {"COUPONS_SHEET_CSV_URL": "https://sheets.example/coupons.csv"}):
+            with patch("app.coupons_service.httpx.get", return_value=_http_mock(200, SAMPLE_CSV)):
+                self.assertEqual(store.refresh(force=True)["count"], 2)
+            # Upstream goes down: the snapshot is kept but must not outlive the coupons
+            with patch("app.coupons_service.httpx.get", side_effect=RuntimeError("timeout")):
+                self.assertFalse(store.refresh(force=True)["ok"])
+
+        def codes(at: datetime) -> list[str]:
+            return [c.code for c in store.get_coupons(now=at)[0]]
+
+        self.assertEqual(codes(NOW), ["SAVE10", "FLAT200"])
+        # 2026-12-20: FLAT200's check is 49 days old (dropped), SAVE10's is exactly 30 (kept)
+        self.assertEqual(codes(datetime(2026, 12, 20, 15, 0, tzinfo=CAIRO_TZ)), ["SAVE10"])
+        self.assertEqual(codes(datetime(2026, 12, 21, 15, 0, tzinfo=CAIRO_TZ)), [])
+
+    def test_bundled_seed_and_unverified_sheet_never_publish_a_coupon(self) -> None:
+        # data/coupons.json is the cold-start fallback: every row in it must pass the same gate
+        raw_seed = json.loads((_REPO_ROOT / "data" / "coupons.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(load_local_coupons(now=NOW)), len(raw_seed))
+
+        store = CouponStore(refresh_interval_seconds=1800.0)
+        with patch.dict(
+            os.environ,
+            {"COUPONS_SHEET_CSV_URL": "https://sheets.example/coupons.csv", "COUPONS_LOCAL_FILE": ""},
+        ):
+            # Cold start while the sheet is unreachable -> local seed only
+            with patch("app.coupons_service.httpx.get", side_effect=RuntimeError("timeout")):
+                res = store.refresh(force=True)
+            self.assertEqual((res["source"], res["count"]), ("local_fallback", len(raw_seed)))
+            self.assertEqual(store.get_coupons(now=NOW)[0], [])
+
+            # The pre-verification sheet (single unverified sample row) -> nothing is served
+            client = TestClient(app)
+            with patch("app.coupons_service.httpx.get", return_value=_http_mock(200, LEGACY_CSV)):
+                body = client.get("/api/v1/coupons").json()
+        self.assertEqual((body["total"], body["items"]), (0, []))
 
     def test_compute_coupon_price_percent_fixed_min_order_and_max_discount(self) -> None:
         pct_coupon = CouponRecord(
@@ -186,6 +309,7 @@ class TestCouponsSystem(unittest.TestCase):
                     "public, s-maxage=1800, stale-while-revalidate=3600",
                 )
                 self.assertEqual(r_all.json()["total"], 2)
+                self.assertTrue(all(c["verified"] and c["verified_at"] for c in r_all.json()["items"]))
 
                 r_store = client.get("/api/v1/coupons?store_id=noon&scope=general")
                 self.assertEqual(r_store.status_code, 200)
@@ -207,6 +331,8 @@ class TestCouponsSystem(unittest.TestCase):
             self.assertEqual(r_ref.status_code, 200)
             self.assertTrue(r_ref.json()["ok"])
             self.assertEqual(r_ref.json()["count"], 2)
+            # The admin refresh explains every row that was not published
+            self.assertEqual(len(r_ref.json()["skipped"]), 7)
 
     def test_product_detail_attaches_in_memory_coupons_without_extra_db_queries(self) -> None:
         now = datetime(2026, 11, 24, 12, 0, tzinfo=timezone.utc)
@@ -276,6 +402,8 @@ class TestCouponsSystem(unittest.TestCase):
         # Noon product (1000 EGP) gets SAVE10 (10% off -> 900 EGP)
         self.assertEqual(body["product"]["estimated_price_after_coupon"], 900.0)
         self.assertEqual(body["product"]["applicable_coupons"][0]["code"], "SAVE10")
+        # Product pages are cached for a day, so the UI needs the expiry to hide the code later
+        self.assertEqual(body["product"]["applicable_coupons"][0]["expires_at"], "2027-12-31")
         # 2B alternative (1200 EGP) gets FLAT200 (200 off -> 1000 EGP)
         self.assertEqual(body["alternatives"][0]["estimated_price_after_coupon"], 1000.0)
         self.assertEqual(body["alternatives"][0]["applicable_coupons"][0]["code"], "FLAT200")

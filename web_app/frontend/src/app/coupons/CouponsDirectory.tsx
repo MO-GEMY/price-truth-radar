@@ -5,6 +5,9 @@ import { Check, Copy, ExternalLink, Filter, Tag } from "lucide-react";
 import type { CouponItem, CouponScope } from "@/types/contract";
 import { fetchCoupons } from "@/lib/api";
 import { outboundLinkRel } from "@/lib/affiliate";
+import { categoryLabelKey } from "@/lib/browse-state";
+import { isCouponExpired, isTrustedCoupon } from "@/lib/coupons";
+import { useCairoToday } from "@/lib/use-cairo-today";
 import { formatDate, formatNumber, formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
@@ -65,9 +68,16 @@ export function CouponsDirectory({
     return () => controller.abort();
   }, [initialCoupons.length]);
 
+  const today = useCairoToday();
+  // The API only publishes verified, unexpired codes; this also covers pages served from cache
+  const live = useMemo(
+    () => coupons.filter((c) => isTrustedCoupon(c) && !isCouponExpired(c, today)),
+    [coupons, today],
+  );
+
   const storeOptions = useMemo(() => {
     const map = new Map<string, string>();
-    for (const coupon of coupons) {
+    for (const coupon of live) {
       if (!map.has(coupon.store_id)) {
         map.set(
           coupon.store_id,
@@ -78,15 +88,15 @@ export function CouponsDirectory({
       }
     }
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [coupons, lang]);
+  }, [live, lang]);
 
   const filtered = useMemo(() => {
-    return coupons.filter((c) => {
+    return live.filter((c) => {
       if (scope !== "all" && c.scope !== scope) return false;
       if (storeId !== "all" && c.store_id !== storeId) return false;
       return true;
     });
-  }, [coupons, scope, storeId]);
+  }, [live, scope, storeId]);
 
   async function handleCopy(coupon: CouponItem) {
     const key = `${coupon.store_id}:${coupon.code}`;
@@ -162,8 +172,12 @@ export function CouponsDirectory({
 
       {filtered.length === 0 ? (
         <section className="surface p-8 text-center space-y-2">
-          <p className="font-bold text-base">{t("coupons.empty")}</p>
-          <p className="text-sm ptr-muted">{t("coupons.emptyHint")}</p>
+          <p className="font-bold text-base">
+            {t(live.length === 0 ? "coupons.emptyNone" : "coupons.empty")}
+          </p>
+          <p className="text-sm ptr-muted">
+            {t(live.length === 0 ? "coupons.emptyNoneHint" : "coupons.emptyHint")}
+          </p>
         </section>
       ) : (
         <div className="ptr-coupons-grid">
@@ -191,6 +205,11 @@ export function CouponsDirectory({
                     <span className="ptr-badge">
                       {t(SCOPE_LABEL_KEY[coupon.scope])}
                     </span>
+                    {categoryLabelKey(coupon.category) && (
+                      <span className="ptr-badge">
+                        {t(categoryLabelKey(coupon.category)!)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -223,6 +242,13 @@ export function CouponsDirectory({
                     <span className="ptr-badge">
                       {t("coupons.expires", {
                         date: formatDate(coupon.expires_at, lang),
+                      })}
+                    </span>
+                  )}
+                  {coupon.verified_at && (
+                    <span className="ptr-badge ptr-badge-good">
+                      {t("coupons.verifiedOn", {
+                        date: formatDate(coupon.verified_at, lang),
                       })}
                     </span>
                   )}
