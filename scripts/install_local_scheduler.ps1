@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Install or uninstall the non-admin user-level Windows Scheduled Task that runs
     local residential scrapers (`2b`, `sigma`) daily at 04:15 Cairo time.
@@ -26,10 +26,13 @@
 param(
     [string]$TaskName = "PriceTruthRadar-LocalScrapers",
     [string]$Time = "04:15",
-    [string[]]$Stores = @("2b", "sigma"),
+    [string[]]$Stores = @(),
+    [ValidateSet("", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")]
+    [string]$WeeklyDay = "",
     [switch]$IncludeFallback,
     [switch]$Discovery,
     [switch]$RunDbt,
+    [int]$TimeoutHours = 3,
     [int]$LogRetentionDays = 14,
     [switch]$Uninstall
 )
@@ -79,9 +82,9 @@ $ArgParts = @(
     "-WindowStyle", "Hidden",
     "-ExecutionPolicy", "Bypass",
     "-File", "`"$RunnerPs1`"",
-    "-Stores", "`"$StoreArg`"",
     "-LogRetentionDays", "$LogRetentionDays"
 )
+if ($StoreArg) { $ArgParts += @("-Stores", "`"$StoreArg`"") }
 if ($IncludeFallback) { $ArgParts += "-IncludeFallback" }
 if ($Discovery) { $ArgParts += "-Discovery" }
 if ($RunDbt) { $ArgParts += "-RunDbt" }
@@ -91,13 +94,19 @@ $Action = New-ScheduledTaskAction `
     -Argument ($ArgParts -join " ") `
     -WorkingDirectory $RepoRoot
 
-$Trigger = New-ScheduledTaskTrigger -Daily -At $TriggerAt
+if ($WeeklyDay) {
+    $Trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $WeeklyDay -At $TriggerAt
+    $ScheduleDesc = "Weekly ($WeeklyDay) at $Time local time"
+} else {
+    $Trigger = New-ScheduledTaskTrigger -Daily -At $TriggerAt
+    $ScheduleDesc = "Daily at $Time local time"
+}
 
 $Settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
+    -ExecutionTimeLimit (New-TimeSpan -Hours $TimeoutHours) `
     -MultipleInstances IgnoreNew
 
 $CurrentUser = if ($env:USERDOMAIN) { "$($env:USERDOMAIN)\$($env:USERNAME)" } else { $env:USERNAME }
@@ -106,13 +115,15 @@ $Principal = New-ScheduledTaskPrincipal `
     -LogonType Interactive `
     -RunLevel Limited
 
+$StoresSummary = if ($StoreArg) { $StoreArg } else { "all 26 default local_only stores" }
+
 Register-ScheduledTask `
     -TaskName $TaskName `
     -Action $Action `
     -Trigger $Trigger `
     -Settings $Settings `
     -Principal $Principal `
-    -Description "Price Truth Radar daily local residential scrapers ($StoreArg) at $Time local time; logs to logs/local_scraper_YYYY-MM-DD.log (14-day retention)." `
+    -Description "Asarak local residential scrapers ($StoresSummary) — $ScheduleDesc; logs to logs/local_scraper_YYYY-MM-DD.log ($LogRetentionDays-day retention)." `
     -Force | Out-Null
 
 $Registered = Get-ScheduledTask -TaskName $TaskName
@@ -122,9 +133,9 @@ Write-Output "==================================================================
 Write-Output "Installed/Updated Scheduled Task (non-admin Limited user task)"
 Write-Output "  TaskName   : $($Registered.TaskName)"
 Write-Output "  User       : $CurrentUser"
-Write-Output "  Schedule   : Daily at $Time local time"
+Write-Output "  Schedule   : $ScheduleDesc"
 Write-Output "  NextRun    : $($TaskInfo.NextRunTime)"
-Write-Output "  Stores     : $StoreArg"
+Write-Output "  Stores     : $StoresSummary"
 Write-Output "  Logs       : $LogDir\local_scraper_YYYY-MM-DD.log ($LogRetentionDays-day retention)"
 Write-Output "  Command    : powershell.exe $($ArgParts -join ' ')"
 Write-Output "======================================================================"

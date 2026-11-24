@@ -2,8 +2,10 @@ name: Daily Stores Batch Matrix (Registry-Driven)
 
 on:
   schedule:
-    # Off-peak daily batch run at 00:53 UTC (02:53 AM Cairo EET / 03:53 AM EEST)
-    - cron: '53 0 * * *'
+    # Off-peak daily price refresh Sun-Fri at 00:53 UTC (02:53 AM Cairo EET / 03:53 AM EEST)
+    - cron: '53 0 * * 0-5'
+    # Weekly deep catalog discovery across all 174 cloud stores on Saturdays at 01:25 UTC (03:25 AM Cairo EET / 04:25 AM EEST)
+    - cron: '25 1 * * 6'
   workflow_dispatch:
     inputs:
       mode:
@@ -30,6 +32,10 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: stores-matrix-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   plan-batches:
     name: Discover Cloud Batches from stores_registry.yaml
@@ -38,6 +44,7 @@ jobs:
     outputs:
       batches: ${{ steps.plan.outputs.batches }}
       has_batches: ${{ steps.plan.outputs.has_batches }}
+      mode: ${{ steps.plan.outputs.mode }}
 
     steps:
       - name: Checkout repository
@@ -55,6 +62,8 @@ jobs:
         id: plan
         env:
           BATCH_FILTER: ${{ github.event.inputs.batch_filter || 'all' }}
+          INPUT_MODE: ${{ github.event.inputs.mode || '' }}
+          EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
         run: |
           python - <<'PY'
           import json
@@ -74,18 +83,29 @@ jobs:
               allowed = {b.strip() for b in raw_filter.split(",") if b.strip()}
               batches = [b for b in batches if b in allowed]
 
+          dispatch_mode = os.environ.get("INPUT_MODE", "").strip().lower()
+          schedule_expr = os.environ.get("EVENT_SCHEDULE", "").strip()
+          if dispatch_mode in ("daily", "discover"):
+              resolved_mode = dispatch_mode
+          elif schedule_expr == "25 1 * * 6":
+              resolved_mode = "discover"
+          else:
+              resolved_mode = "daily"
+
           print(f"Active cloud batches ({len(batches)}): {batches}")
+          print(f"Resolved scrape mode: {resolved_mode} (schedule='{schedule_expr}', input='{dispatch_mode}')")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
               fh.write(f"batches={json.dumps(batches)}\n")
               fh.write(f"has_batches={'true' if batches else 'false'}\n")
+              fh.write(f"mode={resolved_mode}\n")
           PY
 
   scrape-batch:
-    name: Scrape Batch (${{ matrix.batch }})
+    name: Scrape Batch (${{ matrix.batch }} - ${{ needs.plan-batches.outputs.mode }})
     runs-on: ubuntu-latest
     needs: plan-batches
     if: needs.plan-batches.outputs.has_batches == 'true'
-    timeout-minutes: 25
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -103,12 +123,12 @@ jobs:
       - name: Install data platform dependencies
         run: pip install -r data_platform/requirements.txt
 
-      - name: Run batch scrapers (${{ matrix.batch }})
+      - name: Run batch scrapers (${{ matrix.batch }} - ${{ needs.plan-batches.outputs.mode }})
         continue-on-error: true
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
           DATABASE_URL_READONLY: ${{ secrets.DATABASE_URL_READONLY }}
-          MODE_INPUT: ${{ github.event.inputs.mode || 'daily' }}
+          MODE_INPUT: ${{ needs.plan-batches.outputs.mode }}
           DELTA_INPUT: ${{ github.event.inputs.delta_mode || 'true' }}
           DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
@@ -131,7 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [plan-batches, scrape-batch]
     if: always() && needs.plan-batches.outputs.has_batches == 'true' && github.event.inputs.dry_run != 'true'
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
