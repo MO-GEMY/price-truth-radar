@@ -63,6 +63,9 @@ class _Rows:
     def first(self) -> dict[str, Any] | None:
         return self._rows[0] if self._rows else None
 
+    def scalar_one_or_none(self) -> Any:
+        return None
+
 
 class _FakeConn:
     """Connection double: one active alert and one in-stock listing below target."""
@@ -90,6 +93,8 @@ class _FakeConn:
     def execute(self, stmt: Any, params: dict[str, Any] | None = None) -> _Rows:
         sql = str(stmt)
         p = params or {}
+        if "to_regclass" in sql:
+            return _Rows([])
         if "CREATE TABLE" in sql:
             return _Rows([])
         if "UPDATE public.price_alerts" in sql:
