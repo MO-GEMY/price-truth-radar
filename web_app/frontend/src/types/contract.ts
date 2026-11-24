@@ -246,6 +246,7 @@ export interface CrossStoreMatch {
   product_title_clean: string;
   category: Category;
   brand: string;
+  image_url?: string | null;
   stores_count: number;
   lowest_price: number;
   lowest_price_store: string;

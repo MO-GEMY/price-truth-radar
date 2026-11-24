@@ -70,6 +70,44 @@ def get_cross_store_comparison(
     rows = db.execute(items_sql, query_params).mappings().all()
     items = [CrossStoreMatchItem.model_validate(dict(r)) for r in rows]
 
+    # Hydrate representative product image_url in a single batch lookup so compare
+    # cards display real product photos without extra frontend round-trips.
+    all_sks = [
+        listing.product_sk
+        for item in items
+        for listing in item.listings_json
+        if listing.product_sk
+    ]
+    if all_sks:
+        img_rows = db.execute(
+            text(
+                """
+                SELECT product_sk, image_url
+                FROM gold.mart_product_verdicts
+                WHERE product_sk = ANY(:sks)
+                  AND image_url IS NOT NULL
+                  AND BTRIM(image_url) <> ''
+                """
+            ),
+            {"sks": list(dict.fromkeys(all_sks))},
+        ).mappings().all()
+        image_by_sk = {
+            str(r["product_sk"]): str(r["image_url"]).strip()
+            for r in img_rows
+            if r.get("image_url")
+        }
+        for item in items:
+            # Prefer in-stock lowest-priced listing's image, then fall back to any matched listing
+            ranked = sorted(
+                item.listings_json,
+                key=lambda offer: (not offer.in_stock, offer.price),
+            )
+            for offer in ranked:
+                img = image_by_sk.get(offer.product_sk)
+                if img:
+                    item.image_url = img
+                    break
+
     result = CompareResponse(
         items=items,
         total=total,

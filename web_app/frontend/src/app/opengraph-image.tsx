@@ -8,14 +8,14 @@ export const contentType = "image/png";
 
 export default async function OgImage() {
   return makeOgResponse({
-    eyebrow: "EGYPT · BLACK FRIDAY READY",
-    title: "Spot Fake Discounts Before You Buy in Egypt",
+    eyebrow: "EGYPT · PRICE TRANSPARENCY",
+    title: "Verify Real Discounts & Compare True Prices in Egypt",
     subtitle:
-      "Track daily price history and compare matched offers in EGP across Egypt's top retailers.",
+      "Track daily EGP price history and compare matched offers across Egypt's top retailers.",
     stats: [
       { value: `${LAUNCH_STORE_COUNT} Stores`, label: "Verified Egyptian Retailers" },
       { value: LAUNCH_PRODUCT_COUNT, label: "Tracked Products in EGP" },
-      { value: "60-Day History", label: "Real vs. Fake Deal Verdicts" },
+      { value: "60-Day History", label: "Verified vs. Unverified Deals" },
     ],
     footer: "Check any price before you buy · Electronics, Appliances, Fashion & Groceries",
   });

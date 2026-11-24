@@ -2,41 +2,92 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Radar } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Globe,
+  Moon,
+  Search,
+  Sparkles,
+  Sun,
+} from "lucide-react";
 import { browseHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
 import { useLanguage } from "@/lib/i18n";
+import { useTheme } from "@/lib/theme";
+import { AsarakLogo } from "./AsarakLogo";
 
 const destinations = [
-  { href: "/", text: "nav.feed" },
-  { href: "/deals", text: "nav.deals" },
-  { href: "/compare", text: "nav.compare" },
+  { href: "/", text: "nav.feed", icon: Search },
+  { href: "/deals", text: "nav.deals", icon: Sparkles },
+  { href: "/compare", text: "nav.compare", icon: ArrowLeftRight },
 ] as const;
 
 export function Header() {
   const { lang, ready, t, toggleLang } = useLanguage();
+  const { theme, ready: themeReady, toggleTheme } = useTheme();
   const pathname = usePathname();
   const query = useBrowseParams();
-  const origin = pathname.startsWith("/products/") ? safeBrowseHref(query.get("from"))?.split("?")[0] : null;
+  const origin = pathname.startsWith("/products/")
+    ? safeBrowseHref(query.get("from"))?.split("?")[0]
+    : null;
   const active = origin ?? pathname;
 
   return (
     <header className="ptr-mast">
-      <a href="#main-content" className="ptr-skip">{t("ui.skip")}</a>
+      <a href="#main-content" className="ptr-skip">
+        {t("ui.skip")}
+      </a>
       <div className="ptr-wrap ptr-mast-inner">
-        <Link href={pathname === "/" ? browseHref("/", query) : "/"} className="ptr-brand">
-          <span className="ptr-mark"><Radar size={20} strokeWidth={2.1} aria-hidden="true" /></span>
-          <span>{t("brand.name")}</span>
+        <Link
+          href={pathname === "/" ? browseHref("/", query) : "/"}
+          className="ptr-brand"
+          aria-label="أسعارك | Asarak"
+        >
+          <AsarakLogo variant="auto" size="md" />
         </Link>
+
         <nav className="ptr-nav" aria-label={t("ui.navigation")}>
-          {destinations.map(({ href, text }) => (
-            <Link key={href} href={pathname === href ? browseHref(href, query) : href}
-              aria-current={active === href ? "page" : undefined}>{t(text)}</Link>
+          {destinations.map(({ href, text, icon: Icon }) => (
+            <Link
+              key={href}
+              href={pathname === href ? browseHref(href, query) : href}
+              aria-current={active === href ? "page" : undefined}
+            >
+              <Icon size={16} strokeWidth={2.1} aria-hidden="true" />
+              <span>{t(text)}</span>
+            </Link>
           ))}
         </nav>
-        <button className="ptr-button ptr-language" type="button" lang={lang === "en" ? "ar" : "en"}
-          disabled={!ready} onClick={toggleLang} aria-label={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}>
-          {t("lang.toggle")}
-        </button>
+
+        <div className="ptr-mast-actions">
+          <button
+            type="button"
+            className="ptr-theme-toggle"
+            disabled={!themeReady}
+            onClick={toggleTheme}
+            aria-label={t(theme === "dark" ? "theme.toLight" : "theme.toDark")}
+            title={t(theme === "dark" ? "theme.toLight" : "theme.toDark")}
+          >
+            {theme === "dark" ? (
+              <Sun size={18} strokeWidth={2} aria-hidden="true" />
+            ) : (
+              <Moon size={18} strokeWidth={2} aria-hidden="true" />
+            )}
+          </button>
+
+          <button
+            className="ptr-button ptr-language"
+            type="button"
+            lang={lang === "en" ? "ar" : "en"}
+            disabled={!ready}
+            onClick={toggleLang}
+            aria-label={
+              lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"
+            }
+          >
+            <Globe size={15} strokeWidth={2} aria-hidden="true" />
+            <span>{t("lang.toggle")}</span>
+          </button>
+        </div>
       </div>
     </header>
   );

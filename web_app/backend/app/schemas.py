@@ -246,6 +246,7 @@ class CrossStoreMatchItem(BaseModel):
     product_title_clean: str
     category: Category
     brand: str
+    image_url: Optional[str] = None
     stores_count: int
     lowest_price: float
     lowest_price_store: str

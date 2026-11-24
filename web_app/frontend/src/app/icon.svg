@@ -1,8 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#05080f"/>
-  <circle cx="32" cy="32" r="22" fill="none" stroke="#22d3ee" stroke-opacity="0.35" stroke-width="2"/>
-  <circle cx="32" cy="32" r="14" fill="none" stroke="#22d3ee" stroke-opacity="0.55" stroke-width="2"/>
-  <circle cx="32" cy="32" r="6" fill="none" stroke="#34d399" stroke-width="2"/>
-  <circle cx="41" cy="24" r="4" fill="#34d399"/>
-  <line x1="32" y1="32" x2="50" y2="14" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="64" height="64" fill="none">
+  <style>
+    .asarak-frame { fill: #0B192E; }
+    @media (prefers-color-scheme: dark) {
+      .asarak-frame { fill: #FFFFFF; }
+    }
+  </style>
+  <path d="M48 103 L98 53 V95 C98 101 93 106 87 106 H55 C52 106 50 105 48 103 Z" fill="#0CAE79"/>
+  <path d="M48 103 L98 53 L98 65 L58 105 C54 106 50 105 48 103 Z" fill="#0E7D60" opacity="0.45"/>
+  <path class="asarak-frame" d="M98 14 H58 C54 14 50 16 47 19 L14 52 C10 56 10 62 14 66 L41 93 L49 85 L23 59 L56 26 H90 Z"/>
+  <path d="M41 93 L47 99 C51 103 57 103 61 99 L98 62 V14 L87 25 V57 L54 90 L49 85 Z" fill="#0CAE79"/>
+  <path d="M36 62 L51 77 L98 30 V14 L51 61 L44 54 Z" fill="#0CAE79"/>
 </svg>

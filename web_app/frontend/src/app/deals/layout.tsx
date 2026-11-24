@@ -7,8 +7,8 @@ import {
   absoluteUrl,
 } from "@/lib/site";
 
-const title = `عروض حقيقية وكشف الخصومات الوهمية — Verified Deals & Fake Discounts`;
-const description = `اكتشف الخصومات الحقيقية واكشف العروض الوهمية مقابل سجل الأسعار لآخر 60 يوم عبر ${LAUNCH_STORE_COUNT} متجر مصري و${LAUNCH_PRODUCT_COUNT} منتج بالجنيه المصري — Verified real deals vs. inflated discounts across ${LAUNCH_STORE_COUNT} Egyptian stores.`;
+const title = `عروض موثّقة وفحص الخصومات المعلنة — Verified Deals & Discount Checks`;
+const description = `اكتشف التخفيضات الموثّقة وتحقق من الخصومات المعلنة مقابل سجل الأسعار لآخر 60 يوم عبر ${LAUNCH_STORE_COUNT} متجر مصري و${LAUNCH_PRODUCT_COUNT} منتج بالجنيه المصري — Verified real deals and reference-price checks across ${LAUNCH_STORE_COUNT} Egyptian stores.`;
 const url = absoluteUrl("/deals");
 const ogImage = absoluteUrl("/deals/opengraph-image");
 

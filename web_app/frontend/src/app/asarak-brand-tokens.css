@@ -1,0 +1,161 @@
+/* ==========================================================================
+   Asarak (أسعارك) — Official Brand Design Tokens
+   Version: 1.0 | Bilingual Arabic (RTL) & English (LTR)
+   ========================================================================== */
+
+:root {
+  /* Core Brand Palette */
+  --asarak-navy: #0B192E;          /* Primary wordmark, emblem frame, dark surfaces */
+  --asarak-navy-elevated: #11223D; /* Elevated dark navy cards & hero accents */
+  --asarak-navy-border: #1E3557;   /* Dark navy borders */
+  --asarak-emerald: #0CAE79;       /* Primary accent: verified discounts, checkmark */
+  --asarak-emerald-deep: #0E7D60;  /* Emblem fold depth, hover states */
+  --asarak-emerald-text: #067A54;  /* Accessible emerald text on white (WCAG AA 5.4:1) */
+  --asarak-emerald-aaa: #046243;   /* Accessible emerald text on white (WCAG AAA 7.4:1) */
+  --asarak-emerald-soft: #ECFDF5;  /* Soft emerald tint for badges & callouts */
+  --asarak-emerald-border: #A7F3D0;/* Subtle emerald border */
+
+  /* Neutral Surfaces & Ink (Light Mode) */
+  --asarak-bg: #F8FAFC;            /* Clean slate-tinted page canvas */
+  --asarak-card: #FFFFFF;          /* Crisp white cards */
+  --asarak-surface: #F1F5F9;       /* Secondary subtle surface */
+  --asarak-surface-hover: #F8FAFC; /* Interactive row hover */
+  --asarak-border: #E2E8F0;        /* Hairline structural borders */
+  --asarak-border-strong: #CBD5E1; /* Input & control borders */
+  --asarak-ink: #0B192E;           /* Primary ink */
+  --asarak-ink-secondary: #1E293B; /* Secondary headings */
+  --asarak-ink-muted: #475569;     /* Muted captions & labels */
+
+  /* Semantic Price-Comparison States */
+  --asarak-verified-deal: #0CAE79;
+  --asarak-verified-bg: #ECFDF5;
+  --asarak-verified-ink: #046243;
+  --asarak-verified-border: #A7F3D0;
+
+  --asarak-fake-discount: #DC2626;
+  --asarak-fake-bg: #FEF2F2;
+  --asarak-fake-ink: #B91C1C;
+  --asarak-fake-border: #FECACA;
+
+  --asarak-hike: #D97706;
+  --asarak-hike-bg: #FFFBEB;
+  --asarak-hike-ink: #B45309;
+  --asarak-hike-border: #FDE68A;
+
+  --asarak-price-neutral: #64748B;
+  --asarak-neutral-bg: #F1F5F9;
+  --asarak-neutral-ink: #475569;
+
+  /* Elevation & Radius */
+  --asarak-shadow-xs: 0 1px 2px rgba(11, 25, 46, 0.04);
+  --asarak-shadow-sm: 0 2px 8px rgba(11, 25, 46, 0.05), 0 1px 2px rgba(11, 25, 46, 0.04);
+  --asarak-shadow-md: 0 8px 24px rgba(11, 25, 46, 0.08), 0 2px 6px rgba(11, 25, 46, 0.04);
+  --asarak-shadow-lg: 0 20px 44px rgba(11, 25, 46, 0.16);
+  --asarak-radius-sm: 8px;
+  --asarak-radius-md: 12px;
+  --asarak-radius-lg: 16px;
+  --asarak-radius-xl: 20px;
+
+  /* Typography */
+  --asarak-font-ar: var(--font-plex-arabic), 'IBM Plex Sans Arabic', 'Cairo', system-ui, -apple-system, sans-serif;
+  --asarak-font-en: var(--font-jakarta), 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --asarak-font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Logo Sizing & Clear-Space Rules */
+  --asarak-logo-min-height: 32px;
+  --asarak-logo-header-height: 40px;
+  --asarak-logo-clearspace: 0.5em; /* Minimum clear space = 1x cap height of "Asarak" */
+
+  /* Chart Tokens (Light) */
+  --asarak-chart-grid: #E2E8F0;
+  --asarak-chart-tick: #475569;
+  --asarak-chart-tooltip-bg: #FFFFFF;
+  --asarak-chart-tooltip-border: #CBD5E1;
+  --asarak-chart-median: #64748B;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --asarak-bg: #0B192E;
+  --asarak-card: #11223D;
+  --asarak-surface: #162B4D;
+  --asarak-surface-hover: #1A335C;
+  --asarak-border: #1E3557;
+  --asarak-border-strong: #2B4873;
+  --asarak-ink: #FFFFFF;
+  --asarak-ink-secondary: #E2E8F0;
+  --asarak-ink-muted: #94A3B8;
+
+  --asarak-emerald-text: #34D399;
+  --asarak-emerald-aaa: #6EE7B7;
+  --asarak-emerald-soft: rgba(12, 174, 121, 0.14);
+  --asarak-emerald-border: rgba(52, 211, 153, 0.3);
+
+  --asarak-verified-bg: rgba(12, 174, 121, 0.16);
+  --asarak-verified-ink: #34D399;
+  --asarak-verified-border: rgba(52, 211, 153, 0.32);
+
+  --asarak-fake-bg: rgba(220, 38, 38, 0.18);
+  --asarak-fake-ink: #FCA5A5;
+  --asarak-fake-border: rgba(248, 113, 113, 0.32);
+
+  --asarak-hike-bg: rgba(217, 119, 6, 0.18);
+  --asarak-hike-ink: #FCD34D;
+  --asarak-hike-border: rgba(251, 191, 36, 0.32);
+
+  --asarak-neutral-bg: rgba(148, 163, 184, 0.14);
+  --asarak-neutral-ink: #CBD5E1;
+
+  --asarak-shadow-xs: 0 1px 2px rgba(2, 8, 20, 0.25);
+  --asarak-shadow-sm: 0 4px 12px rgba(2, 8, 20, 0.3);
+  --asarak-shadow-md: 0 12px 28px rgba(2, 8, 20, 0.42);
+  --asarak-shadow-lg: 0 24px 48px rgba(2, 8, 20, 0.6);
+
+  /* Chart Tokens (Dark) */
+  --asarak-chart-grid: #1E3557;
+  --asarak-chart-tick: #94A3B8;
+  --asarak-chart-tooltip-bg: #11223D;
+  --asarak-chart-tooltip-border: #2B4873;
+  --asarak-chart-median: #94A3B8;
+}
+
+/* Bilingual Header Lockup Helper */
+.asarak-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-decoration: none;
+  color: var(--asarak-ink);
+  min-width: 0;
+}
+
+.asarak-brand__icon {
+  height: var(--asarak-logo-header-height);
+  width: auto;
+  flex-shrink: 0;
+}
+
+.asarak-brand__wordmarks {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+}
+
+.asarak-brand__wordmark-ar {
+  font-family: var(--asarak-font-ar);
+  font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.asarak-brand__wordmark-en {
+  font-family: var(--asarak-font-en);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  line-height: 1.05;
+  opacity: 0.86;
+}

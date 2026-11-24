@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 148" width="460" height="148" fill="none" role="img" aria-label="أسعارك | Asarak">
+  <g transform="translate(16, 14)">
+  <!-- Solid Emerald Lower-Right Base & Fold -->
+  <path d="M48 103 L98 53 V95 C98 101 93 106 87 106 H55 C52 106 50 105 48 103 Z" fill="#0CAE79"/>
+  <!-- Subtle Deep Emerald Fold Shadow -->
+  <path d="M48 103 L98 53 L98 65 L58 105 C54 106 50 105 48 103 Z" fill="#0E7D60" opacity="0.45"/>
+  <!-- Outer Frame: Navy (Light) or White (Dark) — Top, Upper-Left, Lower-Left -->
+  <path d="M98 14 H58 C54 14 50 16 47 19 L14 52 C10 56 10 62 14 66 L41 93 L49 85 L23 59 L56 26 H90 Z" fill="#0B192E"/>
+  <!-- Emerald Inner Checkmark & Right Ribbon -->
+  <path d="M41 93 L47 99 C51 103 57 103 61 99 L98 62 V14 L87 25 V57 L54 90 L49 85 Z" fill="#0CAE79"/>
+  <!-- Inner Verification Checkmark Stroke -->
+  <path d="M36 62 L51 77 L98 30 V14 L51 61 L44 54 Z" fill="#0CAE79"/>
+  </g>
+  <text x="156" y="76" font-family="'Cairo', 'IBM Plex Sans Arabic', 'Noto Sans Arabic', sans-serif" font-size="60" font-weight="700" fill="#0B192E" direction="rtl" unicode-bidi="bidi-override" text-anchor="end" transform="translate(264, 0)">أسعارك</text>
+  <text x="156" y="126" font-family="'Plus Jakarta Sans', 'Outfit', 'Inter', sans-serif" font-size="50" font-weight="600" letter-spacing="3.5" fill="#0B192E">Asarak</text>
+</svg>

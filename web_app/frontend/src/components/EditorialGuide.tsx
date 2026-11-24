@@ -22,19 +22,19 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
   home: {
     ar: {
       eyebrow: "دليل المشتري المصري · شفافية الأسعار",
-      heading: "كيف يكشف أسعارك الخصومات الوهمية عبر 200 متجر مصري؟",
+      heading: "كيف يتحقّق أسعارك من حقيقة الخصومات عبر 200 متجر مصري؟",
       lead:
-        "قبل أن تشتري في عروض البلاك فرايداي أو التخفيضات الموسمية في مصر، يعرض لك أسعارك سجل السعر الفعلي بالجنيه المصري بدلاً من الاعتماد على السعر المشطوب الذي يكتبه المتجر.",
+        "قبل أن تشتري في عروض البلاك فرايداي أو التخفيضات الموسمية في مصر، يعرض لك أسعارك سجل السعر الفعلي بالجنيه المصري بدلاً من الاعتماد فقط على السعر المرجعي المشطوب.",
       blocks: [
         {
           title: "1. مقارنة السعر بوسيط آخر 60 يوماً",
           body:
-            "نلتقط أسعار أكثر من 112,000 منتج يومياً عبر متاجر الإلكترونيات، الأجهزة المنزلية، الأزياء، الصيدليات، والهايبرماركت في مصر. نحسب وسيط السعر الحقيقي خلال 60 يوماً لنكشف فوراً هل السعر الحالي خصم فعلي أم مجرد عودة للسعر الطبيعي بعد تضخيم مؤقت.",
+            "نلتقط أسعار أكثر من 112,000 منتج يومياً عبر متاجر الإلكترونيات، الأجهزة المنزلية، الأزياء، الصيدليات، والهايبرماركت في مصر. نحسب وسيط السعر المرصود خلال 60 يوماً لتعرف فوراً هل السعر الحالي يمثل توفيراً حقيقياً أم أنه قريب من السعر المعتاد.",
         },
         {
-          title: "2. قواعد صارمة تمنع التقييمات المتسرّعة",
+          title: "2. قواعد موضوعية تمنع التقييمات المتسرّعة",
           body:
-            "لا يصدر أسعارك وسم «خصم حقيقي» أو «خصم وهمي» عشوائياً؛ بل يشترط تراكم 3 أيام رصد على الأقل أو ملاحظة تغيّر سعري فعلي. المنتجات الجديدة تظهر بوضوح في مرحلة تجميع سجل الأسعار لحماية دقة القرار.",
+            "لا يصدر أسعارك وسم «عرض حقيقي» أو «خصم يحتاج مراجعة» عشوائياً؛ بل يشترط تراكم 3 أيام رصد على الأقل أو ملاحظة تغيّر سعري فعلي. المنتجات الجديدة تظهر بوضوح في مرحلة تجميع سجل الأسعار لحماية دقة القرار.",
         },
         {
           title: "3. ابحث بالاسم أو الصق رابط المنتج مباشرة",
@@ -46,19 +46,19 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
     },
     en: {
       eyebrow: "EGYPTIAN SHOPPER GUIDE · PRICE TRANSPARENCY",
-      heading: "How Asarak Verifies Fake Discounts Across 200 Egyptian Stores",
+      heading: "How Asarak Verifies Advertised Discounts Across 200 Egyptian Stores",
       lead:
-        "Before buying during White Friday or seasonal sales in Egypt, Asarak checks every retailer's strikethrough price against independent daily EGP price history.",
+        "Before buying during White Friday or seasonal sales in Egypt, Asarak benchmarks every advertised reference price against independent daily EGP price history.",
       blocks: [
         {
           title: "1. Measured Against a 60-Day Historical Median",
           body:
-            "We record daily EGP snapshots for over 112,000 products across Egyptian electronics, home appliances, fashion, pharmacies, and supermarkets. Comparing today's checkout price to the 60-day median reveals whether a deal is genuine or an inflated strikethrough mark-up.",
+            "We record daily EGP snapshots for over 112,000 products across Egyptian electronics, home appliances, fashion, pharmacies, and supermarkets. Comparing today's checkout price to the 60-day median shows whether a deal represents real savings or matches the usual selling price.",
         },
         {
-          title: "2. Evidence-First Verdict Rules",
+          title: "2. Evidence-First Verification Rules",
           body:
-            "Asarak never guesses discount honesty from a single snapshot. A verdict is only issued after at least 3 days of recorded observations or an observed price change—preventing false alarms on newly tracked products.",
+            "Asarak never evaluates discount claims from a single snapshot. A price check badge is only issued after at least 3 days of recorded observations or an observed price change—keeping comparisons accurate for newly tracked products.",
         },
         {
           title: "3. Paste Any Store URL or Compare Across Retailers",
@@ -72,19 +72,19 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
   deals: {
     ar: {
       eyebrow: "فهم العروض اليومية · مصر",
-      heading: "الفرق بين الخصم الحقيقي والتخفيض الوهمي في المتاجر المصرية",
+      heading: "كيف تميّز بين الخصم الموثّق والخصم الذي يحتاج مراجعة؟",
       lead:
-        "تقسّم صفحة أبرز الأسعار العروض اليومية إلى قسمين واضحين حتى تميّز بسهولة بين التخفيض الموثّق بسجل تاريخي والخصم الترويجي المبالغ فيه.",
+        "تقسّم صفحة أبرز الأسعار العروض اليومية إلى قسمين واضحين حتى تميّز بسهولة بين التخفيض الموثّق بسجل تاريخي والخصم الترويجي الذي يفوق التوفير الفعلي.",
       blocks: [
         {
-          title: "أقل من الوسيط المرصود (خصومات حقيقية)",
+          title: "أقل من الوسيط المرصود (خصومات موثّقة)",
           body:
             "تضم المنتجات التي انخفض سعرها الحالي فعلياً عن وسيط أسعارها المرصودة خلال الأسابيع الماضية بالجنيه المصري، مع توضيح نسبة التوفير الحقيقية وأقل سعر تاريخي تم تسجيله.",
         },
         {
-          title: "خصومات تحتاج مراجعة (تضخيم السعر المشطوب)",
+          title: "خصومات تحتاج مراجعة (فارق السعر المرجعي)",
           body:
-            "ترصد العروض التي يرفع فيها المتجر السعر الأصلي المشطوب أو يرفع السعر قبل فترة التخفيضات ثم يعلن خصماً كبيراً رغم أن سعر البيع الفعلي مساوٍ أو أعلى من السعر المعتاد.",
+            "تسلّط الضوء على العروض التي يكون فيها السعر المرجعي المشطوب أعلى من السعر المعتاد المرصود، أو حيث ارتفع السعر قبل فترة التخفيضات، لتتمكن من تقييم التوفير الفعلي بدقة.",
         },
         {
           title: "لماذا نعرض السعر الأساسي بجانب نسبة الخصم؟",
@@ -96,19 +96,19 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
     },
     en: {
       eyebrow: "DAILY DEAL VERIFICATION · EGYPT",
-      heading: "How to Tell Real EGP Price Drops from Inflated Sale Tags",
+      heading: "How to Distinguish Verified Price Drops from Unverified Sale Claims",
       lead:
-        "Asarak separates daily highlights into two evidence-backed tabs so shoppers can immediately distinguish verified discounts from deceptive strikethrough pricing.",
+        "Asarak separates daily highlights into two evidence-backed tabs so shoppers can immediately distinguish verified EGP price drops from advertised discounts that need a closer look.",
       blocks: [
         {
           title: "Below Tracked Median (Verified Real Drops)",
           body:
-            "Highlights listings where today's in-stock price is demonstrably below the store's own recent 60-day EGP median, backed by multi-day observation history rather than marketing claims.",
+            "Highlights listings where today's in-stock price is demonstrably below the store's own recent 60-day EGP median, backed by multi-day observation history rather than promotional claims.",
         },
         {
-          title: "Discounts to Check (Inflated Reference Prices)",
+          title: "Discounts to Check (Reference-Price Gaps)",
           body:
-            "Flags listings advertising steep percentage discounts where the claimed original price sits well above the product's usual selling price—or where the price was raised right before a sale event.",
+            "Highlights listings advertising steep percentage discounts where the reference strikethrough price sits noticeably above the product's usual tracked selling price—helping you check true savings before checkout.",
         },
         {
           title: "Compare Real Checkout Price, Not Just Percentages",
@@ -186,8 +186,11 @@ export function EditorialGuide({ variant }: { variant: EditorialVariant }) {
         <p className="ptr-muted">{copy.lead}</p>
       </div>
       <div className="ptr-editorial-grid">
-        {copy.blocks.map((block) => (
+        {copy.blocks.map((block, index) => (
           <article key={block.title} className="ptr-editorial-card">
+            <span className="ptr-editorial-step" aria-hidden="true">
+              0{index + 1}
+            </span>
             <h3>{block.title}</h3>
             <p className="ptr-muted">{block.body}</p>
           </article>

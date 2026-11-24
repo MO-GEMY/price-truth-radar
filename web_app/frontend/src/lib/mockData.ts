@@ -1237,6 +1237,7 @@ export function mockCompare(params: CompareParams): CompareResponse {
             ?.clean_title ?? members[0].product_title,
         category: members[0].category,
         brand: members[0].brand,
+        image_url: members.find((m) => m.image_url)?.image_url ?? null,
         stores_count: listings.length,
         lowest_price: lowest.price,
         lowest_price_store: lowest.store_name,
