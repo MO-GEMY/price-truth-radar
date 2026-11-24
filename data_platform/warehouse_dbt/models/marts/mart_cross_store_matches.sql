@@ -6,7 +6,8 @@
         incremental_strategy='delete+insert',
         on_schema_change='sync_all_columns',
         post_hook=[
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_mart_cross_store_canonical_key ON {{ this }} (canonical_product_key)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_mart_cross_store_canonical_key ON {{ this }} (canonical_product_key)",
+            "DELETE FROM {{ this }} t WHERE NOT EXISTS (SELECT 1 FROM {{ ref('mart_product_verdicts') }} v WHERE v.canonical_product_key IS NOT NULL AND (v.canonical_product_key = t.canonical_product_key OR t.canonical_product_key LIKE v.canonical_product_key || '__%'))"
         ]
     )
 }}

@@ -858,6 +858,14 @@ export function getMockStatsOverview(): StatsOverview {
   for (const p of products) {
     categoryCounts[p.category] = (categoryCounts[p.category] ?? 0) + 1;
   }
+  const canonStores = new Map<string, Set<string>>();
+  for (const p of products) {
+    if (!p.canonical_product_key) continue;
+    const set = canonStores.get(p.canonical_product_key) ?? new Set<string>();
+    set.add(p.store_name);
+    canonStores.set(p.canonical_product_key, set);
+  }
+  const crossStoreMatchesCount = Array.from(canonStores.values()).filter((s) => s.size >= 2).length;
   return {
     total_tracked: products.length,
     fake_discounts_today: count("FAKE_DISCOUNT"),
@@ -868,6 +876,7 @@ export function getMockStatsOverview(): StatsOverview {
     last_pipeline_run_at: MOCK_NOW,
     available_stores: getMockStoreNames(),
     category_counts: categoryCounts,
+    cross_store_matches_count: crossStoreMatchesCount,
   };
 }
 

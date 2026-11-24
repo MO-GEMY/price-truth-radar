@@ -113,7 +113,8 @@ export const translations = {
     "receipt.verifiedStamp": "Price Truth Verified",
     "receipt.fakeStamp": "Check Reference Price",
 
-    "hero.overline": "Tracking daily prices across 200+ Egyptian stores",
+    "hero.overline": "Tracking daily prices across Egyptian stores",
+    "hero.overlineDynamic": "Tracking daily prices across {count} Egyptian stores",
     "hero.title": "Verify real discounts and compare true prices in seconds",
     "hero.subtitle":
       "Before buying any offer, Asarak checks the 60-day EGP price history and compares verified Egyptian stores side by side.",
@@ -130,6 +131,7 @@ export const translations = {
     "kpi.storesValueSingular": "{count} Store",
     "kpi.storesHint": "Live daily snapshots",
     "kpi.crossStoreMatches": "Cross-Store Matches",
+    "kpi.crossStoreCompared": "Cross-Store Compared Products",
     "kpi.crossStoreCta": "Compare now",
     "kpi.genuineDeals": "Verified Deals",
     "kpi.allTimeLows": "All-Time Lows",
@@ -491,7 +493,8 @@ export const translations = {
     "receipt.verifiedStamp": "سعر موثّق",
     "receipt.fakeStamp": "راجع السعر المرجعي",
 
-    "hero.overline": "نرصد الأسعار يومياً عبر أكثر من 200 متجر مصري",
+    "hero.overline": "نرصد الأسعار يومياً عبر المتاجر المصرية",
+    "hero.overlineDynamic": "نرصد الأسعار يومياً عبر {count} متجر مصري",
     "hero.title": "تحقّق من حقيقة الخصومات وقارن الأسعار الفعلية في ثوانٍ",
     "hero.subtitle":
       "قبل ما تشتري في أي عرض، أسعارك يعرضلك سجل السعر الحقيقي لآخر 60 يوم ويقارنلك نفس المنتج عبر المتاجر المصرية.",
@@ -508,6 +511,7 @@ export const translations = {
     "kpi.storesValueSingular": "{count} متجر",
     "kpi.storesHint": "تحديث يومي تلقائي",
     "kpi.crossStoreMatches": "مطابقات بين المتاجر",
+    "kpi.crossStoreCompared": "منتجات متقارنة بين المتاجر",
     "kpi.crossStoreCta": "قارن الآن",
     "kpi.genuineDeals": "عروض حقيقية موثّقة",
     "kpi.allTimeLows": "أدنى أسعار تاريخية",

@@ -19,7 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import DBAPIError
 
-from app.bilingual import normalize_arabic
+from app.bilingual_search import canonicalize_bilingual_text, normalize_arabic_text
 from app.schemas import ProductVerdictItem, SimilarAlternativeItem
 
 
@@ -832,7 +832,7 @@ _STOPWORDS: frozenset[str] = frozenset({
 
 def _norm(value: str) -> str:
     clean = unicodedata.normalize("NFKC", value or "")
-    return normalize_arabic(clean).lower()
+    return normalize_arabic_text(clean)
 
 
 def _is_accessory(title: str, sub_category: str, category: str) -> bool:
@@ -914,7 +914,9 @@ def _trgm_sim(a: set[str], b: set[str]) -> float:
 
 
 def _tokens(title: str, brand: str = "") -> set[str]:
-    raw = _TOKEN_RE.findall(_norm(f"{brand} {title}"))
+    """Bilingual canonical tokens (translates AR -> EN concepts/units so AR and EN titles align)."""
+    canon = canonicalize_bilingual_text(f"{brand} {title}")
+    raw = _TOKEN_RE.findall(canon)
     return {t for t in raw if len(t) >= 2 and t not in _STOPWORDS}
 
 
@@ -969,11 +971,16 @@ def find_similar_alternatives(
     db: Connection,
     product: ProductVerdictItem,
     *,
-    max_results: int = 5,
+    max_results: int = 6,
 ) -> list[SimilarAlternativeItem]:
-    """Dynamically find 2..max_results functionally similar alternatives in the same price bracket.
+    """Dynamically find up to `max_results` (default 6) smart similar alternatives.
 
-    Returns an empty list if price <= 0 or fewer than 2 high-relevance alternatives exist.
+    Strictly enforces:
+    - Same `sub_category` (when non-empty & non-generic) and same `category`
+    - Same `is_accessory` status (never recommends accessories for main devices or vice versa)
+    - Within `±30%` price range (preferring `±20%` first)
+    - Excludes the exact same product, sibling variants (`parent_product_key`), and exact cross-store cluster (`canonical_product_key`)
+    - Ranked by bilingual title/brand token similarity, favoring distinct stores first
     """
     target_price = float(product.current_price or 0.0)
     if target_price <= 0:
@@ -985,8 +992,10 @@ def find_similar_alternatives(
     target_specs = _spec_tokens(product.product_title)
     target_brand = _norm(product.brand or "")
     target_title_norm = _norm(product.product_title or "")
+    target_sub = (product.sub_category or "").strip().lower()
+    strict_sub = bool(target_sub and target_sub not in ("other", "general", "all", "unknown"))
 
-    target_trgms = _trigrams(target_title_norm)
+    target_trgms = _trigrams(canonicalize_bilingual_text(product.product_title or ""))
     target_is_bundle = bool(_BUNDLE_RE.search(target_title_norm))
     target_fw_gender = (
         _fw_gender(target_title_norm, product.store_name)
@@ -994,8 +1003,6 @@ def find_similar_alternatives(
         else ""
     )
 
-    # Wide bracket (±30%) in ONE fast GIN-indexed SQL query (no full-table `ORDER BY similarity`
-    # sort — Postgres hits `idx_mart_verdicts_search_doc_trgm` and stops at 250 rows in ~3-25ms!).
     min_30 = round(target_price * 0.70, 2)
     max_30 = round(target_price * 1.30, 2)
     min_20 = target_price * 0.80
@@ -1003,6 +1010,7 @@ def find_similar_alternatives(
 
     params: dict[str, Any] = {
         "category": product.category,
+        "sub_cat": target_sub,
         "target_sk": product.product_sk,
         "target_store": product.store_name,
         "target_parent": product.parent_product_key or "",
@@ -1029,8 +1037,9 @@ def find_similar_alternatives(
                 like_clauses.append(f"search_document LIKE :{key}")
             trgm_filter = "(" + " OR ".join(like_clauses) + ")"
         else:
-            trgm_filter = "sub_category = :sub_cat"
-            params["sub_cat"] = product.sub_category
+            trgm_filter = "TRUE"
+
+    sub_clause = "AND LOWER(sub_category) = :sub_cat" if strict_sub else ""
 
     sql = text(
         f"""
@@ -1050,10 +1059,10 @@ def find_similar_alternatives(
             canonical_product_key
         FROM gold.mart_product_verdicts
         WHERE category = :category
+          {sub_clause}
           AND current_price BETWEEN :min_p AND :max_p
           AND in_stock = TRUE
           AND product_sk <> :target_sk
-          AND store_name <> :target_store
           AND (:target_parent = '' OR parent_product_key <> :target_parent)
           AND (:target_canon = '' OR canonical_product_key IS DISTINCT FROM :target_canon)
           AND {trgm_filter}
@@ -1069,30 +1078,44 @@ def find_similar_alternatives(
     if not rows:
         return []
 
-    scored_20: list[tuple[float, dict[str, Any], Optional[SubtypeSpec], bool]] = []
-    scored_30: list[tuple[float, dict[str, Any], Optional[SubtypeSpec], bool]] = []
+    scored_20: list[tuple[float, bool, dict[str, Any], Optional[SubtypeSpec], bool]] = []
+    scored_30: list[tuple[float, bool, dict[str, Any], Optional[SubtypeSpec], bool]] = []
 
     for row in rows:
+        cand_sk = str(row["product_sk"] or "")
+        if cand_sk == product.product_sk:
+            continue
+        cand_canon = row.get("canonical_product_key")
+        if product.canonical_product_key and cand_canon == product.canonical_product_key:
+            continue
+        cand_parent = row.get("parent_product_key")
+        if product.parent_product_key and cand_parent == product.parent_product_key:
+            continue
+
         cand_title = str(row["product_title"] or "")
-        cand_sub = str(row["sub_category"] or "")
+        cand_sub = str(row["sub_category"] or "").strip().lower()
         cand_cat = str(row["category"] or "")
         cand_price = float(row["current_price"] or 0.0)
-        if cand_price <= 0:
+        if cand_price <= 0 or cand_price < min_30 or cand_price > max_30:
+            continue
+
+        # Mandatory Guard 0: Strict same sub_category when target sub_category is concrete
+        if strict_sub and cand_sub != target_sub:
             continue
 
         cand_title_norm = _norm(cand_title)
-        # Do not recommend a multi-item bundle against a single product
         if not target_is_bundle and _BUNDLE_RE.search(cand_title_norm):
             continue
 
-        # Mandatory Anti-Noise Guard 1: Accessory vs. Main Product separation
+        # Mandatory Guard 1: Accessory vs. Main Product separation
         cand_acc = _is_accessory(cand_title, cand_sub, cand_cat)
         if cand_acc != target_acc:
             continue
 
-        # Mandatory Anti-Noise Guard 2: Functional Subtype Equivalence
+        # Mandatory Guard 2: Functional Subtype Equivalence
         cand_subtype = _detect_subtype(cand_title, cand_sub)
-        trgm_sim = _trgm_sim(target_trgms, _trigrams(cand_title_norm))
+        cand_canon_title = canonicalize_bilingual_text(cand_title)
+        trgm_sim = _trgm_sim(target_trgms, _trigrams(cand_canon_title))
         if target_subtype is not None:
             compatible = cand_subtype is not None and (
                 cand_subtype.code == target_subtype.code
@@ -1110,64 +1133,99 @@ def find_similar_alternatives(
             if trgm_sim < 0.28:
                 continue
 
-        # Compute combined relevance score
+        # Compute bilingual token + brand + trigram relevance score
+        cand_brand_norm = _norm(str(row.get("brand") or ""))
+        same_brand = bool(target_brand and target_brand != "unknown" and cand_brand_norm == target_brand)
         cand_tokens = _tokens(cand_title, str(row.get("brand") or ""))
         tok_sim = _jaccard(target_tokens, cand_tokens)
         spec_bonus = 0.08 if (target_specs and (target_specs & _spec_tokens(cand_title))) else 0.0
-        subtype_bonus = 0.20 if (target_subtype is not None and cand_subtype is not None) else 0.0
-        combined_sim = min(1.0, 0.50 * trgm_sim + 0.50 * tok_sim + subtype_bonus + spec_bonus)
+        brand_bonus = 0.08 if same_brand else 0.0
+        subtype_bonus = 0.18 if (target_subtype is not None and cand_subtype is not None) else 0.0
+        combined_sim = min(1.0, 0.45 * trgm_sim + 0.55 * tok_sim + subtype_bonus + spec_bonus + brand_bonus)
 
-        # Minimum quality bar — never return random price junk!
-        min_threshold = 0.24 if target_subtype is not None else 0.34
+        min_threshold = 0.24 if target_subtype is not None else 0.30
         if combined_sim < min_threshold:
             continue
 
+        is_other_store = str(row["store_name"]) != product.store_name
         price_closeness = max(0.0, 1.0 - abs(cand_price - target_price) / (target_price * 0.30))
         v_boost = _verdict_boost(str(row.get("discount_verdict") or "NORMAL_PRICE"))
         stock_boost = 1.0 if row.get("in_stock") else 0.0
+        store_diversity_boost = 0.06 if is_other_store else 0.0
 
         final_score = (
-            0.62 * combined_sim
-            + 0.28 * price_closeness
+            0.58 * combined_sim
+            + 0.26 * price_closeness
             + 0.06 * v_boost
             + 0.04 * stock_boost
+            + store_diversity_boost
         )
-        same_brand = bool(target_brand and target_brand != "unknown" and _norm(str(row.get("brand") or "")) == target_brand)
 
-        entry = (final_score, dict(row), target_subtype or cand_subtype, same_brand)
+        entry = (final_score, is_other_store, dict(row), target_subtype or cand_subtype, same_brand)
         if min_20 <= cand_price <= max_20:
             scored_20.append(entry)
         else:
             scored_30.append(entry)
 
-    # Deduplicate to 1 top candidate per store, preferring ±20% bracket and widening to ±30% only if < 3 stores
-    def _pick_unique_stores(
-        pool: list[tuple[float, dict[str, Any], Optional[SubtypeSpec], bool]],
-        existing_stores: set[str],
+    # Deduplicate favoring distinct other stores first (1 per store), then distinct clusters/products up to max_results
+    def _pick_diverse(
+        pool: list[tuple[float, bool, dict[str, Any], Optional[SubtypeSpec], bool]],
+        used_stores: set[str],
+        used_sks: set[str],
+        used_canons: set[str],
         limit: int,
-    ) -> list[tuple[float, dict[str, Any], Optional[SubtypeSpec], bool]]:
-        picked: list[tuple[float, dict[str, Any], Optional[SubtypeSpec], bool]] = []
-        for item in sorted(pool, key=lambda x: (-x[0], abs(float(x[1]["current_price"]) - target_price))):
-            st = str(item[1]["store_name"])
-            if st in existing_stores:
+        *,
+        other_stores_only: bool,
+    ) -> list[tuple[float, bool, dict[str, Any], Optional[SubtypeSpec], bool]]:
+        picked: list[tuple[float, bool, dict[str, Any], Optional[SubtypeSpec], bool]] = []
+        ordered = sorted(
+            pool,
+            key=lambda x: (not x[1], -x[0], abs(float(x[2]["current_price"]) - target_price)),
+        )
+        for item in ordered:
+            _, is_other, row, _, _ = item
+            if other_stores_only and not is_other:
                 continue
-            existing_stores.add(st)
+            sk = str(row["product_sk"])
+            st = str(row["store_name"])
+            canon = str(row.get("canonical_product_key") or "")
+            if sk in used_sks:
+                continue
+            if canon and canon in used_canons:
+                continue
+            if other_stores_only and st in used_stores:
+                continue
+            used_sks.add(sk)
+            if other_stores_only:
+                used_stores.add(st)
+            if canon:
+                used_canons.add(canon)
             picked.append(item)
             if len(picked) >= limit:
                 break
         return picked
 
     used_stores: set[str] = set()
-    chosen = _pick_unique_stores(scored_20, used_stores, max_results)
-    if len(chosen) < 3 and scored_30:
-        chosen.extend(_pick_unique_stores(scored_30, used_stores, max_results - len(chosen)))
+    used_sks: set[str] = set()
+    used_canons: set[str] = set()
 
-    # Strict guardrail: if fewer than 2 genuinely relevant alternatives exist, return []
-    if len(chosen) < 2:
+    # Pass A: 1 top candidate per distinct other store in ±20%, then ±30%
+    chosen = _pick_diverse(scored_20, used_stores, used_sks, used_canons, max_results, other_stores_only=True)
+    if len(chosen) < max_results and scored_30:
+        chosen.extend(
+            _pick_diverse(scored_30, used_stores, used_sks, used_canons, max_results - len(chosen), other_stores_only=True)
+        )
+    # Pass B: if fewer than 3 distinct-store alternatives exist, fill remaining slots with best distinct SKUs
+    if len(chosen) < 3:
+        chosen.extend(
+            _pick_diverse(scored_20 + scored_30, used_stores, used_sks, used_canons, max_results - len(chosen), other_stores_only=False)
+        )
+
+    if not chosen:
         return []
 
     results: list[SimilarAlternativeItem] = []
-    for _, row, sub_spec, same_brand in chosen[:max_results]:
+    for _, _, row, sub_spec, same_brand in chosen[:max_results]:
         cand_price = round(float(row["current_price"]), 2)
         diff_egp = round(cand_price - target_price, 2)
         diff_pct = round((diff_egp / target_price) * 100.0, 2)

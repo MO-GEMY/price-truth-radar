@@ -366,5 +366,68 @@ class TestUnitPriceFallbackData(unittest.TestCase):
         self.assertIsNone(compute_grocery_type_key(r1))
 
 
+class TestEntityResolutionUpgrades(unittest.TestCase):
+    """Cross-language AR<->EN matching, brand recovery, model-code & hard spec/price guards."""
+
+    def test_arabic_english_tv_model_code_match_with_missing_brand(self):
+        r1 = snap("cairosales", "Syinix Q61 Series 4K QLED Google TV 55Q61",
+                  category="home_appliances", sub_category="tvs", brand="Syinix", price=20610)
+        r2 = snap("dream2000", "سينكس تلفزيون ذكي بدون إطار QLED 4K UHD Google 55Q61",
+                  category="home_appliances", sub_category="tvs", brand="Unknown", price=21000)
+        self.assertTrue(make_group(r1, r2))
+
+    def test_endash_laptop_cpu_conflict_blocked(self):
+        """Core i5-1235U must NEVER merge with Core i7 – 1255U (en-dash separator)."""
+        r1 = snap("compumarts", "LENOVO IdeaPad 3 15IAU7 – Intel Core i5-1235U / 8GB RAM / 512GB SSD / 15.6 FHD",
+                  sub_category="laptops", brand="Lenovo", price=22500)
+        r2 = snap("alfrensia", "Lenovo IdeaPad 1 15IAU7 – Core i7 – 1255U – 8GB – 512GB SSD – 15.6 FHD",
+                  sub_category="laptops", brand="Lenovo", price=27699)
+        self.assertFalse(make_group(r1, r2))
+
+    def test_laptop_dedicated_gpu_vs_integrated_blocked(self):
+        r1 = snap("ennap", "LENOVO ThinkPad E16 Gen 1 - Intel Core i7-1355U, 8GB, 512GB SSD, Intel, 16-inch",
+                  sub_category="laptops", brand="Lenovo", price=42999)
+        r2 = snap("elghazawy", "Lenovo ThinkPad E16, Intel Core i7-1355U, 8GB RAM, 512GB SSD, NVIDIA GeForce MX550 2GB",
+                  sub_category="laptops", brand="Lenovo", price=46799)
+        self.assertFalse(make_group(r1, r2))
+
+    def test_tier_modifier_and_4g_vs_5g_hard_guards(self):
+        p1 = snap("noon", "Apple iPhone 15 Pro 256GB Natural Titanium",
+                  sub_category="smartphones", brand="Apple", price=58000)
+        p2 = snap("btech", "Apple iPhone 15 Pro Max 256GB Natural Titanium",
+                  sub_category="smartphones", brand="Apple", price=66000)
+        self.assertFalse(make_group(p1, p2))
+
+        g4 = snap("noon", "Samsung Galaxy A15 4G 128GB 6GB RAM",
+                  sub_category="smartphones", brand="Samsung", price=7500)
+        g5 = snap("btech", "Samsung Galaxy A15 5G 128GB 6GB RAM",
+                  sub_category="smartphones", brand="Samsung", price=8900)
+        self.assertFalse(make_group(g4, g5))
+
+    def test_generic_material_word_never_inferred_as_brand(self):
+        """Private-label bedding stores must NOT merge via 'memory' inferred as brand."""
+        r1 = snap("bednhome", "Memory Foam Contour Pillow",
+                  category="home_furniture", sub_category="bedding_linens", brand="BedNHome", price=1022)
+        r2 = snap("elbadrawi_home", "Contour Memory Foam Pillow",
+                  category="home_furniture", sub_category="bedding_linens", brand="Elbadrawi Home", price=1625)
+        self.assertFalse(make_group(r1, r2))
+
+    def test_grocery_whipping_vs_cooking_cream_blocked(self):
+        r1 = snap("metro_market", "Almarai Whipping Cream - 500Ml",
+                  category="groceries", sub_category="dairy_cheese", brand="Almarai", price=147)
+        r2 = snap("rdna_store", "Almarai Cooking Cream (500ml)",
+                  category="groceries", sub_category="dairy_cheese", brand="Almarai", price=156)
+        self.assertFalse(make_group(r1, r2))
+
+    def test_price_ratio_sanity_guard_blocks_above_2_5x(self):
+        r1 = snap("noon", "Logitech G502 HERO High Performance Gaming Mouse",
+                  sub_category="peripherals", brand="Logitech", price=1000)
+        r2 = snap("sigma", "Logitech G502 HERO High Performance Wired Gaming Mouse",
+                  sub_category="peripherals", brand="Logitech", price=3000)
+        assign_canonical_keys([r1, r2], max_price_ratio=2.5)
+        self.assertIsNone(r1.canonical_product_key)
+        self.assertIsNone(r2.canonical_product_key)
+
+
 if __name__ == "__main__":
     unittest.main()

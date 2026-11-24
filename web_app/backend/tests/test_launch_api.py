@@ -16,7 +16,7 @@ _BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-from app.cache import api_cache, product_detail_cache, sitemap_cache  # noqa: E402
+from app.cache import api_cache, product_detail_cache, search_cache, sitemap_cache  # noqa: E402
 from app.database import get_db, get_write_db  # noqa: E402
 from app.main import app  # noqa: E402
 from jobs import check_price_alerts  # noqa: E402
@@ -99,6 +99,7 @@ class _FakeAlertsDB:
 class TestLaunchBackendAPI(unittest.TestCase):
     def setUp(self) -> None:
         api_cache.clear()
+        search_cache.clear()
         product_detail_cache.clear()
         sitemap_cache.clear()
         app.dependency_overrides.clear()
@@ -602,6 +603,7 @@ class TestLaunchBackendAPI(unittest.TestCase):
 
         # A typo in more than one term falls back to bounded word similarity.
         api_cache.clear()
+        search_cache.clear()
 
         def fuzzy_handler(sql: str, _params: dict[str, Any]) -> _FakeResult:
             if "strict_word_similarity(" in sql:

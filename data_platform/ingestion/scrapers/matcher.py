@@ -496,10 +496,10 @@ _GLUED_LETTER_DIGIT_RE = re.compile(r"\b([a-z]{3,})(\d+[a-z]?)\b", re.I)
 _CPU_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bapple\s+(m[1-5](?:\s+(?:pro|max|ultra))?)\b", re.I), ""),
     (re.compile(r"\b(m[1-5](?:\s+(?:pro|max|ultra))?)\s+chip\b", re.I), ""),
-    (re.compile(r"\b(?:core\s+)?ultra\s+([3579])[\s-]+(\d{3}[a-z]{0,2})\b", re.I), "ultra"),
-    (re.compile(r"\b(?:core\s+)?(i[3579])[\s-]+(\d{4,5}[a-z]{0,2})\b", re.I), ""),
-    (re.compile(r"\bcore\s+([357])[\s-]+(\d{3}[a-z]?)\b", re.I), "core"),
-    (re.compile(r"\bryzen\s+([3579])[\s-]+(\d{4}[a-z]{0,2})\b", re.I), "r"),
+    (re.compile(r"\b(?:core\s+)?ultra\s+([3579])[\s\-–—]+(\d{3}[a-z]{0,2})\b", re.I), "ultra"),
+    (re.compile(r"\b(?:core\s+)?(i[3579])[\s\-–—]+(\d{4,5}[a-z]{0,2})\b", re.I), ""),
+    (re.compile(r"\bcore\s+([357])[\s\-–—]+(\d{3}[a-z]?)\b", re.I), "core"),
+    (re.compile(r"\bryzen\s+([3579])[\s\-–—]+(\d{4}[a-z]{0,2})\b", re.I), "r"),
 ]
 _GPU_RE = re.compile(r"\b((?:rtx|gtx|rx)\s*\d{3,4}(?:\s*(?:ti|super|xt))?)\b", re.I)
 _LAPTOP_CHASSIS_RE = re.compile(
@@ -693,6 +693,8 @@ class MatchSummary:
     grocery_groups: int = 0
     health_beauty_groups: int = 0
     footwear_groups: int = 0
+    brands_inferred: int = 0
+    category_group_counts: dict[str, int] | None = None
 
 
 _STORE_PLACEHOLDER_BRANDS: frozenset[str] = frozenset({
@@ -1450,512 +1452,40 @@ def assign_canonical_keys(
     records: list[RawProductSnapshot],
     *,
     max_price_ratio: float = 2.5,
-    tier3_similarity_threshold: float = 0.72,
-    tier3_max_price_ratio: float = 1.75,
+    tier3_similarity_threshold: float = 0.78,
+    tier3_max_price_ratio: float = 2.0,
 ) -> MatchSummary:
-    """Assign `canonical_product_key` in-place via a precision-first multi-vertical hybrid matcher.
+    """Assign `canonical_product_key` in-place via the 4-pass local RAM Entity Resolution pipeline.
 
-    Covers:
-    - Pass 0: Checksum-verified EAN-13 barcode matching (attributes or embedded title EANs)
-    - Core Electronics & Home Appliances:
-        * Tier 1: Exact normalized model/MPN + brand (bilingual AR <-> EN)
-        * Tier 2: Spec-blocked structured match `(brand, family, spec_block, core_tokens)`
-        * Tier 3: Local token/character-ngram vector similarity inside strict spec blocks
-    - Groceries: 3-pass matcher (EAN -> Exact Size -> Bilingual Type + Arabic fractions)
-    - Health & Beauty: Exact Brand+ProductLine+ExactSize/Dosage/Conc + strict spec-blocked similarity
-    - Footwear (`fashion` & `sports`): Style-Code Pass -> Parent Model-Name Pass (stripping shoe sizes)
-
-    Every emitted group passes mandatory guardrails: >=2 distinct stores, brand consistency,
-    accessory-vs-main-product separation, unit/quantity conflict blocking, and category price-ratio caps.
+    Passes:
+    - Pass 0: Unified brand inference (AR+EN brand dictionary + catalog phonetic resolver)
+      & bilingual canonicalization via `bilingual_search.py`.
+    - Pass 1: Exact Identifier Graph (EAN-13 / GTIN-14 / MPN).
+    - Pass 2: Deterministic vertical keys + Cross-Subcategory Alphanumeric Model-Code matching.
+    - Pass 3: TF-IDF Weighted Sparse Cosine Similarity (`>= 0.78`) per `(brand, domain, accessory)` block.
+    - Pass 4: Hard Spec Guards + Price Sanity (`<= 2.5x`) + Diameter-Checked Union-Find.
     """
-    for rec in records:
-        rec.canonical_product_key = None
+    from .entity_resolution import run_entity_resolution
 
-    strict_cap_22 = 2.2 if max_price_ratio <= 2.5 else max_price_ratio
-    strict_cap_25 = 2.5 if max_price_ratio <= 2.5 else max_price_ratio
-
-    core_records: list[RawProductSnapshot] = []
-    grocery_records: list[RawProductSnapshot] = []
-    hb_records: list[RawProductSnapshot] = []
-    footwear_records: list[RawProductSnapshot] = []
-    global_ean_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-
-    for rec in records:
-        eff_cat = effective_category(rec)
-        if eff_cat in ("groceries", "pet_care"):
-            grocery_records.append(rec)
-            continue
-        if eff_cat in ("electronics", "home_appliances"):
-            core_records.append(rec)
-        elif eff_cat in ("health", "beauty"):
-            hb_records.append(rec)
-        elif eff_cat in ("fashion", "sports") and is_footwear_record(rec):
-            footwear_records.append(rec)
-
-        ean_key = _extract_global_ean_key(rec)
-        if ean_key:
-            global_ean_buckets[ean_key].append(rec)
-
-    matched_groups = 0
-    matched_products = 0
-    tier1_groups = 0
-    tier2_groups = 0
-    tier3_groups = 0
-    grocery_groups = 0
-    health_beauty_groups = 0
-    footwear_groups = 0
-    group_details: dict[str, list[tuple[str, float, str]]] = {}
-
-    def _commit_buckets(
-        candidate_buckets: dict[str, list[RawProductSnapshot]],
-        *,
-        price_ratio_cap: float = strict_cap_22,
-        tier_counter: str = "tier1",
-        check_units: bool = False,
-        check_accessory: bool = False,
-    ) -> set[int]:
-        nonlocal matched_groups, matched_products, tier1_groups, tier2_groups
-        nonlocal tier3_groups, grocery_groups, health_beauty_groups, footwear_groups
-        assigned_ids: set[int] = set()
-        for key, group in sorted(candidate_buckets.items()):
-            clean_group = _filter_group_guardrails(
-                group,
-                price_ratio_cap=price_ratio_cap,
-                check_units=check_units,
-                check_accessory=check_accessory,
-            )
-            if not clean_group:
-                continue
-
-            for rec in clean_group:
-                rec.canonical_product_key = key
-                assigned_ids.add(id(rec))
-
-            matched_groups += 1
-            matched_products += len(clean_group)
-            if tier_counter == "tier1":
-                tier1_groups += 1
-            elif tier_counter == "tier2":
-                tier2_groups += 1
-            elif tier_counter == "tier3":
-                tier3_groups += 1
-            elif tier_counter == "grocery":
-                grocery_groups += 1
-            elif tier_counter == "health_beauty":
-                health_beauty_groups += 1
-            elif tier_counter == "footwear":
-                footwear_groups += 1
-
-            group_details[key] = sorted(
-                [(r.store_name, float(r.current_price), r.product_title) for r in clean_group],
-                key=lambda x: (x[1], x[0]),
-            )
-        return assigned_ids
-
-    # ------------------------------------------------------------------
-    # PASS 0: Global Checksum-Verified EAN-13 Barcodes (non-grocery)
-    # ------------------------------------------------------------------
-    matched_global_ids = _commit_buckets(
-        global_ean_buckets,
-        price_ratio_cap=strict_cap_22,
-        tier_counter="tier1",
-        check_units=True,
-        check_accessory=True,
+    er = run_entity_resolution(
+        records,
+        base_brand_aliases=_BRAND_ALIASES,
+        compute_deterministic_key_fn=compute_candidate_key,
+        max_price_ratio=max_price_ratio,
+        tfidf_threshold=tier3_similarity_threshold,
+        tfidf_max_price_ratio=tier3_max_price_ratio,
     )
-
-    # ------------------------------------------------------------------
-    # TIER 1: Exact Model / MPN + Brand (core electronics & appliances)
-    # ------------------------------------------------------------------
-    tier1_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    for rec in core_records:
-        if id(rec) in matched_global_ids:
-            continue
-        cand = compute_candidate_key(rec)
-        if cand:
-            tier1_buckets[cand].append(rec)
-
-    matched_core_ids = matched_global_ids | _commit_buckets(
-        tier1_buckets,
-        price_ratio_cap=strict_cap_22,
-        tier_counter="tier1",
-        check_accessory=True,
-    )
-
-    # ------------------------------------------------------------------
-    # TIER 2: Spec-Blocked Match (brand + family + strict spec_block + core tokens)
-    # ------------------------------------------------------------------
-    unmatched_core = [r for r in core_records if id(r) not in matched_core_ids]
-    spec_blocks: dict[tuple[str, str, str], list[tuple[RawProductSnapshot, list[str]]]] = defaultdict(list)
-    tier2_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-
-    for rec in unmatched_core:
-        if is_accessory_listing(rec):
-            continue
-        brand = _canonical_brand(rec.brand, rec.product_title)
-        if not brand or brand == "unknown":
-            continue
-        family = _family_of(rec.sub_category)
-        hint = _looks_like_smartphone_or_laptop(rec)
-        if hint in ("smartphone", "laptop"):
-            family = hint
-        norm_title = _strip_marketplace_noise(rec.product_title)
-        spec_sig = _extract_spec_block(rec, brand, family, norm_title)
-        if not spec_sig:
-            continue
-        core_toks = _core_tokens_for_matching(norm_title, brand)
-        if not core_toks:
-            continue
-        spec_blocks[(brand, family, spec_sig)].append((rec, core_toks))
-
-        series_toks = sorted(t for t in core_toks if any(c.isdigit() for c in t))[:3]
-        word_toks = [t for t in core_toks if not any(c.isdigit() for c in t)][:2]
-        key_tokens = series_toks + word_toks if series_toks else core_toks[:3]
-        if key_tokens:
-            t2_key = normalize_snake_slug(
-                f"t2_{brand}_{family}_{spec_sig}_{'_'.join(sorted(key_tokens))}",
-                max_len=160,
-            )
-            tier2_buckets[t2_key].append(rec)
-
-    matched_t2_ids = _commit_buckets(
-        tier2_buckets,
-        price_ratio_cap=min(strict_cap_22, 2.2) if max_price_ratio <= 2.5 else max_price_ratio,
-        tier_counter="tier2",
-        check_accessory=True,
-    )
-    matched_core_ids |= matched_t2_ids
-
-    # ------------------------------------------------------------------
-    # TIER 3: Lightweight Local Semantic / Token-Vector Similarity inside strict spec blocks
-    # ------------------------------------------------------------------
-    tier3_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    effective_t3_ratio = min(max_price_ratio, tier3_max_price_ratio) if max_price_ratio <= 2.5 else max_price_ratio
-
-    for (brand, family, spec_sig), entries in sorted(spec_blocks.items()):
-        remaining = [(rec, toks) for rec, toks in entries if id(rec) not in matched_core_ids]
-        if len(remaining) < 2 or len({r.store_name for r, _ in remaining}) < 2:
-            continue
-
-        vectors = [_token_ngram_vector(toks) for _, toks in remaining]
-        series_sigs = [_series_number_signature(toks) for _, toks in remaining]
-        used = [False] * len(remaining)
-
-        for i in range(len(remaining)):
-            if used[i]:
-                continue
-            rec_i, toks_i = remaining[i]
-            cluster = [rec_i]
-            cluster_stores = {rec_i.store_name}
-            used[i] = True
-
-            for j in range(i + 1, len(remaining)):
-                if used[j]:
-                    continue
-                rec_j, _ = remaining[j]
-                if rec_j.store_name in cluster_stores:
-                    continue
-                if series_sigs[i] and series_sigs[j] and not (series_sigs[i] & series_sigs[j]):
-                    continue
-                sim = _cosine_similarity(vectors[i], vectors[j])
-                if sim < tier3_similarity_threshold:
-                    continue
-                pi, pj = float(rec_i.current_price), float(rec_j.current_price)
-                if min(pi, pj) <= 0 or (max(pi, pj) / min(pi, pj)) > effective_t3_ratio:
-                    continue
-                cluster.append(rec_j)
-                cluster_stores.add(rec_j.store_name)
-                used[j] = True
-
-            if len(cluster_stores) >= 2:
-                anchor = "_".join(toks_i[:3]) or "sim"
-                t3_key = normalize_snake_slug(
-                    f"t3_{brand}_{family}_{spec_sig}_{anchor}",
-                    max_len=160,
-                )
-                tier3_buckets[t3_key].extend(cluster)
-
-    matched_core_ids |= _commit_buckets(
-        tier3_buckets,
-        price_ratio_cap=effective_t3_ratio,
-        tier_counter="tier3",
-        check_accessory=True,
-    )
-
-    # ------------------------------------------------------------------
-    # Groceries 3-Pass Matcher (Barcode -> Exact Size -> Bilingual Type)
-    # ------------------------------------------------------------------
-    barcode_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    for rec in grocery_records:
-        if is_collapsed_multiprice_variant(rec):
-            continue
-        bkey = compute_grocery_barcode_key(rec)
-        if bkey:
-            barcode_buckets[bkey].append(rec)
-    matched_grocery_ids = _commit_buckets(
-        barcode_buckets,
-        price_ratio_cap=strict_cap_22,
-        tier_counter="grocery",
-        check_units=True,
-    )
-
-    size_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    for rec in grocery_records:
-        if id(rec) in matched_grocery_ids or is_collapsed_multiprice_variant(rec):
-            continue
-        skey = compute_grocery_size_key(rec)
-        if skey:
-            size_buckets[skey].append(rec)
-    matched_grocery_ids |= _commit_buckets(
-        size_buckets,
-        price_ratio_cap=strict_cap_22,
-        tier_counter="grocery",
-        check_units=True,
-    )
-
-    type_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    for rec in grocery_records:
-        if id(rec) in matched_grocery_ids or is_collapsed_multiprice_variant(rec):
-            continue
-        tkey = compute_grocery_type_key(rec)
-        if tkey:
-            type_buckets[tkey].append(rec)
-    _commit_buckets(
-        type_buckets,
-        price_ratio_cap=strict_cap_22,
-        tier_counter="grocery",
-        check_units=True,
-    )
-
-    # ------------------------------------------------------------------
-    # Health & Beauty 3-Pass Matcher:
-    #   Pass 1: Exact Sized Key `(brand, tokens, conc, dosage, size)`
-    #   Pass 2: Strict Size/Dosage/Form-Blocked Similarity (`>= 0.78`)
-    #   Pass 3: High-Specificity Sizeless Line (`>= 3` core tokens, tight `<= 1.65x`, units_conflict guarded)
-    # ------------------------------------------------------------------
-    hb_exact_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    hb_sizeless_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    hb_blocks: dict[str, list[tuple[RawProductSnapshot, list[str]]]] = defaultdict(list)
-
-    for rec in hb_records:
-        if id(rec) in matched_global_ids:
-            continue
-        feats = extract_health_beauty_features(rec)
-        if not feats:
-            continue
-        exact_key, sizeless_key, block_id, core_toks = feats
-        if exact_key:
-            hb_exact_buckets[exact_key].append(rec)
-        if block_id:
-            hb_blocks[block_id].append((rec, core_toks))
-        if sizeless_key:
-            hb_sizeless_buckets[sizeless_key].append(rec)
-
-    matched_hb_ids = matched_global_ids | _commit_buckets(
-        hb_exact_buckets,
-        price_ratio_cap=strict_cap_22,
-        tier_counter="health_beauty",
-        check_units=True,
-    )
-
-    # Pass 2 for Health & Beauty: high-threshold cosine similarity (>= 0.78) strictly
-    # inside identical `(brand, quantized_size, dosage, perfume_conc, form, gender)` blocks
-    hb_sim_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    hb_sim_ratio = min(strict_cap_22, 2.0) if max_price_ratio <= 2.5 else max_price_ratio
-
-    for block_id, entries in sorted(hb_blocks.items()):
-        remaining = [(rec, toks) for rec, toks in entries if id(rec) not in matched_hb_ids]
-        if len(remaining) < 2 or len({r.store_name for r, _ in remaining}) < 2:
-            continue
-
-        vectors = [_token_ngram_vector(toks) for _, toks in remaining]
-        token_sets = [set(toks) for _, toks in remaining]
-        num_sigs = [_series_number_signature(toks) for _, toks in remaining]
-        used = [False] * len(remaining)
-
-        for i in range(len(remaining)):
-            if used[i]:
-                continue
-            rec_i, toks_i = remaining[i]
-            cluster = [rec_i]
-            cluster_stores = {rec_i.store_name}
-            used[i] = True
-
-            for j in range(i + 1, len(remaining)):
-                if used[j]:
-                    continue
-                rec_j, _ = remaining[j]
-                if rec_j.store_name in cluster_stores:
-                    continue
-                shared = token_sets[i] & token_sets[j]
-                min_needed = min(2, len(token_sets[i]), len(token_sets[j]))
-                if len(shared) < min_needed:
-                    continue
-                if num_sigs[i] and num_sigs[j] and not (num_sigs[i] & num_sigs[j]):
-                    continue
-                if _cosine_similarity(vectors[i], vectors[j]) < 0.78:
-                    continue
-                pi, pj = float(rec_i.current_price), float(rec_j.current_price)
-                if min(pi, pj) <= 0 or (max(pi, pj) / min(pi, pj)) > hb_sim_ratio:
-                    continue
-                cluster.append(rec_j)
-                cluster_stores.add(rec_j.store_name)
-                used[j] = True
-
-            if len(cluster_stores) >= 2:
-                b_slug = normalize_snake_slug(block_id.replace("|", "_"), max_len=90)
-                anchor = "_".join(sorted(toks_i[:3])) or "sim"
-                sim_key = normalize_snake_slug(f"hbs_{b_slug}_{anchor}", max_len=160)
-                hb_sim_buckets[sim_key].extend(cluster)
-
-    matched_hb_ids |= _commit_buckets(
-        hb_sim_buckets,
-        price_ratio_cap=hb_sim_ratio,
-        tier_counter="health_beauty",
-        check_units=True,
-    )
-
-    # Pass 3 for Health & Beauty: high-specificity sizeless product lines (e.g. when
-    # one store omits `ml`/`caps` on standard SKUs like `Eucerin Even Pigment Perfector Night Cream`)
-    # guarded by tight `<= 1.65x` price ratio + `check_units=True` (so 30ml vs 50ml STILL blocked!).
-    hb_sizeless_rem: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    for k, grp in hb_sizeless_buckets.items():
-        rem = [r for r in grp if id(r) not in matched_hb_ids]
-        if len({r.store_name for r in rem}) >= 2:
-            hb_sizeless_rem[k] = rem
-    hb_sizeless_cap = 1.65 if max_price_ratio <= 2.5 else max_price_ratio
-    matched_hb_ids |= _commit_buckets(
-        hb_sizeless_rem,
-        price_ratio_cap=hb_sizeless_cap,
-        tier_counter="health_beauty",
-        check_units=True,
-    )
-
-    # ------------------------------------------------------------------
-    # Footwear 4-Pass Matcher:
-    #   Pass 1: Exact Manufacturer Style Code
-    #   Pass 2: Exact Gender + Parent Model Name
-    #   Pass 3: Adult Neutral Model Name (allows unstated gender to match men/women,
-    #           while strictly blocking men-vs-women and kids-vs-adult conflicts!)
-    #   Pass 4: High-threshold similarity (`>= 0.80`) inside `(brand, age_guard, ftype)`
-    # ------------------------------------------------------------------
-    fw_style_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    fw_exact_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    fw_neutral_buckets: dict[str, list[tuple[RawProductSnapshot, str]]] = defaultdict(list)
-    fw_blocks: dict[str, list[tuple[RawProductSnapshot, str, list[str]]]] = defaultdict(list)
-
-    for rec in footwear_records:
-        if id(rec) in matched_global_ids:
-            continue
-        feats = extract_footwear_features(rec)
-        if not feats:
-            continue
-        style_key, exact_key, neutral_key, gender, block_id, core_toks = feats
-        if style_key:
-            fw_style_buckets[style_key].append(rec)
-        if exact_key:
-            fw_exact_buckets[exact_key].append(rec)
-        if neutral_key:
-            fw_neutral_buckets[neutral_key].append((rec, gender))
-        if len(core_toks) >= 2:
-            fw_blocks[block_id].append((rec, gender, core_toks))
-
-    matched_fw_ids = matched_global_ids | _commit_buckets(
-        fw_style_buckets,
-        price_ratio_cap=strict_cap_25,
-        tier_counter="footwear",
-    )
-
-    fw_exact_rem: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    for k, grp in fw_exact_buckets.items():
-        rem = [r for r in grp if id(r) not in matched_fw_ids]
-        if rem:
-            fw_exact_rem[k] = rem
-    matched_fw_ids |= _commit_buckets(
-        fw_exact_rem,
-        price_ratio_cap=strict_cap_25,
-        tier_counter="footwear",
-    )
-
-    # Pass 3: Adult neutral model name (rejects any group with BOTH explicit `men` and `women`)
-    fw_neutral_rem: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    for k, entries in fw_neutral_buckets.items():
-        rem = [(r, g) for r, g in entries if id(r) not in matched_fw_ids]
-        genders = {g for _, g in rem}
-        if "men" in genders and "women" in genders:
-            continue
-        if len({r.store_name for r, _ in rem}) >= 2:
-            fw_neutral_rem[k] = [r for r, _ in rem]
-    matched_fw_ids |= _commit_buckets(
-        fw_neutral_rem,
-        price_ratio_cap=min(strict_cap_25, 2.2) if max_price_ratio <= 2.5 else max_price_ratio,
-        tier_counter="footwear",
-    )
-
-    # Pass 4: Strict `(brand, age_guard, ftype)` footwear similarity (`>= 0.80`)
-    fw_sim_buckets: dict[str, list[RawProductSnapshot]] = defaultdict(list)
-    fw_sim_ratio = min(strict_cap_25, 2.2) if max_price_ratio <= 2.5 else max_price_ratio
-    for block_id, entries in sorted(fw_blocks.items()):
-        remaining = [(rec, g, toks) for rec, g, toks in entries if id(rec) not in matched_fw_ids]
-        if len(remaining) < 2 or len({r.store_name for r, _, _ in remaining}) < 2:
-            continue
-        vectors = [_token_ngram_vector(toks) for _, _, toks in remaining]
-        tok_sets = [set(toks) for _, _, toks in remaining]
-        num_sigs = [frozenset(t for t in toks if any(c.isdigit() for c in t)) for _, _, toks in remaining]
-        used = [False] * len(remaining)
-
-        for i in range(len(remaining)):
-            if used[i]:
-                continue
-            rec_i, gi, toks_i = remaining[i]
-            cluster = [rec_i]
-            cluster_stores = {rec_i.store_name}
-            cluster_genders = {gi}
-            used[i] = True
-
-            for j in range(i + 1, len(remaining)):
-                if used[j]:
-                    continue
-                rec_j, gj, _ = remaining[j]
-                if rec_j.store_name in cluster_stores:
-                    continue
-                # Never mix explicit men & women shoes
-                if (gj == "men" and "women" in cluster_genders) or (gj == "women" and "men" in cluster_genders):
-                    continue
-                # Exact version number equality (Downshifter 13 != 14, Cumulus 26 != 27)
-                if num_sigs[i] != num_sigs[j]:
-                    continue
-                if len(tok_sets[i] & tok_sets[j]) < 2:
-                    continue
-                if _cosine_similarity(vectors[i], vectors[j]) < 0.80:
-                    continue
-                pi, pj = float(rec_i.current_price), float(rec_j.current_price)
-                if min(pi, pj) <= 0 or (max(pi, pj) / min(pi, pj)) > fw_sim_ratio:
-                    continue
-                cluster.append(rec_j)
-                cluster_stores.add(rec_j.store_name)
-                cluster_genders.add(gj)
-                used[j] = True
-
-            if len(cluster_stores) >= 2:
-                b_slug = normalize_snake_slug(block_id.replace("|", "_"), max_len=60)
-                anchor = "_".join(toks_i[:3])
-                sim_key = normalize_snake_slug(f"fws_{b_slug}_{anchor}", max_len=140)
-                fw_sim_buckets[sim_key].extend(cluster)
-
-    _commit_buckets(
-        fw_sim_buckets,
-        price_ratio_cap=fw_sim_ratio,
-        tier_counter="footwear",
-    )
-
+    cats = er.category_group_counts
     return MatchSummary(
-        matched_groups=matched_groups,
-        matched_products=matched_products,
-        group_details=group_details,
-        tier1_groups=tier1_groups,
-        tier2_groups=tier2_groups,
-        tier3_groups=tier3_groups,
-        grocery_groups=grocery_groups,
-        health_beauty_groups=health_beauty_groups,
-        footwear_groups=footwear_groups,
+        matched_groups=er.matched_groups,
+        matched_products=er.matched_products,
+        group_details=er.group_details,
+        tier1_groups=er.pass1_groups,
+        tier2_groups=er.pass2_det_groups + er.pass2_code_groups,
+        tier3_groups=er.pass3_tfidf_groups,
+        grocery_groups=cats.get("groceries", 0),
+        health_beauty_groups=cats.get("health", 0) + cats.get("beauty", 0),
+        footwear_groups=cats.get("fashion", 0) + cats.get("sports", 0),
+        brands_inferred=er.brands_inferred_from_title,
+        category_group_counts=cats,
     )

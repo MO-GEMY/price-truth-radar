@@ -106,6 +106,7 @@ export interface StatsOverview {
   last_pipeline_run_at: string;
   available_stores: string[];
   category_counts?: Record<string, number>;
+  cross_store_matches_count?: number;
 }
 
 export interface CategoryFacetItem {
@@ -215,6 +216,7 @@ export interface ProductDetailResponse {
   history: PriceHistoryPoint[];
   alternatives: AlternativeListing[];
   similar_alternatives?: SimilarAlternative[];
+  similar_products?: SimilarAlternative[];
   variants?: ProductVariant[];
 }
 

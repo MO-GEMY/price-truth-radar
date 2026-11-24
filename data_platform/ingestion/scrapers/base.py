@@ -1299,6 +1299,7 @@ def fetch_latest_snapshots_from_neon(
             'gtin13', attributes_json -> 'gtin13',
             'gtin14', attributes_json -> 'gtin14',
             'barcode', attributes_json -> 'barcode',
+            'mpn', attributes_json -> 'mpn',
             'ram_gb', attributes_json -> 'ram_gb',
             'storage_gb', attributes_json -> 'storage_gb'
         ))"""

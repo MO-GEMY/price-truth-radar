@@ -132,8 +132,11 @@ export function ProductReceipt({
     history,
     alternatives,
     similar_alternatives = [],
+    similar_products = [],
     variants = [],
   } = loaded.data;
+  const similarItems =
+    similar_products.length > 0 ? similar_products : similar_alternatives;
   const label = storeDisplayName(product.store_name, lang);
   const price = formatPrice(product.current_price, lang);
   const timestamp = observedTimestamp(product.last_updated_at);
@@ -517,34 +520,33 @@ export function ProductReceipt({
       </div>
 
       <section id="alternatives" className="surface ptr-section">
+        <h2>{t("detail.alternatives")}</h2>
         {alternatives.length > 0 ? (
-          <>
-            <h2>{t("detail.alternatives")}</h2>
-            <AlternativesTable
-              alternatives={alternatives}
-              category={product.category}
-              from={from ?? undefined}
-              sample={!live}
-              currentOffer={{
-                price: product.current_price,
-                in_stock: product.in_stock,
-              }}
-            />
-          </>
-        ) : similar_alternatives.length > 0 ? (
+          <AlternativesTable
+            alternatives={alternatives}
+            category={product.category}
+            from={from ?? undefined}
+            sample={!live}
+            currentOffer={{
+              price: product.current_price,
+              in_stock: product.in_stock,
+            }}
+          />
+        ) : (
+          <p className="ptr-muted text-sm">{t("detail.noAlternatives")}</p>
+        )}
+      </section>
+
+      {similarItems.length > 0 && (
+        <section id="similar-products" className="surface ptr-section">
           <SimilarAlternativesList
-            items={similar_alternatives}
+            items={similarItems}
             category={product.category}
             from={from ?? undefined}
             sample={!live}
           />
-        ) : (
-          <>
-            <h2>{t("detail.alternatives")}</h2>
-            <p className="ptr-muted text-sm">{t("detail.noAlternatives")}</p>
-          </>
-        )}
-      </section>
+        </section>
+      )}
 
       <AdSlot
         slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_PRODUCT}

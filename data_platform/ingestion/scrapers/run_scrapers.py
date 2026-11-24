@@ -218,22 +218,52 @@ def _print_delta_preview(stats: DeltaStats) -> None:
 
 
 def _run_match_db(dry_run: bool) -> int:
+    import random
+    import time as _time
+    from collections import defaultdict as _dd
+    from data_platform.ingestion.scrapers.matcher_verticals import effective_category as _eff_cat
+
+    t0 = _time.perf_counter()
     snap_date, records = fetch_latest_snapshots_from_neon(for_matching=True)
+    t_load = _time.perf_counter() - t0
     if not records or snap_date is None:
         print("No rows found in raw.raw_product_snapshots to match.")
         return 0
 
     stores_counter = Counter(r.store_name for r in records)
+    old_matched_skus = sum(1 for r in records if r.canonical_product_key)
+    old_groups_map: dict[str, set[str]] = _dd(set)
+    for r in records:
+        if r.canonical_product_key:
+            old_groups_map[r.canonical_product_key].add(r.store_name)
+    old_multi_clusters = sum(1 for st in old_groups_map.values() if len(st) >= 2)
+
     print(
-        f"Loaded {len(records)} rows for snapshot_date={snap_date.isoformat()} "
-        f"across {len(stores_counter)} stores: {dict(sorted(stores_counter.items()))}"
+        f"Loaded {len(records):,} rows across {len(stores_counter)} stores in {t_load:.1f}s "
+        f"(snapshot_date={snap_date.isoformat()})."
     )
     prev_keys = {
         (r.store_name, r.external_id, r.snapshot_date): r.canonical_product_key
         for r in records
     }
+    t1 = _time.perf_counter()
     match_summary = assign_canonical_keys(records)
+    t_match = _time.perf_counter() - t1
+
     _print_match_summary(match_summary)
+    print(
+        f"\nENTITY RESOLUTION SUMMARY ({t_match:.1f}s local RAM):"
+        f"\n  * Old matched SKUs: {old_matched_skus:,} ({old_multi_clusters:,} multi-store clusters)"
+        f"\n  * New matched SKUs: {match_summary.matched_products:,} ({match_summary.matched_groups:,} multi-store clusters)"
+        f"\n  * Pass breakdown:   Pass1(ID)={match_summary.tier1_groups:,} | Pass2(Det+ModelCode)={match_summary.tier2_groups:,} | Pass3(TF-IDF)={match_summary.tier3_groups:,}"
+        f"\n  * Brands recovered: {match_summary.brands_inferred:,} titles"
+    )
+    if match_summary.category_group_counts:
+        cat_line = ", ".join(
+            f"{cat}={cnt:,}"
+            for cat, cnt in sorted(match_summary.category_group_counts.items(), key=lambda kv: -kv[1])
+        )
+        print(f"  * Clusters by cat:  {cat_line}")
 
     changed_records = [
         r for r in records
@@ -241,16 +271,72 @@ def _run_match_db(dry_run: bool) -> int:
     ]
 
     if dry_run:
+        # Print 25 random NEWLY matched cross-store pairs stratified across categories for precision audit
+        new_clusters: dict[str, list[RawProductSnapshot]] = _dd(list)
+        for r in records:
+            if r.canonical_product_key:
+                new_clusters[r.canonical_product_key].append(r)
+
+        newly_matched_by_cat: dict[str, list[tuple[str, RawProductSnapshot, RawProductSnapshot]]] = _dd(list)
+        for k, members in new_clusters.items():
+            # Identify clusters containing at least one newly linked cross-store pair
+            by_store: dict[str, RawProductSnapshot] = {}
+            for m in sorted(members, key=lambda x: float(x.current_price)):
+                by_store.setdefault(m.store_name, m)
+            if len(by_store) < 2:
+                continue
+            store_list = list(by_store.values())
+            a, b = store_list[0], store_list[1]
+            pk_a = prev_keys.get((a.store_name, a.external_id, a.snapshot_date))
+            pk_b = prev_keys.get((b.store_name, b.external_id, b.snapshot_date))
+            if pk_a and pk_a == pk_b:
+                continue  # Already matched previously
+            cat = _eff_cat(a)
+            newly_matched_by_cat[cat].append((k, a, b))
+
+        rng = random.Random(42)
+        audit_cats = ["electronics", "home_appliances", "beauty", "health", "fashion", "sports", "groceries", "home_furniture", "baby_kids", "pet_care"]
+        sampled: list[tuple[str, str, RawProductSnapshot, RawProductSnapshot]] = []
+        # Round-robin pick across categories up to 25 pairs
+        for cat in audit_cats:
+            rng.shuffle(newly_matched_by_cat[cat])
+        idx_per_cat = {c: 0 for c in audit_cats}
+        while len(sampled) < 25:
+            added_any = False
+            for cat in audit_cats:
+                pool = newly_matched_by_cat.get(cat, [])
+                pos = idx_per_cat[cat]
+                if pos < len(pool):
+                    k, a, b = pool[pos]
+                    sampled.append((cat, k, a, b))
+                    idx_per_cat[cat] = pos + 1
+                    added_any = True
+                    if len(sampled) >= 25:
+                        break
+            if not added_any:
+                break
+
+        print("\n" + "=" * 72)
+        print(f"PRECISION AUDIT — {len(sampled)} RANDOM NEWLY MATCHED CROSS-STORE PAIRS")
+        print("=" * 72)
+        for i, (cat, k, a, b) in enumerate(sampled, 1):
+            ratio = max(float(a.current_price), float(b.current_price)) / max(0.01, min(float(a.current_price), float(b.current_price)))
+            print(
+                f"[{i:02d}] ({cat}) key={k} (ratio={ratio:.2f}x)\n"
+                f"     A: [{a.store_name}] {float(a.current_price):,.0f} EGP | {a.product_title}\n"
+                f"     B: [{b.store_name}] {float(b.current_price):,.0f} EGP | {b.product_title}"
+            )
+
         print(
             f"\nDry-run complete (--match-db). Zero writes made to Neon "
-            f"({len(changed_records)}/{len(records)} rows would change)."
+            f"({len(changed_records):,}/{len(records):,} rows would change)."
         )
         return 0
 
     updated = update_canonical_keys_in_neon(changed_records)
     print(
-        f"\nUpdated canonical_product_key across {updated} changed rows "
-        f"(out of {len(records)} latest snapshots) for {snap_date.isoformat()} in Neon."
+        f"\nUpdated canonical_product_key across {updated:,} changed rows "
+        f"(out of {len(records):,} latest snapshots) for {snap_date.isoformat()} in Neon."
     )
     return 0
 

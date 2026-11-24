@@ -76,7 +76,11 @@ OVERVIEW_SQL = text(
         COALESCE(
             (SELECT JSONB_OBJECT_AGG(category, cnt) FROM cat_totals),
             '{}'::JSONB
-        ) AS category_counts
+        ) AS category_counts,
+        COALESCE(
+            (SELECT COUNT(*)::INTEGER FROM gold.mart_cross_store_matches),
+            0
+        ) AS cross_store_matches_count
     FROM base
     """
 )
@@ -135,6 +139,7 @@ def get_overview_stats(
         last_pipeline_run_at=row["last_pipeline_run_at"],
         available_stores=list(row["available_stores"] or []),
         category_counts=cat_counts,
+        cross_store_matches_count=int(row.get("cross_store_matches_count") or 0),
     )
     api_cache.set(cache_key, result, ttl=300.0)
     return result

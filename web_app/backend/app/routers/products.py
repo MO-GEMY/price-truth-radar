@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from app.cache import api_cache, product_detail_cache, set_cache_headers
+from app.cache import api_cache, product_detail_cache, search_cache, set_cache_headers
 from app.catalog_search import build_catalog_query, search_catalog
 from app.database import get_db
 from app.routers.radar import PRODUCT_SELECT_COLS
@@ -182,8 +182,8 @@ def search_products(
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
     set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
-    cache_key = f"products:search:v2:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
-    cached = api_cache.get(cache_key)
+    cache_key = f"products:search:v3:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
+    cached = search_cache.get(cache_key)
     if cached is not None:
         return cached
     # 1. If url is provided, match deterministically (exact normalized URL after
@@ -358,22 +358,22 @@ def search_products(
         if rows:
             items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
             res = SearchResponse(match_type="url_exact", items=items, total=len(items))
-            api_cache.set(cache_key, res, ttl=300.0)
+            search_cache.set(cache_key, res, ttl=600.0)
             return res
 
         if not (q and q.strip()):
             res = SearchResponse(match_type="url_not_found", items=[], total=0)
-            api_cache.set(cache_key, res, ttl=120.0)
+            search_cache.set(cache_key, res, ttl=120.0)
             return res
 
-    query = build_catalog_query(q or "")
+    query = build_catalog_query(q or "", db=db)
     if not query.terms:
         return SearchResponse(match_type="none", items=[], total=0)
 
     rows, total, match_type = search_catalog(db, query, limit)
     items = [ProductVerdictItem.model_validate(row) for row in rows]
     res = SearchResponse(match_type=match_type, items=items, total=total)
-    api_cache.set(cache_key, res, ttl=300.0)
+    search_cache.set(cache_key, res, ttl=600.0)
     return res
 
 
@@ -384,7 +384,7 @@ def get_product_detail(
     db: Connection = Depends(get_db),
 ) -> ProductDetailResponse:
     set_cache_headers(response, s_maxage=86400, stale_while_revalidate=604800)
-    cache_key = f"products:detail:v3:{product_sk}"
+    cache_key = f"products:detail:v4:{product_sk}"
     cached = product_detail_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -435,9 +435,20 @@ def get_product_detail(
             .first()
         )
         if alt_row and alt_row["listings_json"]:
+            best_by_store: dict[str, AlternativeListing] = {}
             for entry in alt_row["listings_json"]:
-                if entry.get("product_sk") != product_sk:
-                    alternatives.append(AlternativeListing.model_validate(entry))
+                if entry.get("product_sk") == product_sk:
+                    continue
+                alt = AlternativeListing.model_validate(entry)
+                if alt.store_name == product.store_name:
+                    continue
+                prev = best_by_store.get(alt.store_name)
+                if prev is None or (not alt.in_stock, alt.price) < (not prev.in_stock, prev.price):
+                    best_by_store[alt.store_name] = alt
+            alternatives = sorted(
+                best_by_store.values(),
+                key=lambda a: (not a.in_stock, a.price, a.store_name),
+            )
 
     variants: list[ProductVariantItem] = []
     if product.parent_product_key:
@@ -480,15 +491,18 @@ def get_product_detail(
             )
             variants = [ProductVariantItem.model_validate(dict(r)) for r in variant_rows]
 
-    similar_alternatives: list[SimilarAlternativeItem] = []
-    if not alternatives:
-        similar_alternatives = find_similar_alternatives(db, product, max_results=5)
+    similar_alternatives: list[SimilarAlternativeItem] = find_similar_alternatives(
+        db,
+        product,
+        max_results=6,
+    )
 
     res = ProductDetailResponse(
         product=product,
         history=history,
         alternatives=alternatives,
         similar_alternatives=similar_alternatives,
+        similar_products=similar_alternatives,
         variants=variants,
     )
     product_detail_cache.set(cache_key, res, ttl=43200.0)

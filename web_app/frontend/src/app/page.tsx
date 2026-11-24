@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ChevronDown, ChevronUp, Store } from "lucide-react";
 import type { RadarFeedResponse, StatsOverview } from "@/types/contract";
 import { fetchRadarFeed, fetchStatsOverview, type ApiResult } from "@/lib/api";
@@ -168,7 +169,13 @@ export default function HomePage() {
       <section className="asarak-hero-greeting">
         <div className="ptr-wrap">
           <div className="asarak-hero-center">
-            <p className="ptr-eyebrow">{t("hero.overline")}</p>
+            <p className="ptr-eyebrow">
+              {storedStats && storedStats.available_stores.length > 0
+                ? t("hero.overlineDynamic", {
+                    count: formatNumber(storedStats.available_stores.length, lang),
+                  })
+                : t("hero.overline")}
+            </p>
             <h1>{t("hero.title")}</h1>
             <p className="ptr-hero-lede">{t("hero.subtitle")}</p>
             <SearchBar
@@ -249,24 +256,43 @@ export default function HomePage() {
                   </span>
                 </button>
 
-                <button
-                  type="button"
-                  className="asarak-kpi-card"
-                  aria-pressed={verdict === "ALL_TIME_LOW"}
-                  onClick={() => filterByVerdict("ALL_TIME_LOW")}
-                >
-                  <span className="asarak-kpi-value asarak-kpi-value--emerald">
-                    <bdi>
-                      {formatNumber(storedStats.all_time_lows_today, lang)}
-                    </bdi>
-                  </span>
-                  <span className="asarak-kpi-label">
-                    {t("kpi.allTimeLows")}
-                  </span>
-                  <span className="asarak-kpi-sub">
-                    {t("kpi.activeFilterHint")}
-                  </span>
-                </button>
+                {storedStats.all_time_lows_today > 0 ? (
+                  <button
+                    type="button"
+                    className="asarak-kpi-card"
+                    aria-pressed={verdict === "ALL_TIME_LOW"}
+                    onClick={() => filterByVerdict("ALL_TIME_LOW")}
+                  >
+                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
+                      <bdi>
+                        {formatNumber(storedStats.all_time_lows_today, lang)}
+                      </bdi>
+                    </span>
+                    <span className="asarak-kpi-label">
+                      {t("kpi.allTimeLows")}
+                    </span>
+                    <span className="asarak-kpi-sub">
+                      {t("kpi.activeFilterHint")}
+                    </span>
+                  </button>
+                ) : (
+                  <Link href="/compare" className="asarak-kpi-card">
+                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
+                      <bdi>
+                        {formatNumber(
+                          storedStats.cross_store_matches_count ?? 0,
+                          lang,
+                        )}
+                      </bdi>
+                    </span>
+                    <span className="asarak-kpi-label">
+                      {t("kpi.crossStoreCompared")}
+                    </span>
+                    <span className="asarak-kpi-sub">
+                      {t("kpi.crossStoreCta")}
+                    </span>
+                  </Link>
+                )}
               </div>
 
               <div className="asarak-kpi-meta">

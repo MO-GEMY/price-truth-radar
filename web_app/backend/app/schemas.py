@@ -101,6 +101,7 @@ class OverviewStatsResponse(BaseModel):
     last_pipeline_run_at: Optional[datetime]
     available_stores: list[str] = Field(default_factory=list)
     category_counts: dict[str, int] = Field(default_factory=dict)
+    cross_store_matches_count: int = 0
 
     @field_serializer("last_pipeline_run_at")
     def serialize_last_run(self, v: Optional[datetime]) -> Optional[str]:
@@ -238,7 +239,16 @@ class ProductDetailResponse(BaseModel):
     history: list[PriceHistoryPoint]
     alternatives: list[AlternativeListing]
     similar_alternatives: list[SimilarAlternativeItem] = Field(default_factory=list)
+    similar_products: list[SimilarAlternativeItem] = Field(default_factory=list)
     variants: list[ProductVariantItem] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _sync_similar_aliases(self) -> "ProductDetailResponse":
+        if self.similar_alternatives and not self.similar_products:
+            self.similar_products = list(self.similar_alternatives)
+        elif self.similar_products and not self.similar_alternatives:
+            self.similar_alternatives = list(self.similar_products)
+        return self
 
 
 class CrossStoreMatchItem(BaseModel):
