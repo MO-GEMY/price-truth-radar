@@ -51,6 +51,12 @@ TWO_B_CATEGORIES: list[tuple[str, Category, str]] = [
     ("tablets", "electronics", "https://2b.com.eg/en/mobile-and-tablet/mobile-tablet.html"),
     ("wearables", "electronics", "https://2b.com.eg/en/mobile-and-tablet/wearables.html"),
     ("gaming", "electronics", "https://2b.com.eg/en/gaming.html"),
+    ("speakers", "electronics", "https://2b.com.eg/en/audio/speakers.html"),
+    ("networking", "electronics", "https://2b.com.eg/en/computers/networking.html"),
+    ("printers", "electronics", "https://2b.com.eg/en/computers/printers-scanners.html"),
+    ("cameras", "electronics", "https://2b.com.eg/en/cameras.html"),
+    ("personal_care", "beauty", "https://2b.com.eg/en/personal-care.html"),
+    ("accessories", "electronics", "https://2b.com.eg/en/mobile-and-tablet/mobile-accessories.html"),
 ]
 
 _APPLIANCE_SUBCAT_REFINERS: list[tuple[tuple[str, ...], str]] = [

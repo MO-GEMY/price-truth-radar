@@ -47,6 +47,14 @@ SPINNEYS_GROCERY_QUERIES: list[tuple[str, str]] = [
     ("beverages", "water"),
     ("detergents", "persil"),
     ("detergents", "fairy"),
+    ("snacks", "chocolate"),
+    ("snacks", "biscuits"),
+    ("frozen", "chicken"),
+    ("canned_sauces", "honey"),
+    ("detergents", "shampoo"),
+    ("detergents", "tissue"),
+    ("baby_care", "diapers"),
+    ("pet_food", "cat food"),
 ]
 
 _SPINNEYS_GQL_QUERY = """

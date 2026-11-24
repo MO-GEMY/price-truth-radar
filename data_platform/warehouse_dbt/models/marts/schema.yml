@@ -112,7 +112,7 @@ models:
                 to: ref('mart_product_verdicts')
                 field: product_sk
               config:
-                where: "in_stock = true"
+                where: "in_stock = true AND snapshot_date >= (CURRENT_DATE - INTERVAL '45 days')"
       - name: snapshot_date
         tests:
           - not_null

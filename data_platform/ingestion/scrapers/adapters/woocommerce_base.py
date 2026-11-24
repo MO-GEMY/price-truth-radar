@@ -514,8 +514,9 @@ class WooCommerceBaseScraper(BaseScraper):
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         endpoint = f"{self.base_url.rstrip('/')}{self.api_path}"
         req_per_page = min(self.per_page, max(10, target_limit))
-        max_pages = max(1, math.ceil(target_limit / req_per_page) + 2)
+        max_pages = max(4, math.ceil(target_limit / req_per_page) + 4)
         use_wp_fallback = False
+        seen_raw_ids: set[str] = set()
 
         for page in range(1, max_pages + 1):
             if len(collected) >= target_limit:
@@ -569,10 +570,18 @@ class WooCommerceBaseScraper(BaseScraper):
             if not isinstance(payload, list) or not payload:
                 break
 
+            new_raw_items = 0
             page_records: list[RawProductSnapshot] = []
             for raw in payload:
                 if not isinstance(raw, dict):
                     continue
+                raw_pid = str(raw.get("id") or "").strip()
+                if raw_pid:
+                    if raw_pid not in seen_raw_ids:
+                        seen_raw_ids.add(raw_pid)
+                        new_raw_items += 1
+                else:
+                    new_raw_items += 1
                 if use_wp_fallback:
                     rec = self._parse_wp_rest_item(raw, snapshot_date, scraped_at)
                     if rec is not None and rec.external_id not in seen_ids:
@@ -583,17 +592,15 @@ class WooCommerceBaseScraper(BaseScraper):
                             page_records.append(rec)
 
             page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
-            added = 0
             for rec in page_records:
                 if rec.external_id in seen_ids:
                     continue
                 seen_ids.add(rec.external_id)
                 collected.append(rec)
-                added += 1
                 if len(collected) >= target_limit:
                     break
 
-            if len(payload) < req_per_page or added == 0:
+            if len(payload) < req_per_page or new_raw_items == 0:
                 break
 
         return collected

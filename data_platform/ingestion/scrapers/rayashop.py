@@ -45,6 +45,12 @@ RAYASHOP_CATEGORIES: tuple[tuple[str, Category, str], ...] = (
     ("laptops", "electronics", "https://www.rayashop.com/en/laptops-pcs"),
     ("large_appliances", "home_appliances", "https://www.rayashop.com/en/large-appliances"),
     ("small_appliances", "home_appliances", "https://www.rayashop.com/en/small-appliances"),
+    ("air_conditioners", "home_appliances", "https://www.rayashop.com/en/air-conditioners"),
+    ("gaming", "electronics", "https://www.rayashop.com/en/gaming"),
+    ("headphones", "electronics", "https://www.rayashop.com/en/audio"),
+    ("wearables", "electronics", "https://www.rayashop.com/en/smart-watches"),
+    ("personal_care", "beauty", "https://www.rayashop.com/en/personal-care"),
+    ("accessories", "electronics", "https://www.rayashop.com/en/accessories"),
 )
 
 _PRICE_NUM_RE = re.compile(

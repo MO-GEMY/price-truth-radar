@@ -511,28 +511,30 @@ class MagentoGraphQLBaseScraper(BaseScraper):
                     break
 
                 page_records: list[RawProductSnapshot] = []
+                new_raw_skus = 0
                 for raw in raw_items:
                     if not isinstance(raw, dict):
                         continue
+                    sku_val = str(raw.get("sku") or "").strip()
+                    if not sku_val or sku_val not in seen_ids:
+                        new_raw_skus += 1
                     rec = self._parse_item(raw, default_sub, cat, today, now)
                     if rec is not None and rec.external_id not in seen_ids:
                         page_records.append(rec)
 
                 page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
-                added = 0
                 for rec in page_records:
                     if rec.external_id in seen_ids:
                         continue
                     seen_ids.add(rec.external_id)
                     snapshots.append(rec)
                     query_collected += 1
-                    added += 1
                     if len(snapshots) >= target_limit or query_collected >= per_query_cap:
                         break
 
                 page_info = products_block.get("page_info") or {}
                 total_pages = int(page_info.get("total_pages") or 1)
-                if page >= total_pages or added == 0:
+                if page >= total_pages or new_raw_skus == 0:
                     break
 
             self.category_counts[default_sub] = self.category_counts.get(default_sub, 0) + query_collected

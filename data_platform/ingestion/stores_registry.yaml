@@ -10,6 +10,8 @@ stores:
   enabled: true
   verified: true
   batch: core_1
+  tier: 1
+  priority_group: major_stores
 - store_key: noon
   display_name: Noon Egypt
   platform: custom
@@ -22,6 +24,8 @@ stores:
   enabled: true
   verified: true
   batch: core_1
+  tier: 1
+  priority_group: major_stores
 - store_key: amazon_eg
   display_name: Amazon Egypt
   platform: custom
@@ -34,6 +38,8 @@ stores:
   enabled: true
   verified: true
   batch: core_1
+  tier: 1
+  priority_group: major_stores
 - store_key: raneen
   display_name: Raneen
   platform: custom
@@ -44,6 +50,8 @@ stores:
   enabled: true
   verified: true
   batch: core_1
+  tier: 1
+  priority_group: major_stores
 - store_key: rayashop
   display_name: Raya Shop
   platform: custom
@@ -54,6 +62,8 @@ stores:
   enabled: true
   verified: true
   batch: core_2
+  tier: 1
+  priority_group: major_stores
 - store_key: compumarts
   display_name: CompuMarts
   platform: shopify
@@ -64,6 +74,8 @@ stores:
   enabled: true
   verified: true
   batch: core_2
+  tier: 1
+  priority_group: major_stores
 - store_key: tradeline
   display_name: TradeLine
   platform: shopify
@@ -74,6 +86,8 @@ stores:
   enabled: true
   verified: true
   batch: core_2
+  tier: 1
+  priority_group: major_stores
 - store_key: elaraby
   display_name: El Araby Group
   platform: magento_graphql
@@ -84,6 +98,8 @@ stores:
   enabled: true
   verified: true
   batch: core_2
+  tier: 1
+  priority_group: major_stores
 - store_key: elbadr
   display_name: El Badr Group
   platform: custom
@@ -94,6 +110,8 @@ stores:
   enabled: true
   verified: true
   batch: core_3
+  tier: 1
+  priority_group: major_stores
 - store_key: compuscience
   display_name: CompuScience
   platform: custom
@@ -104,6 +122,8 @@ stores:
   enabled: true
   verified: true
   batch: core_3
+  tier: 1
+  priority_group: major_stores
 - store_key: cairosales
   display_name: Cairo Sales
   platform: custom
@@ -114,6 +134,8 @@ stores:
   enabled: true
   verified: true
   batch: core_3
+  tier: 1
+  priority_group: major_stores
 - store_key: egyptlaptop
   display_name: Egypt Laptop
   platform: custom
@@ -124,6 +146,8 @@ stores:
   enabled: true
   verified: true
   batch: core_3
+  tier: 1
+  priority_group: major_stores
 - store_key: dubaiphone
   display_name: Dubai Phone
   platform: custom
@@ -134,6 +158,8 @@ stores:
   enabled: true
   verified: true
   batch: core_3
+  tier: 1
+  priority_group: major_stores
 - store_key: 2b
   display_name: 2B Egypt
   platform: custom
@@ -144,6 +170,8 @@ stores:
   enabled: true
   verified: true
   batch: local_core
+  tier: 1
+  priority_group: major_stores
 - store_key: sigma
   display_name: Sigma Computer
   platform: custom
@@ -154,6 +182,8 @@ stores:
   enabled: true
   verified: true
   batch: local_core
+  tier: 1
+  priority_group: major_stores
 - store_key: spinneys
   display_name: Spinneys Egypt
   platform: magento_graphql
@@ -164,6 +194,8 @@ stores:
   enabled: true
   verified: true
   batch: groceries_1
+  tier: 1
+  priority_group: major_stores
 - store_key: hyperone
   display_name: HyperOne
   platform: magento_graphql
@@ -174,6 +206,8 @@ stores:
   enabled: true
   verified: true
   batch: groceries_1
+  tier: 1
+  priority_group: major_stores
 - store_key: seoudi
   display_name: Seoudi Supermarket
   platform: magento_graphql
@@ -184,6 +218,8 @@ stores:
   enabled: true
   verified: true
   batch: groceries_1
+  tier: 1
+  priority_group: major_stores
 - store_key: gourmet
   display_name: Gourmet Egypt
   platform: magento_graphql
@@ -194,6 +230,8 @@ stores:
   enabled: true
   verified: true
   batch: groceries_2
+  tier: 1
+  priority_group: major_stores
 - store_key: abu_auf
   display_name: Abu Auf
   platform: woocommerce
@@ -204,6 +242,8 @@ stores:
   enabled: true
   verified: true
   batch: groceries_2
+  tier: 1
+  priority_group: major_brands
 - store_key: imtenan
   display_name: Imtenan
   platform: custom
@@ -214,6 +254,8 @@ stores:
   enabled: true
   verified: true
   batch: groceries_2
+  tier: 1
+  priority_group: major_brands
 - store_key: metro_market
   display_name: Metro Market
   platform: custom
@@ -224,6 +266,8 @@ stores:
   enabled: true
   verified: true
   batch: groceries_2
+  tier: 1
+  priority_group: major_stores
 - store_key: town_team
   display_name: Town Team
   platform: shopify
@@ -234,6 +278,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_1
+  tier: 1
+  priority_group: major_brands
 - store_key: dejavu
   display_name: Dejavu Shoes
   platform: shopify
@@ -244,6 +290,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_1
+  tier: 1
+  priority_group: major_brands
 - store_key: dalydress
   display_name: Daly Dress
   platform: shopify
@@ -254,6 +302,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_1
+  tier: 1
+  priority_group: major_brands
 - store_key: activ
   display_name: Activ Abou Alaa
   platform: shopify
@@ -264,6 +314,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_1
+  tier: 1
+  priority_group: major_brands
 - store_key: carina
   display_name: Carina Wear
   platform: shopify
@@ -274,6 +326,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_2
+  tier: 1
+  priority_group: major_brands
 - store_key: khotwh
   display_name: Khotwh
   platform: shopify
@@ -284,6 +338,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_2
+  tier: 1
+  priority_group: major_brands
 - store_key: concrete
   display_name: Concrete
   platform: woocommerce
@@ -294,6 +350,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_2
+  tier: 1
+  priority_group: major_brands
 - store_key: mobaco
   display_name: Mobaco Cottons
   platform: magento_graphql
@@ -304,6 +362,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_2
+  tier: 1
+  priority_group: major_brands
 - store_key: dream2000
   display_name: Dream 2000
   platform: shopify
@@ -314,6 +374,8 @@ stores:
   enabled: true
   verified: true
   batch: core_4
+  tier: 1
+  priority_group: major_stores
 - store_key: switchplus
   display_name: Switch Plus
   platform: shopify
@@ -326,6 +388,8 @@ stores:
   batch: core_5
   notes: Migrated to switchpluseg.com — Apple Authorised Reseller (Shopify JSON, EGP)
   max_products: 600
+  tier: 1
+  priority_group: major_stores
 - store_key: aman_stores
   display_name: Aman Stores
   platform: magento_graphql
@@ -337,6 +401,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: jumia
   display_name: Jumia Egypt
   platform: custom
@@ -351,6 +417,8 @@ stores:
   extra_verticals:
   - groceries
   - fashion
+  tier: 1
+  priority_group: major_stores
 - store_key: elnekhely
   display_name: El Nekhely Technology
   platform: custom
@@ -362,6 +430,8 @@ stores:
   verified: true
   batch: local_electronics
   notes: Verified OpenCart SSR .product-thumb scraper (PC hardware)
+  tier: 2
+  priority_group: mid_specialty
 - store_key: maximum_hardware
   display_name: Maximum Hardware
   platform: custom
@@ -373,6 +443,8 @@ stores:
   verified: true
   batch: local_electronics
   notes: Verified OpenCart SSR .product-thumb scraper (PC hardware)
+  tier: 2
+  priority_group: mid_specialty
 - store_key: baraka_computer
   display_name: Baraka Computer
   platform: woocommerce
@@ -383,6 +455,8 @@ stores:
   enabled: true
   verified: true
   batch: core_4
+  tier: 2
+  priority_group: mid_specialty
 - store_key: up_to_date_eg
   display_name: Up To Date Store
   platform: woocommerce
@@ -393,6 +467,8 @@ stores:
   enabled: true
   verified: true
   batch: core_4
+  tier: 2
+  priority_group: mid_specialty
 - store_key: games2egypt
   display_name: Games 2 Egypt
   platform: custom
@@ -404,6 +480,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: 403 Cloudflare challenge
+  tier: 3
+  priority_group: long_tail
 - store_key: egypt_gamestore
   display_name: Egypt Game Store
   platform: shopify
@@ -415,6 +493,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: shopify non-JSON; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: mi_egypt
   display_name: Mi Store Egypt
   platform: woocommerce
@@ -426,6 +506,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: woo non-JSON; shopify non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: samsung_eg
   display_name: Samsung Egypt eStore
   platform: custom
@@ -437,6 +519,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: huawei_eg
   display_name: Huawei Egypt Store
   platform: custom
@@ -448,6 +532,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: anker_eg
   display_name: Anker Egypt
   platform: shopify
@@ -459,6 +545,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: mobile_shop_eg
   display_name: Mobile Shop Egypt
   platform: magento_graphql
@@ -470,6 +558,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: magento non-JSON; shopify non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: alfrensia
   display_name: Al Frensia Electronics
   platform: woocommerce
@@ -480,6 +570,8 @@ stores:
   enabled: true
   verified: true
   batch: core_4
+  tier: 2
+  priority_group: mid_specialty
 - store_key: fresh_eg
   display_name: Fresh Electric Egypt
   platform: custom
@@ -492,6 +584,8 @@ stores:
   batch: local_appliances
   notes: Official Fresh Egypt Magento 2 GraphQL API (be.fresh.com.eg/graphql, EGP, local_only)
   max_products: 600
+  tier: 1
+  priority_group: major_brands
 - store_key: zanussi_eg
   display_name: Zanussi Egypt
   platform: magento_graphql
@@ -504,6 +598,8 @@ stores:
   batch: core_4
   config:
     use_post: false
+  tier: 1
+  priority_group: major_brands
 - store_key: beko_eg
   display_name: Beko Egypt
   platform: custom
@@ -515,6 +611,8 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: Verified manufacturer product showcase only (no online EGP prices or checkout; Find a Retailer only)
+  tier: 3
+  priority_group: long_tail
 - store_key: unionaire_eg
   display_name: Unionaire Egypt
   platform: woocommerce
@@ -525,6 +623,8 @@ stores:
   enabled: true
   verified: true
   batch: core_4
+  tier: 1
+  priority_group: major_brands
 - store_key: kiriazi_eg
   display_name: Kiriazi Egypt
   platform: woocommerce
@@ -536,6 +636,8 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: carrier_eg
   display_name: Carrier Egypt
   platform: woocommerce
@@ -547,6 +649,8 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: woo non-JSON; shopify non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: midea_eg
   display_name: Midea Egypt
   platform: woocommerce
@@ -558,6 +662,8 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: woo HTTP 410; shopify HTTP 410
+  tier: 3
+  priority_group: long_tail
 - store_key: haier_eg
   display_name: Haier Egypt
   platform: custom
@@ -569,6 +675,8 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: elghazawy
   display_name: El Ghazawy Home
   platform: custom
@@ -580,6 +688,8 @@ stores:
   verified: true
   batch: local_appliances
   notes: Verified public Laravel JSON API (/api/search) with EAN/model_number
+  tier: 1
+  priority_group: major_stores
 - store_key: hyper_techno
   display_name: Hyper Techno
   platform: woocommerce
@@ -592,6 +702,8 @@ stores:
   batch: core_6
   notes: Migrated to hypertechmall.com — WooCommerce Store API (EGP)
   max_products: 600
+  tier: 2
+  priority_group: mid_specialty
 - store_key: kenwood_eg
   display_name: Kenwood Egypt
   platform: shopify
@@ -603,6 +715,8 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: ariston_eg
   display_name: Ariston Egypt
   platform: custom
@@ -614,6 +728,8 @@ stores:
   verified: false
   batch: expansion_appliances
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: carrefour_eg
   display_name: Carrefour Egypt
   platform: custom
@@ -628,6 +744,8 @@ stores:
   extra_verticals:
   - groceries
   max_products: 800
+  tier: 1
+  priority_group: major_stores
 - store_key: kheir_zaman
   display_name: Kheir Zaman
   platform: custom
@@ -639,6 +757,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: shopify non-JSON; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: breadfast
   display_name: Breadfast
   platform: custom
@@ -650,6 +770,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: shopify non-JSON; woo HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: goodsmart
   display_name: GoodsMart
   platform: custom
@@ -661,6 +783,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: healthy_and_tasty
   display_name: Healthy & Tasty
   platform: shopify
@@ -672,6 +796,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: rdna_store
   display_name: RDNA Organic Store
   platform: woocommerce
@@ -686,6 +812,8 @@ stores:
   max_products: 600
   config:
     min_price_egp: 5.0
+  tier: 2
+  priority_group: mid_specialty
 - store_key: fresh_farm_eg
   display_name: Fresh Farm Egypt
   platform: shopify
@@ -697,6 +825,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: 202 AWS WAF challenge
+  tier: 3
+  priority_group: long_tail
 - store_key: zahran_market
   display_name: Zahran Market
   platform: woocommerce
@@ -708,6 +838,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: 403 Cloudflare challenge
+  tier: 3
+  priority_group: long_tail
 - store_key: kazyon
   display_name: Kazyon Market
   platform: custom
@@ -719,6 +851,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: shopify non-JSON; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: rabbit_mart
   display_name: Rabbit Mart
   platform: custom
@@ -730,6 +864,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: 403 WAF/anti-bot
+  tier: 3
+  priority_group: long_tail
 - store_key: mahmoud_el_far
   display_name: Mahmoud El Far
   platform: woocommerce
@@ -741,6 +877,8 @@ stores:
   verified: false
   batch: expansion_groceries
   notes: woo non-JSON; shopify non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: el_ezaby
   display_name: El Ezaby Pharmacy
   platform: woocommerce
@@ -757,6 +895,8 @@ stores:
     use_impersonation: true
     min_delay_seconds: 1.5
     min_price_egp: 5.0
+  tier: 1
+  priority_group: major_stores
 - store_key: seif_pharmacies
   display_name: Seif Pharmacies
   platform: custom
@@ -769,6 +909,8 @@ stores:
   batch: local_pharma
   notes: Seif Pharmacies JSON REST API (/api/customer/products/search) via Playwright session (local_only)
   max_products: 600
+  tier: 1
+  priority_group: major_stores
 - store_key: misr_pharmacies
   display_name: Misr Pharmacies
   platform: custom
@@ -780,6 +922,8 @@ stores:
   verified: true
   batch: local_pharma
   notes: Verified Magento SSR .product-item scraper (local Egypt IP)
+  tier: 1
+  priority_group: major_stores
 - store_key: roshdy_pharmacies
   display_name: Roshdy Pharmacies
   platform: woocommerce
@@ -791,6 +935,8 @@ stores:
   verified: false
   batch: expansion_pharmacy
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: delmar_attalla
   display_name: Delmar & Attalla
   platform: woocommerce
@@ -802,6 +948,8 @@ stores:
   verified: false
   batch: expansion_pharmacy
   notes: woo HTTP 404; shopify non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: chefaa
   display_name: Chefaa
   platform: custom
@@ -814,6 +962,8 @@ stores:
   batch: local_pharma
   notes: Chefaa Pharmacy SSR Schema.org microdata (.item_content, EGP, local_only)
   max_products: 600
+  tier: 1
+  priority_group: major_stores
 - store_key: yodawy
   display_name: Yodawy
   platform: custom
@@ -825,6 +975,8 @@ stores:
   verified: false
   batch: expansion_pharmacy
   notes: 404 no store API
+  tier: 3
+  priority_group: long_tail
 - store_key: faces_eg
   display_name: Faces Egypt
   platform: custom
@@ -837,6 +989,8 @@ stores:
   batch: local_beauty
   notes: Faces Egypt SFCC SSR product tiles (EGP, local_only)
   max_products: 500
+  tier: 1
+  priority_group: major_stores
 - store_key: mazaya_eg
   display_name: Mazaya Egypt
   platform: custom
@@ -849,6 +1003,8 @@ stores:
   batch: local_beauty
   notes: Mazaya Egypt Magento 2 GraphQL API (backend.mazaya.eg/graphql, EGP, local_only)
   max_products: 500
+  tier: 1
+  priority_group: major_stores
 - store_key: lc_waikiki_eg
   display_name: LC Waikiki Egypt
   platform: custom
@@ -861,6 +1017,8 @@ stores:
   batch: local_fashion
   notes: LC Waikiki Egypt SSR .product-card catalog (EGP, local_only)
   max_products: 500
+  tier: 1
+  priority_group: major_brands
 - store_key: defacto_eg
   display_name: DeFacto Egypt
   platform: custom
@@ -873,17 +1031,28 @@ stores:
   batch: local_fashion
   notes: DeFacto Egypt official JSON Catalog API (PartialIndexScrollResult, EGP, local_only)
   max_products: 500
+  tier: 1
+  priority_group: major_brands
 - store_key: ravin
   display_name: Ravin Jeans
-  platform: custom
-  base_url: https://www.ravinjeans.com
+  platform: shopify
+  base_url: https://shop.iravin.com
   category: fashion
   vertical: fashion
   region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: 404 no store API
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  notes: Priority 1 official major Egyptian fashion brand store (reactivated on shop.iravin.com, 45/50 in-stock)
+  tier: 1
+  priority_group: major_brands
+  default_limit: 500
+  discover_limit: 3000
+  max_products: 4000
+  config:
+    default_brand: Ravin
+    override_brand: true
+    use_impersonation: true
 - store_key: tomato_eg
   display_name: Tomato Egypt
   platform: shopify
@@ -896,6 +1065,8 @@ stores:
   batch: fashion_5
   notes: Migrated to tomatostores.com — Egyptian apparel brand (Shopify JSON, EGP)
   max_products: 600
+  tier: 2
+  priority_group: mid_specialty
 - store_key: mitcha
   display_name: Mitcha Egypt
   platform: shopify
@@ -907,6 +1078,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: shopify non-JSON; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: brantu
   display_name: Brantu
   platform: shopify
@@ -918,6 +1091,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: Parked domain (hugedomains)
+  tier: 3
+  priority_group: long_tail
 - store_key: max_fashion_eg
   display_name: Max Fashion Egypt
   platform: custom
@@ -929,6 +1104,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: 403 Cloudflare challenge
+  tier: 3
+  priority_group: long_tail
 - store_key: adidas_eg
   display_name: Adidas Egypt
   platform: custom
@@ -941,6 +1118,8 @@ stores:
   batch: local_fashion
   notes: Standard unmodified Playwright Firefox (headless=False, lazy import, local_only); stops immediately on HTTP 403
   max_products: 500
+  tier: 1
+  priority_group: major_brands
 - store_key: aldo_eg
   display_name: ALDO Egypt
   platform: shopify
@@ -951,6 +1130,8 @@ stores:
   enabled: true
   verified: true
   batch: fashion_2
+  tier: 1
+  priority_group: major_brands
 - store_key: american_eagle_eg
   display_name: American Eagle Egypt
   platform: custom
@@ -962,6 +1143,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: 403 Cloudflare
+  tier: 3
+  priority_group: long_tail
 - store_key: hm_eg
   display_name: H&M Egypt
   platform: custom
@@ -973,6 +1156,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: 403 Cloudflare
+  tier: 3
+  priority_group: long_tail
 - store_key: ikea_eg
   display_name: IKEA Egypt
   platform: custom
@@ -985,6 +1170,8 @@ stores:
   batch: local_home
   notes: IKEA Egypt official SIK Search JSON API (EGP, local_only)
   max_products: 600
+  tier: 1
+  priority_group: major_brands
 - store_key: homzmart
   display_name: Homzmart
   platform: custom
@@ -996,6 +1183,8 @@ stores:
   verified: true
   batch: local_home
   notes: Verified Next.js __NEXT_DATA__ scraper (furniture & home appliances)
+  tier: 1
+  priority_group: major_stores
 - store_key: hub_furniture
   display_name: Hub Furniture
   platform: magento_graphql
@@ -1008,6 +1197,8 @@ stores:
   batch: home_1
   config:
     use_post: true
+  tier: 1
+  priority_group: major_stores
 - store_key: kabbani
   display_name: Kabbani Furniture
   platform: shopify
@@ -1018,6 +1209,8 @@ stores:
   enabled: true
   verified: true
   batch: home_1
+  tier: 1
+  priority_group: major_brands
 - store_key: chichomz
   display_name: Chic Homz
   platform: shopify
@@ -1028,6 +1221,8 @@ stores:
   enabled: true
   verified: true
   batch: home_1
+  tier: 1
+  priority_group: major_stores
 - store_key: ariika
   display_name: Ariika
   platform: shopify
@@ -1038,6 +1233,8 @@ stores:
   enabled: true
   verified: true
   batch: home_1
+  tier: 1
+  priority_group: major_stores
 - store_key: efreshli
   display_name: Efreshli
   platform: shopify
@@ -1049,6 +1246,8 @@ stores:
   verified: false
   batch: expansion_home
   notes: shopify non-JSON; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: in_and_out
   display_name: In&Out Furniture
   platform: woocommerce
@@ -1060,6 +1259,8 @@ stores:
   verified: false
   batch: expansion_home
   notes: timeout (15s)
+  tier: 3
+  priority_group: long_tail
 - store_key: taki_eg
   display_name: Taki Vita Mattresses
   platform: shopify
@@ -1071,6 +1272,8 @@ stores:
   verified: false
   batch: expansion_home
   notes: Parked domain (hugedomains)
+  tier: 3
+  priority_group: long_tail
 - store_key: el_malek_furniture
   display_name: El Malek Furniture
   platform: woocommerce
@@ -1081,6 +1284,8 @@ stores:
   enabled: true
   verified: true
   batch: home_1
+  tier: 2
+  priority_group: mid_specialty
 - store_key: ahw_store
   display_name: AHW Store
   platform: shopify
@@ -1092,6 +1297,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: ennap
   display_name: Ennap
   platform: shopify
@@ -1103,6 +1310,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: gc_hardware
   display_name: GC Hardware
   platform: woocommerce
@@ -1114,6 +1323,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: hankerz
   display_name: Hankerz
   platform: woocommerce
@@ -1125,6 +1336,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: icamstore
   display_name: iCamStore
   platform: woocommerce
@@ -1136,6 +1349,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: kimostore
   display_name: Kimo Store
   platform: shopify
@@ -1147,6 +1362,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: myxprs
   display_name: XPRS Egypt
   platform: shopify
@@ -1158,6 +1375,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: shamystores
   display_name: Shamy Stores
   platform: shopify
@@ -1169,6 +1388,8 @@ stores:
   verified: true
   batch: core_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: smartkoshk
   display_name: Smart Koshk
   platform: shopify
@@ -1180,6 +1401,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: three_egypt
   display_name: THREE Egypt
   platform: shopify
@@ -1191,6 +1414,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: elzenouki
   display_name: El Zenouki
   platform: woocommerce
@@ -1202,6 +1427,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: elzenouki_cookware
   display_name: El Zenouki Cookware
   platform: shopify
@@ -1213,6 +1440,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: neoflam_eg
   display_name: Neoflam Egypt
   platform: woocommerce
@@ -1224,6 +1453,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: nouval_eg
   display_name: Nouval Egypt
   platform: shopify
@@ -1235,6 +1466,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: zinox_elzenouki
   display_name: Zinox El Zenouki
   platform: shopify
@@ -1246,6 +1479,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: bed_janssen
   display_name: Bed Janssen
   platform: shopify
@@ -1257,6 +1492,8 @@ stores:
   verified: true
   batch: home_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: family_bed
   display_name: Family Bed
   platform: shopify
@@ -1268,6 +1505,8 @@ stores:
   verified: true
   batch: home_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: habitat_eg
   display_name: Habitat Egypt
   platform: woocommerce
@@ -1279,6 +1518,8 @@ stores:
   verified: true
   batch: home_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: janssen_stores
   display_name: Janssen Stores
   platform: woocommerce
@@ -1290,6 +1531,8 @@ stores:
   verified: true
   batch: home_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: manzzeli
   display_name: Manzzeli
   platform: shopify
@@ -1301,6 +1544,8 @@ stores:
   verified: true
   batch: home_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: mffco
   display_name: MFFCO Furniture
   platform: woocommerce
@@ -1312,6 +1557,8 @@ stores:
   verified: true
   batch: home_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: bednhome
   display_name: BedNHome
   platform: shopify
@@ -1323,6 +1570,8 @@ stores:
   verified: true
   batch: home_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: elbadrawi_home
   display_name: Elbadrawi Home
   platform: shopify
@@ -1334,6 +1583,8 @@ stores:
   verified: true
   batch: home_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: grand_style
   display_name: Grand Style
   platform: shopify
@@ -1345,6 +1596,8 @@ stores:
   verified: true
   batch: home_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: heba_linens
   display_name: Heba Linens
   platform: shopify
@@ -1356,6 +1609,8 @@ stores:
   verified: true
   batch: home_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: nile_home
   display_name: Nile Home
   platform: shopify
@@ -1367,6 +1622,8 @@ stores:
   verified: true
   batch: home_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: smart_furniture
   display_name: Smart Furniture
   platform: shopify
@@ -1378,6 +1635,8 @@ stores:
   verified: true
   batch: home_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: asili_eg
   display_name: Asili Egypt
   platform: shopify
@@ -1389,6 +1648,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: basiclook
   display_name: The Basiclook
   platform: shopify
@@ -1400,6 +1661,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: cave_eg
   display_name: Cave Egypt
   platform: shopify
@@ -1411,6 +1674,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: gonative
   display_name: Go Native
   platform: shopify
@@ -1422,6 +1687,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: in_your_shoe
   display_name: In Your Shoe
   platform: shopify
@@ -1433,6 +1700,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: lokal_eg
   display_name: LOKAL
   platform: shopify
@@ -1444,6 +1713,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: mawlah
   display_name: Mawlah
   platform: shopify
@@ -1455,6 +1726,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: novencci
   display_name: Novencci EG
   platform: shopify
@@ -1466,6 +1739,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: shopzhivago
   display_name: Zhivago
   platform: shopify
@@ -1477,6 +1752,8 @@ stores:
   verified: true
   batch: fashion_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: boheme_eg
   display_name: Boheme Shop
   platform: shopify
@@ -1488,6 +1765,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: mlameh
   display_name: Mlameh Fashion
   platform: shopify
@@ -1499,6 +1778,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: sigma_fit
   display_name: Sigma Fit
   platform: shopify
@@ -1510,6 +1791,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: skechers_shop_eg
   display_name: Skechers Egypt Shop
   platform: woocommerce
@@ -1521,6 +1804,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 1
+  priority_group: major_brands
 - store_key: sn2_studios
   display_name: SN2 Studios
   platform: shopify
@@ -1532,6 +1817,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: stabraq
   display_name: Stabraq
   platform: shopify
@@ -1543,6 +1830,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: streetwearts
   display_name: Streetwear Official
   platform: shopify
@@ -1554,6 +1843,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: two_s_eg
   display_name: 2S Egypt
   platform: shopify
@@ -1565,6 +1856,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: unty
   display_name: UNTY
   platform: shopify
@@ -1576,6 +1869,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: upfuse
   display_name: Up-fuse
   platform: shopify
@@ -1587,6 +1882,8 @@ stores:
   verified: true
   batch: fashion_4
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: achilles_eg
   display_name: Achilles Stores
   platform: shopify
@@ -1598,6 +1895,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: arctic_hunter_eg
   display_name: Arctic Hunter Egypt
   platform: shopify
@@ -1609,6 +1908,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: eldarweesh
   display_name: El Darweesh Leather
   platform: shopify
@@ -1620,6 +1921,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: emeli_eg
   display_name: Emeli Egypt
   platform: shopify
@@ -1631,6 +1934,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: lionell
   display_name: Lionell Leather
   platform: shopify
@@ -1642,6 +1947,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: nuniz_cairo
   display_name: Nuniz Cairo
   platform: shopify
@@ -1653,6 +1960,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: okhtein
   display_name: Okhtein
   platform: shopify
@@ -1664,6 +1973,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: palma_eg
   display_name: Palma Egypt
   platform: shopify
@@ -1675,6 +1986,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: pronto_shoes
   display_name: Pronto Shoes
   platform: shopify
@@ -1686,6 +1999,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: bashrety
   display_name: Bashrety
   platform: shopify
@@ -1697,6 +2012,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 1
+  priority_group: major_stores
 - store_key: biostream
   display_name: Biostream Kolagra
   platform: shopify
@@ -1708,6 +2025,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: bless_eg
   display_name: Bless
   platform: shopify
@@ -1719,6 +2038,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: bobana
   display_name: Bobana
   platform: shopify
@@ -1730,6 +2051,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: braes_eg
   display_name: Braes Skincare
   platform: shopify
@@ -1741,6 +2064,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: catwa_store
   display_name: Catwa Store
   platform: shopify
@@ -1752,6 +2077,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: cybele_eg
   display_name: Cybele Egypt
   platform: shopify
@@ -1763,6 +2090,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: dermaelle
   display_name: Dermaelle
   platform: shopify
@@ -1774,6 +2103,8 @@ stores:
   verified: true
   batch: beauty_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: diwan_fragrances
   display_name: Diwan Fragrances
   platform: woocommerce
@@ -1785,6 +2116,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: eparkville
   display_name: E Parkville
   platform: shopify
@@ -1796,6 +2129,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: eva_cosmetics
   display_name: Eva Cosmetics
   platform: shopify
@@ -1807,6 +2142,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 1
+  priority_group: major_brands
 - store_key: hayah_labs
   display_name: Hayah Laboratories
   platform: shopify
@@ -1818,6 +2155,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: infinity_clinic
   display_name: Infinity Clinic Pharma
   platform: shopify
@@ -1829,6 +2168,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: malak_eg
   display_name: Malak Beauty
   platform: shopify
@@ -1840,6 +2181,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: melano_pharma
   display_name: Melano Pharma
   platform: shopify
@@ -1851,6 +2194,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: mood_eg
   display_name: MOOD Egypt
   platform: shopify
@@ -1862,6 +2207,8 @@ stores:
   verified: true
   batch: beauty_2
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: mood_fragrances
   display_name: MOOD Fragrances
   platform: shopify
@@ -1873,6 +2220,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: neuth_eg
   display_name: Neuth France Egypt
   platform: shopify
@@ -1884,6 +2233,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: norshek
   display_name: Norshek
   platform: woocommerce
@@ -1895,6 +2246,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: raw_african
   display_name: Raw African
   platform: shopify
@@ -1906,6 +2259,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: soul_and_more
   display_name: Soul & More
   platform: shopify
@@ -1917,6 +2272,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: source_beauty
   display_name: Source Beauty
   platform: shopify
@@ -1928,6 +2285,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 1
+  priority_group: major_stores
 - store_key: the_hair_addict
   display_name: The Hair Addict
   platform: shopify
@@ -1939,6 +2298,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: zynah
   display_name: ZYNAH Beauty
   platform: shopify
@@ -1950,6 +2311,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: beseha
   display_name: Beseha
   platform: woocommerce
@@ -1961,6 +2324,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: bloom_pharmacy
   display_name: Bloom Pharmacy
   platform: shopify
@@ -1972,6 +2337,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 1
+  priority_group: major_stores
 - store_key: egysupps
   display_name: EgySupps
   platform: woocommerce
@@ -1983,6 +2350,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: house_of_supplements
   display_name: House of Supplements
   platform: woocommerce
@@ -1994,6 +2363,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: ifit_eg
   display_name: iFIT Egypt
   platform: woocommerce
@@ -2005,6 +2376,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: limitless_naturals
   display_name: Limitless Naturals
   platform: shopify
@@ -2016,6 +2389,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: max_muscle_eg
   display_name: Max Muscle Egypt
   platform: shopify
@@ -2027,6 +2402,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: nowfoods_eg
   display_name: NOW Foods Egypt
   platform: woocommerce
@@ -2038,6 +2415,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: organic_nation
   display_name: Organic Nation
   platform: shopify
@@ -2049,6 +2428,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: amin_pet_shop
   display_name: Amin Pet Shop
   platform: shopify
@@ -2060,6 +2441,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: espresso_egypt
   display_name: Espresso Egypt
   platform: shopify
@@ -2071,6 +2454,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: happet
   display_name: Happet Pet Store
   platform: shopify
@@ -2082,6 +2467,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: jadeite_coffee
   display_name: Jadeite Coffee
   platform: shopify
@@ -2093,6 +2480,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: java_coffee
   display_name: JAVA Specialty Coffee
   platform: shopify
@@ -2104,6 +2493,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: orga_egy
   display_name: Orga Egypt
   platform: woocommerce
@@ -2115,6 +2506,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: seelaz_coffee
   display_name: Seelaz Specialty Coffee
   platform: shopify
@@ -2126,6 +2519,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: alnasser_eg
   display_name: Al Nasser Sports
   platform: shopify
@@ -2137,6 +2532,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: athlete_home
   display_name: Athlete Home
   platform: shopify
@@ -2148,6 +2545,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: entercise
   display_name: Entercise
   platform: shopify
@@ -2159,6 +2558,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: gosport_eg
   display_name: GO Sport Egypt
   platform: shopify
@@ -2170,6 +2571,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 1
+  priority_group: major_stores
 - store_key: intersport_eg
   display_name: Intersport Egypt
   platform: shopify
@@ -2181,6 +2584,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 1
+  priority_group: major_stores
 - store_key: union_sport
   display_name: Union Sport
   platform: shopify
@@ -2192,6 +2597,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: wayup_sports
   display_name: Wayup Sports
   platform: shopify
@@ -2203,6 +2610,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 1
+  priority_group: major_stores
 - store_key: azza_fahmy
   display_name: Azza Fahmy Egypt
   platform: shopify
@@ -2214,6 +2623,8 @@ stores:
   verified: true
   batch: lifestyle_2
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: cocyta
   display_name: Cocyta Optics
   platform: shopify
@@ -2225,6 +2636,8 @@ stores:
   verified: true
   batch: lifestyle_2
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: eftekassat
   display_name: Eftekassat Kids
   platform: shopify
@@ -2236,6 +2649,8 @@ stores:
   verified: true
   batch: lifestyle_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: kassem_store
   display_name: Kassem Store
   platform: woocommerce
@@ -2247,6 +2662,8 @@ stores:
   verified: true
   batch: lifestyle_2
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: le3ab_store
   display_name: Le3ab Store
   platform: woocommerce
@@ -2258,6 +2675,8 @@ stores:
   verified: true
   batch: lifestyle_2
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: ourkids_eg
   display_name: OurKids Egypt
   platform: shopify
@@ -2269,6 +2688,8 @@ stores:
   verified: true
   batch: lifestyle_2
   max_products: 650
+  tier: 1
+  priority_group: major_stores
 - store_key: baseus_eg
   display_name: Baseus Egypt
   platform: woocommerce
@@ -2280,6 +2701,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: 403 Forbidden/WAF
+  tier: 3
+  priority_group: long_tail
 - store_key: bingo_toys
   display_name: Bingo Toys
   platform: shopify
@@ -2291,6 +2714,8 @@ stores:
   verified: false
   batch: expansion_baby_kids
   notes: 403 Cloudflare
+  tier: 3
+  priority_group: long_tail
 - store_key: decathlon_eg
   display_name: Decathlon Egypt
   platform: custom
@@ -2302,6 +2727,8 @@ stores:
   verified: true
   batch: local_sports
   notes: Verified SSR product-card scraper (local Egypt IP fallback for cloud Cloudflare)
+  tier: 1
+  priority_group: major_brands
 - store_key: diwan_books
   display_name: Diwan Bookstore
   platform: woocommerce
@@ -2313,6 +2740,8 @@ stores:
   verified: false
   batch: expansion_books
   notes: 403 Cloudflare challenge
+  tier: 3
+  priority_group: long_tail
 - store_key: hedeya
   display_name: Hedeya Stores
   platform: shopify
@@ -2326,6 +2755,8 @@ stores:
   notes: Verified Shopify /products.json via local Egypt IP (cloud Cloudflare 403)
   config:
     use_impersonation: true
+  tier: 1
+  priority_group: major_stores
 - store_key: pets_egypt
   display_name: PetsEgypt
   platform: custom
@@ -2338,6 +2769,8 @@ stores:
   batch: local_pets
   notes: PetsEgypt SSR __NUXT_DATA__ JSON catalog (EGP, local_only)
   max_products: 450
+  tier: 2
+  priority_group: mid_specialty
 - store_key: samir_and_aly
   display_name: Samir & Aly
   platform: shopify
@@ -2349,6 +2782,8 @@ stores:
   verified: false
   batch: expansion_books
   notes: 403 Cloudflare challenge
+  tier: 3
+  priority_group: long_tail
 - store_key: super_supplements
   display_name: Super Supplements
   platform: woocommerce
@@ -2360,6 +2795,8 @@ stores:
   verified: false
   batch: expansion_health
   notes: 403 Cloudflare challenge
+  tier: 3
+  priority_group: long_tail
 - store_key: tdawi
   display_name: Tdawi Pharmacy
   platform: custom
@@ -2371,6 +2808,8 @@ stores:
   verified: true
   batch: local_pharma
   notes: Verified Magento SSR .product-item scraper (local Egypt IP)
+  tier: 2
+  priority_group: mid_specialty
 - store_key: amanda_milano
   display_name: Amanda Milano
   platform: shopify
@@ -2382,6 +2821,8 @@ stores:
   verified: false
   batch: expansion_beauty
   notes: shopify HTTP 401; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: amina_k
   display_name: Amina K
   platform: shopify
@@ -2393,6 +2834,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: shopify non-JSON; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: doctor_m_eg
   display_name: Doctor M Egypt
   platform: shopify
@@ -2404,6 +2847,8 @@ stores:
   verified: false
   batch: expansion_optics
   notes: shopify HTTP 404; woo HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: gamesworldegypt
   display_name: Games World Egypt
   platform: custom
@@ -2415,6 +2860,8 @@ stores:
   verified: true
   batch: local_electronics
   notes: Verified OpenCart SSR .product-thumb scraper (gaming & peripherals)
+  tier: 2
+  priority_group: mid_specialty
 - store_key: highendstore
   display_name: HIGHEND Store
   platform: woocommerce
@@ -2426,6 +2873,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: woo HTTP 404; shopify HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: kareemstores
   display_name: Kareem Stores
   platform: woocommerce
@@ -2437,6 +2886,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: woo HTTP 404; shopify HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: locally_eg
   display_name: Locally Egypt
   platform: shopify
@@ -2448,6 +2899,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: shopify HTTP 404; woo HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: mobile_masr
   display_name: Mobile Masr
   platform: custom
@@ -2459,6 +2912,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: shopify HTTP 404; woo HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: oriental_weavers
   display_name: Oriental Weavers
   platform: custom
@@ -2471,6 +2926,8 @@ stores:
   batch: local_home
   notes: Oriental Weavers Egypt official shop Magento 2 GraphQL API (shop.orientalweavers.com/graphql, EGP, local_only)
   max_products: 450
+  tier: 1
+  priority_group: major_brands
 - store_key: ram_electronics
   display_name: RAM Electronics
   platform: woocommerce
@@ -2482,6 +2939,8 @@ stores:
   verified: false
   batch: expansion_electronics
   notes: woo HTTP 404; shopify HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: rich_home
   display_name: Rich Home
   platform: woocommerce
@@ -2493,6 +2952,8 @@ stores:
   verified: false
   batch: expansion_home_furniture
   notes: woo HTTP 404; shopify HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: sami_amin
   display_name: Sami Amin
   platform: shopify
@@ -2504,6 +2965,8 @@ stores:
   verified: false
   batch: expansion_fashion
   notes: shopify HTTP 307; woo HTTP 307
+  tier: 3
+  priority_group: long_tail
 - store_key: shorouk_books
   display_name: Shorouk Bookstores
   platform: custom
@@ -2515,6 +2978,8 @@ stores:
   verified: false
   batch: expansion_books
   notes: shopify non-JSON; woo non-JSON
+  tier: 3
+  priority_group: long_tail
 - store_key: virgin_megastore_eg
   display_name: Virgin Megastore Egypt
   platform: custom
@@ -2526,6 +2991,8 @@ stores:
   verified: false
   batch: expansion_lifestyle
   notes: shopify HTTP 503; woo HTTP 503
+  tier: 3
+  priority_group: long_tail
 - store_key: zahran_stores
   display_name: Zahran Stores
   platform: shopify
@@ -2537,6 +3004,8 @@ stores:
   verified: false
   batch: expansion_kitchen
   notes: shopify HTTP 404; woo HTTP 404
+  tier: 3
+  priority_group: long_tail
 - store_key: cottonil_eg
   display_name: Cottonil Egypt
   platform: shopify
@@ -2548,6 +3017,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 1
+  priority_group: major_brands
 - store_key: caesar_eg
   display_name: Caesar Egypt
   platform: shopify
@@ -2559,6 +3030,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: dice_sportswear
   display_name: Dice Egypt
   platform: shopify
@@ -2570,6 +3043,8 @@ stores:
   verified: true
   batch: fashion_5
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: puma_eg
   display_name: PUMA Egypt
   platform: shopify
@@ -2581,6 +3056,8 @@ stores:
   verified: true
   batch: lifestyle_1
   max_products: 650
+  tier: 1
+  priority_group: major_brands
 - store_key: shaheen_coffee
   display_name: Shaheen Coffee
   platform: shopify
@@ -2592,6 +3069,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 650
+  tier: 3
+  priority_group: long_tail
 - store_key: telofill_eg
   display_name: Telofill Egypt
   platform: shopify
@@ -2603,6 +3082,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: cleo_labs
   display_name: Cleo Laboratories
   platform: woocommerce
@@ -2614,6 +3095,8 @@ stores:
   verified: true
   batch: beauty_3
   max_products: 650
+  tier: 2
+  priority_group: mid_specialty
 - store_key: ehab_center
   display_name: Ehab Center
   platform: woocommerce
@@ -2625,6 +3108,8 @@ stores:
   verified: true
   batch: core_4
   max_products: 1500
+  tier: 2
+  priority_group: mid_specialty
 - store_key: kaufen_eg
   display_name: Kaufen Egypt
   platform: shopify
@@ -2636,6 +3121,8 @@ stores:
   verified: true
   batch: core_4
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
 - store_key: elalfy_eg
   display_name: El-Alfy Appliances
   platform: woocommerce
@@ -2647,6 +3134,8 @@ stores:
   verified: true
   batch: core_4
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
 - store_key: sokany_eg
   display_name: Sokany Egypt
   platform: woocommerce
@@ -2658,6 +3147,8 @@ stores:
   verified: true
   batch: core_4
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
 - store_key: logitech_eg
   display_name: Logitech Egypt
   platform: woocommerce
@@ -2669,6 +3160,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 1000
+  tier: 1
+  priority_group: major_brands
 - store_key: hardware_market
   display_name: Hardware Market Egypt
   platform: woocommerce
@@ -2680,6 +3173,8 @@ stores:
   verified: true
   batch: core_6
   max_products: 1200
+  tier: 2
+  priority_group: mid_specialty
 - store_key: mobilaty_eg
   display_name: Mobilaty Egypt
   platform: woocommerce
@@ -2696,6 +3191,8 @@ stores:
     use_impersonation: true
     per_page: 20
     min_delay_seconds: 2.5
+  tier: 2
+  priority_group: mid_specialty
 - store_key: grow_eg
   display_name: Grow Egypt
   platform: shopify
@@ -2707,6 +3204,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 800
+  tier: 3
+  priority_group: long_tail
 - store_key: coffee_island_eg
   display_name: Coffee Island Egypt
   platform: shopify
@@ -2718,6 +3217,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 800
+  tier: 3
+  priority_group: long_tail
 - store_key: coffee_hub_eg
   display_name: The Coffee Hub Egypt
   platform: shopify
@@ -2729,6 +3230,8 @@ stores:
   verified: true
   batch: groceries_3
   max_products: 800
+  tier: 3
+  priority_group: long_tail
 - store_key: gofit_eg
   display_name: GoFit Egypt
   platform: woocommerce
@@ -2740,6 +3243,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
 - store_key: mfsupps_eg
   display_name: MF Supplements
   platform: woocommerce
@@ -2751,6 +3256,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
 - store_key: powerstore_eg
   display_name: Power Store Egypt
   platform: shopify
@@ -2762,6 +3269,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
 - store_key: mr_vitamins_eg
   display_name: Mr. Vitamins Egypt
   platform: woocommerce
@@ -2773,6 +3282,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 1200
+  tier: 2
+  priority_group: mid_specialty
 - store_key: protein_house_eg
   display_name: Protein House Egypt
   platform: shopify
@@ -2784,6 +3295,8 @@ stores:
   verified: true
   batch: pharma_1
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
 - store_key: aswaq_mozhela
   display_name: Aswaq Mozhela
   platform: custom
@@ -2795,3 +3308,298 @@ stores:
   verified: true
   batch: lifestyle_2
   max_products: 1000
+  tier: 2
+  priority_group: mid_specialty
+- store_key: timberland_eg
+  display_name: Timberland Egypt
+  platform: shopify
+  base_url: https://timberland.eg
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    default_brand: Timberland
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 50/50 in-stock)
+- store_key: samsonite_eg
+  display_name: Samsonite Egypt
+  platform: shopify
+  base_url: https://samsonite.com.eg
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    default_brand: Samsonite
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 49/50 in-stock)
+- store_key: tupperware_eg
+  display_name: Tupperware Egypt
+  platform: shopify
+  base_url: https://tupperware.com.eg
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    default_brand: Tupperware
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 42/50 in-stock)
+- store_key: tank_eg
+  display_name: Tank Water Egypt
+  platform: shopify
+  base_url: https://tankwaters.com
+  category: home_appliances
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    default_brand: Tank
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 40/50 in-stock)
+- store_key: luna_eg
+  display_name: Luna Cosmetics Egypt
+  platform: shopify
+  base_url: https://luna.com.eg
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    default_brand: Luna
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 47/50 in-stock)
+- store_key: mintra_eg
+  display_name: Mintra Egypt
+  platform: shopify
+  base_url: https://mintra.com.eg
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 500
+  discover_limit: 3000
+  max_products: 4000
+  config:
+    default_brand: Mintra
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 50/50 in-stock)
+- store_key: andora_eg
+  display_name: Andora Egypt
+  platform: shopify
+  base_url: https://andoraeg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 500
+  discover_limit: 3000
+  max_products: 4000
+  config:
+    default_brand: Andora
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 46/50 in-stock)
+- store_key: tie_house_eg
+  display_name: Tie House Egypt
+  platform: shopify
+  base_url: https://www.tie-house.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  default_limit: 500
+  discover_limit: 3000
+  max_products: 4000
+  config:
+    default_brand: Tie House
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 50/50 in-stock)
+- store_key: tie_shop_eg
+  display_name: Tie Shop Egypt
+  platform: shopify
+  base_url: https://tieshop.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    default_brand: Tie Shop
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 35/50 in-stock)
+- store_key: dott_jeans_eg
+  display_name: Dott Jeans Egypt
+  platform: shopify
+  base_url: https://dottjeans.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    default_brand: Dott Jeans
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official major brand store (live EGP verified 45/50 in-stock)
+- store_key: runner_eg
+  display_name: Runner Egypt
+  platform: shopify
+  base_url: https://runner.com.eg
+  category: sports
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  default_limit: 500
+  discover_limit: 3000
+  max_products: 4000
+  config:
+    use_impersonation: true
+  notes: Priority 1 major official footwear & sports retailer (live EGP verified 46/50 in-stock)
+- store_key: dstore_eg
+  display_name: DStore Egypt
+  platform: shopify
+  base_url: https://dstoreegypt.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  default_limit: 500
+  discover_limit: 3000
+  max_products: 4000
+  config:
+    use_impersonation: true
+  notes: Priority 1 major designer fashion/footwear flagship (live EGP verified 50/50 in-stock)
+- store_key: kayanek_eg
+  display_name: Kayanek Egypt
+  platform: woocommerce
+  base_url: https://kayanek.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    use_impersonation: true
+    per_page: 40
+  notes: Priority 1 major Egyptian dermocosmetics flagship (live EGP verified 41/50 in-stock)
+- store_key: el_sallab_eg
+  display_name: El Sallab Egypt
+  platform: shopify
+  base_url: https://elsallab.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  default_limit: 400
+  discover_limit: 2500
+  max_products: 3000
+  config:
+    use_impersonation: true
+  notes: Priority 1 iconic Egyptian home/sanitary/lighting flagship (live EGP verified 30/50 in-stock)
+- store_key: cherry_and_berry
+  display_name: Cherry & Berry Egypt
+  platform: shopify
+  base_url: https://chandbe.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  default_limit: 300
+  discover_limit: 1500
+  max_products: 2000
+  config:
+    default_brand: Cherry & Berry
+    override_brand: true
+    use_impersonation: true
+  notes: Priority 1 official haircare & styling tools brand store (live EGP verified 37/41 in-stock)

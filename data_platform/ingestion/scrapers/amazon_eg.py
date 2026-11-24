@@ -49,7 +49,7 @@ from .noon import (
 
 logger = logging.getLogger(__name__)
 
-# Curated high-overlap search queries interleaved across all 3 categories
+# Curated high-overlap search queries interleaved across ALL major Amazon Egypt departments
 AMAZON_EG_QUERIES: list[tuple[str, Category, str]] = [
     ("smartphones", "electronics", "samsung galaxy smartphone"),
     ("tvs", "home_appliances", "smart tv 4k"),
@@ -61,13 +61,37 @@ AMAZON_EG_QUERIES: list[tuple[str, Category, str]] = [
     ("washing_machines", "home_appliances", "automatic washing machine"),
     ("smartphones", "electronics", "xiaomi redmi smartphone"),
     ("kitchen_appliances", "home_appliances", "air fryer"),
+    ("skincare", "beauty", "cerave la roche posay skincare"),
+    ("perfumes", "beauty", "eau de parfum perfume"),
+    ("vitamins", "health", "vitamins omega 3 supplements"),
+    ("cookware", "home_furniture", "tefal cookware set"),
+    ("fitness", "sports", "dumbbells fitness home gym"),
+    ("baby_care", "baby_kids", "pampers baby diapers"),
+    ("pet_food", "pet_care", "royal canin cat dog food"),
 ]
 
 AMAZON_EG_DISCOVER_EXTRA_QUERIES: list[tuple[str, Category, str]] = [
     ("smartphones", "electronics", "apple iphone"),
+    ("tablets", "electronics", "ipad samsung galaxy tab"),
+    ("wearables", "electronics", "smartwatch apple watch amazfit"),
+    ("gaming", "electronics", "playstation ps5 controller"),
+    ("printers", "electronics", "hp laser printer"),
+    ("storage", "electronics", "ssd nvme 1tb"),
+    ("networking", "electronics", "tp-link wifi router"),
+    ("cameras", "electronics", "canon digital camera"),
     ("refrigerators", "home_appliances", "refrigerator no frost"),
+    ("cookers", "home_appliances", "gas cooker 5 burner"),
+    ("dishwashers", "home_appliances", "dishwasher automatic"),
+    ("microwaves", "home_appliances", "microwave oven"),
+    ("vacuums", "home_appliances", "vacuum cleaner"),
+    ("water_heaters", "home_appliances", "electric water heater"),
+    ("kitchen_appliances", "home_appliances", "espresso coffee machine"),
     ("monitors", "electronics", "gaming monitor 144hz"),
     ("footwear", "fashion", "adidas running shoes"),
+    ("haircare", "beauty", "loreal shampoo haircare"),
+    ("supplements", "health", "whey protein optimum nutrition"),
+    ("toys", "baby_kids", "lego toys kids"),
+    ("bedding", "home_furniture", "memory foam pillow bedding"),
 ]
 
 # Egyptian Groceries ("سلة البيت المصري") — 7 high-frequency household sub-categories
@@ -215,10 +239,11 @@ class AmazonEgScraper(BaseScraper):
     store_name = "amazon_eg"
     category: Category = "electronics"
     base_url = "https://www.amazon.eg"
-    default_limit = 250
-    discover_limit = 900
-    groceries_limit = 300
-    discover_groceries_limit = 800
+    default_limit = 500
+    discover_limit = 2000
+    expand_limit = 3500
+    groceries_limit = 400
+    discover_groceries_limit = 1200
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 4.0
     request_timeout = 30.0
@@ -235,7 +260,7 @@ class AmazonEgScraper(BaseScraper):
         is_groceries = self.vertical == "groceries"
         if is_groceries:
             queries = AMAZON_EG_GROCERY_QUERIES
-        elif self.mode == "discover":
+        elif self.mode in ("discover", "expand"):
             queries = AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES
         else:
             queries = AMAZON_EG_QUERIES

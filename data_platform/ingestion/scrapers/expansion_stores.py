@@ -72,17 +72,24 @@ class JumiaScraper(BaseScraper):
         ("tvs", "home_appliances", "https://www.jumia.com.eg/televisions/"),
         ("smartphones", "electronics", "https://www.jumia.com.eg/smartphones/"),
         ("laptops", "electronics", "https://www.jumia.com.eg/laptops/"),
+        ("computing", "electronics", "https://www.jumia.com.eg/computing/"),
+        ("gaming", "electronics", "https://www.jumia.com.eg/video-games/"),
         ("accessories", "electronics", "https://www.jumia.com.eg/electronics/"),
         ("skincare", "beauty", "https://www.jumia.com.eg/health-beauty/"),
+        ("furniture", "home_furniture", "https://www.jumia.com.eg/home-office/"),
+        ("sports_gear", "sports", "https://www.jumia.com.eg/sporting-goods/"),
+        ("baby_care", "baby_kids", "https://www.jumia.com.eg/baby-products/"),
     )
     _GROCERIES_URLS: tuple[tuple[str, Category, str], ...] = (
         ("oils_ghee", "groceries", "https://www.jumia.com.eg/groceries/"),
         ("tea_coffee", "groceries", "https://www.jumia.com.eg/beverages/"),
         ("detergents", "groceries", "https://www.jumia.com.eg/household-cleaning/"),
+        ("snacks", "groceries", "https://www.jumia.com.eg/food-cupboard/"),
     )
     _FASHION_URLS: tuple[tuple[str, Category, str], ...] = (
         ("apparel", "fashion", "https://www.jumia.com.eg/category-fashion-by-jumia/"),
         ("shoes", "fashion", "https://www.jumia.com.eg/mens-shoes/"),
+        ("shoes", "fashion", "https://www.jumia.com.eg/womens-shoes/"),
     )
 
     def _active_urls(self) -> tuple[tuple[str, Category, str], ...]:

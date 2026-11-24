@@ -37,7 +37,12 @@ logger = logging.getLogger(__name__)
 RANEEN_CATEGORIES: tuple[tuple[str, Category, str], ...] = (
     ("large_appliances", "home_appliances", "https://www.raneen.com/en/appliances"),
     ("smartphones", "electronics", "https://www.raneen.com/en/electronics"),
+    ("smartphones", "electronics", "https://www.raneen.com/en/mobiles-tablets"),
+    ("tvs", "home_appliances", "https://www.raneen.com/en/tvs"),
     ("kitchen_appliances", "home_appliances", "https://www.raneen.com/en/kitchen"),
+    ("furniture", "home_furniture", "https://www.raneen.com/en/furniture"),
+    ("bedding", "home_furniture", "https://www.raneen.com/en/home-textiles"),
+    ("personal_care", "beauty", "https://www.raneen.com/en/personal-care"),
     ("small_appliances", "home_appliances", "https://www.raneen.com/en/deals/daily-deals"),
 )
 
@@ -50,8 +55,9 @@ class RaneenScraper(BaseScraper):
     store_name = "raneen"
     category: Category = "home_appliances"
     base_url = "https://www.raneen.com"
-    default_limit = 200
-    discover_limit = 900
+    default_limit = 400
+    discover_limit = 1500
+    expand_limit = 2500
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds = 1.5
     request_timeout = 30.0

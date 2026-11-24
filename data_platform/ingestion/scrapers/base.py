@@ -353,6 +353,16 @@ class RawProductSnapshot(BaseModel):
             external_id=self.external_id,
             category=self.category,
         )
+        # Pure-Python Arabic + English brand extraction & canonicalization (zero SQL overhead)
+        from .brand_normalizer import normalize_product_brand
+
+        self.brand = normalize_product_brand(
+            self.brand,
+            product_title=self.product_title,
+            store_name=self.store_name,
+            product_url=self.product_url,
+            attributes_json=self.attributes_json,
+        )
         return self
 
     def to_json_dict(self) -> dict[str, Any]:
@@ -994,6 +1004,7 @@ class BaseScraper(ABC):
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds: float = 1.0
     request_timeout: Optional[float] = None
+    skip_new_out_of_stock: bool = True
 
     def __init__(
         self,
@@ -1065,9 +1076,9 @@ class BaseScraper(ABC):
         return tracked + untracked
 
     def validate_record(self, payload: dict[str, Any]) -> Optional[RawProductSnapshot]:
-        """Validate a scraped dict against `RawProductSnapshot`; skip bad rows safely."""
+        """Validate a scraped dict against `RawProductSnapshot`; skip bad rows & brand-new OOS safely."""
         try:
-            return RawProductSnapshot.model_validate(payload)
+            rec = RawProductSnapshot.model_validate(payload)
         except Exception as exc:
             self.skipped_count += 1
             logger.warning(
@@ -1077,6 +1088,14 @@ class BaseScraper(ABC):
                 exc,
             )
             return None
+        if (
+            self.skip_new_out_of_stock
+            and not rec.in_stock
+            and rec.external_id not in self.tracked_external_ids
+        ):
+            self.skipped_oos_count += 1
+            return None
+        return rec
 
     @abstractmethod
     def scrape(self, limit: int = 30) -> list[RawProductSnapshot]:
@@ -1680,3 +1699,301 @@ def fetch_tracked_store_ids_from_neon(
     except Exception as exc:
         logger.warning("[%s] Could not load tracked IDs from Neon (%s); continuing without watchlist.", store_name, exc)
         return set()
+
+
+def compute_product_sk(store_name: str, external_id: str) -> str:
+    """Deterministic surrogate key matching `stg_products.sql`: MD5(lower(trim(store)) || '|' || trim(ext_id))."""
+    import hashlib
+
+    raw_key = f"{store_name.strip().lower()}|{external_id.strip()}"
+    return hashlib.md5(raw_key.encode("utf-8")).hexdigest()
+
+
+def bulk_copy_snapshots_to_neon(
+    snapshots: list[RawProductSnapshot],
+    *,
+    conn: Any = None,
+) -> int:
+    """Ultra-fast PostgreSQL `COPY` bulk load into `raw.raw_product_snapshots`.
+
+    Streams deduplicated snapshots in CSV format through `COPY` into a session
+    temp table and executes a single set-based `INSERT ... ON CONFLICT DO UPDATE`,
+    minimizing Neon active compute time (~10x faster than batched INSERTs).
+    """
+    if not snapshots:
+        return 0
+
+    import csv
+    import io
+
+    # Deduplicate locally by (store_name, external_id, snapshot_date) keeping latest scraped_at
+    deduped: dict[tuple[str, str, date], RawProductSnapshot] = {}
+    for s in snapshots:
+        key = (s.store_name, s.external_id, s.snapshot_date)
+        prev = deduped.get(key)
+        if prev is None or s.scraped_at >= prev.scraped_at:
+            deduped[key] = s
+    ordered = sorted(deduped.values(), key=lambda s: (s.store_name, s.external_id, s.snapshot_date))
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    for s in ordered:
+        attrs_str = json.dumps(s.attributes_json, ensure_ascii=False) if s.attributes_json else ""
+        writer.writerow(
+            [
+                s.store_name,
+                s.external_id,
+                "" if s.canonical_product_key is None else s.canonical_product_key,
+                s.category,
+                s.sub_category,
+                s.brand,
+                s.product_title,
+                s.product_url,
+                "" if s.image_url is None else s.image_url,
+                attrs_str,
+                str(s.current_price),
+                "" if s.claimed_original_price is None else str(s.claimed_original_price),
+                "t" if s.in_stock else "f",
+                s.snapshot_date.isoformat(),
+                s.scraped_at.isoformat(sep=" "),
+            ]
+        )
+    buf.seek(0)
+
+    own_conn = conn is None
+    if own_conn:
+        db_url = os.getenv("DATABASE_URL_ADMIN")
+        if not db_url:
+            raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
+        conn = psycopg2.connect(db_url)
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(DDL_SQL)
+                cur.execute("SELECT pg_advisory_xact_lock(hashtext('raw_product_snapshots_upsert'));")
+                cur.execute(
+                    """
+                    CREATE TEMP TABLE IF NOT EXISTS pg_temp.staging_copy_snapshots (
+                        store_name              VARCHAR(100),
+                        external_id             VARCHAR(120),
+                        canonical_product_key   VARCHAR(160),
+                        category                VARCHAR(50),
+                        sub_category            VARCHAR(80),
+                        brand                   VARCHAR(100),
+                        product_title           TEXT,
+                        product_url             TEXT,
+                        image_url               TEXT,
+                        attributes_json         JSONB,
+                        current_price           NUMERIC(12,2),
+                        claimed_original_price  NUMERIC(12,2),
+                        in_stock                BOOLEAN,
+                        snapshot_date           DATE,
+                        scraped_at              TIMESTAMP
+                    ) ON COMMIT DROP;
+                    """
+                )
+                cur.execute("TRUNCATE pg_temp.staging_copy_snapshots;")
+                cur.copy_expert(
+                    """
+                    COPY pg_temp.staging_copy_snapshots (
+                        store_name, external_id, canonical_product_key, category, sub_category,
+                        brand, product_title, product_url, image_url, attributes_json,
+                        current_price, claimed_original_price, in_stock, snapshot_date, scraped_at
+                    ) FROM STDIN WITH (FORMAT CSV, NULL '');
+                    """,
+                    buf,
+                )
+                cur.execute(
+                    """
+                    INSERT INTO raw.raw_product_snapshots (
+                        store_name, external_id, canonical_product_key, category, sub_category,
+                        brand, product_title, product_url, image_url, attributes_json,
+                        current_price, claimed_original_price, in_stock, snapshot_date, scraped_at, last_seen_at
+                    )
+                    SELECT
+                        store_name, external_id, canonical_product_key, category, sub_category,
+                        brand, product_title, product_url, image_url, attributes_json,
+                        current_price, claimed_original_price, in_stock, snapshot_date, scraped_at, NOW()
+                    FROM pg_temp.staging_copy_snapshots
+                    ON CONFLICT (store_name, external_id, snapshot_date) DO UPDATE SET
+                        canonical_product_key   = COALESCE(EXCLUDED.canonical_product_key, raw.raw_product_snapshots.canonical_product_key),
+                        category                = EXCLUDED.category,
+                        sub_category            = EXCLUDED.sub_category,
+                        brand                   = EXCLUDED.brand,
+                        product_title           = EXCLUDED.product_title,
+                        product_url             = EXCLUDED.product_url,
+                        image_url               = COALESCE(EXCLUDED.image_url, raw.raw_product_snapshots.image_url),
+                        attributes_json         = EXCLUDED.attributes_json,
+                        current_price           = EXCLUDED.current_price,
+                        claimed_original_price  = EXCLUDED.claimed_original_price,
+                        in_stock                = EXCLUDED.in_stock,
+                        scraped_at              = EXCLUDED.scraped_at,
+                        last_seen_at            = NOW();
+                    """
+                )
+        return len(ordered)
+    finally:
+        if own_conn:
+            conn.close()
+
+
+def truncate_raw_snapshots_after_dbt(
+    *,
+    dry_run: bool = False,
+    conn: Any = None,
+) -> int:
+    """Zero-rest staging cleanup: `TRUNCATE TABLE raw.raw_product_snapshots` after dbt run + test pass."""
+    own_conn = conn is None
+    if own_conn:
+        db_url = os.getenv("DATABASE_URL_ADMIN")
+        if not db_url:
+            raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
+        conn = psycopg2.connect(db_url)
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM raw.raw_product_snapshots;")
+            row_count = int(cur.fetchone()[0] or 0)
+        if dry_run:
+            return row_count
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("TRUNCATE TABLE raw.raw_product_snapshots;")
+        return row_count
+    finally:
+        if own_conn:
+            conn.close()
+
+
+def fetch_gold_catalog_for_matching(
+    *,
+    conn: Any = None,
+) -> tuple[Optional[date], list[RawProductSnapshot]]:
+    """Load the full active catalog directly from `gold.mart_product_verdicts` for local-RAM matching.
+
+    Decouples cross-store entity resolution from `raw.raw_product_snapshots` so zero-rest
+    `TRUNCATE raw.raw_product_snapshots` never loses cross-store matches across rotated waves.
+    Stores `product_sk` in `RawProductSnapshot.external_id` for direct delta updates back to gold.
+    """
+    own_conn = conn is None
+    if own_conn:
+        db_url = os.getenv("DATABASE_URL_ADMIN")
+        if not db_url:
+            raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
+        conn = psycopg2.connect(db_url)
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    product_sk,
+                    store_name,
+                    canonical_product_key,
+                    category,
+                    sub_category,
+                    brand,
+                    product_title,
+                    attributes_json,
+                    current_price,
+                    claimed_original_price,
+                    in_stock,
+                    last_updated_at
+                FROM gold.mart_product_verdicts
+                WHERE current_price IS NOT NULL AND current_price > 0
+                ORDER BY store_name, product_sk;
+                """
+            )
+            fetched = cur.fetchall()
+    finally:
+        if own_conn:
+            conn.close()
+
+    if not fetched:
+        return None, []
+
+    latest_date: Optional[date] = None
+    snapshots: list[RawProductSnapshot] = []
+    for r in fetched:
+        attrs = r[7] if isinstance(r[7], dict) else (json.loads(r[7]) if r[7] else {})
+        ts = r[11] or utc_now_naive()
+        sdate = ts.date() if isinstance(ts, datetime) else date.today()
+        if latest_date is None or sdate > latest_date:
+            latest_date = sdate
+        snapshots.append(
+            RawProductSnapshot.model_construct(
+                store_name=r[1],
+                external_id=r[0],  # product_sk
+                canonical_product_key=r[2],
+                category=r[3],
+                sub_category=r[4] or "other",
+                brand=r[5] or "Unknown",
+                product_title=r[6],
+                product_url="https://asarak.com",
+                image_url=None,
+                attributes_json=attrs,
+                current_price=r[8],
+                claimed_original_price=r[9],
+                in_stock=bool(r[10]),
+                snapshot_date=sdate,
+                scraped_at=ts if isinstance(ts, datetime) else utc_now_naive(),
+            )
+        )
+    return latest_date, snapshots
+
+
+def update_gold_canonical_keys_in_neon(
+    snapshots: list[RawProductSnapshot],
+    *,
+    conn: Any = None,
+) -> int:
+    """Delta-update `gold.mart_product_verdicts.canonical_product_key` via PostgreSQL `COPY`."""
+    if not snapshots:
+        return 0
+
+    import csv
+    import io
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    for s in snapshots:
+        writer.writerow([s.external_id, "" if s.canonical_product_key is None else s.canonical_product_key])
+    buf.seek(0)
+
+    own_conn = conn is None
+    if own_conn:
+        db_url = os.getenv("DATABASE_URL_ADMIN")
+        if not db_url:
+            raise RuntimeError("DATABASE_URL_ADMIN is not set in environment / .env")
+        conn = psycopg2.connect(db_url)
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE TEMP TABLE IF NOT EXISTS pg_temp.staging_match_keys (
+                        product_sk VARCHAR(64),
+                        canonical_product_key VARCHAR(160)
+                    ) ON COMMIT DROP;
+                    """
+                )
+                cur.execute("TRUNCATE pg_temp.staging_match_keys;")
+                cur.copy_expert(
+                    "COPY pg_temp.staging_match_keys (product_sk, canonical_product_key) FROM STDIN WITH (FORMAT CSV, NULL '');",
+                    buf,
+                )
+                cur.execute(
+                    """
+                    UPDATE gold.mart_product_verdicts AS t
+                    SET canonical_product_key = v.canonical_product_key
+                    FROM pg_temp.staging_match_keys AS v
+                    WHERE t.product_sk = v.product_sk
+                      AND t.canonical_product_key IS DISTINCT FROM v.canonical_product_key;
+                    """
+                )
+                return int(cur.rowcount or 0)
+    finally:
+        if own_conn:
+            conn.close()

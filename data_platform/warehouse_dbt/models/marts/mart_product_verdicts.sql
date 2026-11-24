@@ -12,7 +12,8 @@
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_parent_key ON {{ this }} (parent_product_key) WHERE has_multiple_variants = TRUE",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_search_doc_trgm ON {{ this }} USING GIN (search_document gin_trgm_ops)",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_store_name ON {{ this }} (store_name)",
-            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_non_normal_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict <> 'NORMAL_PRICE'"
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_non_normal_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict <> 'NORMAL_PRICE'",
+            "DELETE FROM {{ this }} v WHERE (v.last_updated_at < (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days' OR (v.in_stock = FALSE AND COALESCE((SELECT MAX(h.snapshot_date) FROM {{ ref('fct_price_history') }} h WHERE h.product_sk = v.product_sk), v.last_updated_at::DATE) < (CURRENT_DATE - INTERVAL '45 days')::DATE)) AND NOT EXISTS (SELECT 1 FROM public.price_alerts pa WHERE pa.product_key = v.product_sk AND pa.is_active = TRUE)"
         ]
     )
 }}

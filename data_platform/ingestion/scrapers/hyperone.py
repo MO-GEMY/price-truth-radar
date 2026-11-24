@@ -54,6 +54,14 @@ HYPERONE_GROCERY_QUERIES: list[tuple[str, str]] = [
     ("beverages", "pepsi"),
     ("detergents", "persil"),
     ("detergents", "fairy"),
+    ("snacks", "chocolate"),
+    ("snacks", "biscuits"),
+    ("frozen", "chicken"),
+    ("canned_sauces", "honey"),
+    ("detergents", "shampoo"),
+    ("detergents", "tissue"),
+    ("baby_care", "pampers"),
+    ("pet_food", "cat food"),
 ]
 
 _HYPERONE_GQL_QUERY = """

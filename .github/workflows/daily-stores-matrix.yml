@@ -1,34 +1,37 @@
-name: Daily Stores Batch Matrix (Registry-Driven)
+name: Daily Stores Batch Matrix (Offline Tiered Pipeline)
 
 on:
   schedule:
     # Single tight daily Neon compute window (00:53 UTC = 02:53 AM Cairo EET / 03:53 AM EEST):
-    #   - Sun-Fri: daily price refresh across all 174 cloud stores (+ amazon_eg/noon groceries)
-    #   - Saturday: deep discovery mode across all 174 cloud stores in the same window
+    #   - Sun-Fri: daily refresh of Tier-1 (Priority 1 Major Brands + Priority 2 Major Stores)
+    #              + rotated Tier-2 (every 3 days) + rotated Tier-3 (every 5 days)
+    #   - Saturday: deep discovery sweep across scheduled tiered shards in the same single window
+    # Neon stays 100% SUSPENDED (0 CU) during ALL HTTP scraping; opens ONCE at the end for COPY + dbt + TRUNCATE.
     - cron: '53 0 * * 0-5'
     - cron: '53 0 * * 6'
   workflow_dispatch:
     inputs:
       mode:
-        description: "Scrape mode ('daily' or 'discover')"
+        description: "Scrape mode ('daily', 'discover', or 'expand')"
         required: false
         default: "daily"
         type: choice
         options:
           - daily
           - discover
-      batch_filter:
-        description: "Optional batch name (or comma-separated batches) to run, or 'all' for every active cloud batch"
+          - expand
+      priority_filter:
+        description: "Priority slice ('all', 'p1', 'p2', 'p1_p2', 'p3', or comma-separated store keys)"
         required: false
         default: "all"
         type: string
-      delta_mode:
-        description: "Enable Delta Snapshots (skip unchanged rows to save 80-90% Neon storage)"
+      all_tiers:
+        description: "Include ALL Tier-2 & Tier-3 stores today instead of day-of-year modulo rotation"
         required: false
-        default: true
+        default: false
         type: boolean
       dry_run:
-        description: "Dry-run with Delta storage savings preview (no Neon writes)"
+        description: "Dry-run offline scrape + circuit-breaker preview (zero Neon writes)"
         required: false
         default: false
         type: boolean
@@ -38,13 +41,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  plan-batches:
-    name: Discover Cloud Batches from stores_registry.yaml
+  plan-waves:
+    name: Plan Deterministic Tiered Waves (Zero-DB)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      batches: ${{ steps.plan.outputs.batches }}
-      has_batches: ${{ steps.plan.outputs.has_batches }}
+      shards: ${{ steps.plan.outputs.shards }}
+      has_shards: ${{ steps.plan.outputs.has_shards }}
       mode: ${{ steps.plan.outputs.mode }}
 
     steps:
@@ -56,61 +59,53 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install PyYAML
-        run: pip install pyyaml
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
 
-      - name: Build cloud batch list
+      - name: Build strict Priority 1 -> 2 -> 3 shard plan (Zero Neon connection)
         id: plan
         env:
-          BATCH_FILTER: ${{ github.event.inputs.batch_filter || 'all' }}
+          PRIORITY_FILTER: ${{ github.event.inputs.priority_filter || 'all' }}
+          ALL_TIERS: ${{ github.event.inputs.all_tiers || 'false' }}
           INPUT_MODE: ${{ github.event.inputs.mode || '' }}
           EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
         run: |
+          EXTRA=""
+          if [ "$ALL_TIERS" = "true" ]; then
+            EXTRA="--all-tiers"
+          fi
+          python scripts/offline_tiered_pipeline.py plan \
+            --filter "$PRIORITY_FILTER" \
+            --tier2-cadence 3 \
+            --tier3-cadence 5 \
+            $EXTRA \
+            --github-output "$GITHUB_OUTPUT"
+
           python - <<'PY'
-          import json
           import os
-          from pathlib import Path
-          import yaml
-
-          reg = yaml.safe_load(Path("data_platform/ingestion/stores_registry.yaml").read_text(encoding="utf-8"))
-          stores = reg.get("stores") or []
-          batches = sorted({
-              str(s["batch"]).strip()
-              for s in stores
-              if s.get("enabled") and s.get("region_mode") == "cloud" and s.get("batch")
-          })
-          raw_filter = os.environ.get("BATCH_FILTER", "all").strip()
-          if raw_filter and raw_filter.lower() != "all":
-              allowed = {b.strip() for b in raw_filter.split(",") if b.strip()}
-              batches = [b for b in batches if b in allowed]
-
           dispatch_mode = os.environ.get("INPUT_MODE", "").strip().lower()
           schedule_expr = os.environ.get("EVENT_SCHEDULE", "").strip()
-          if dispatch_mode in ("daily", "discover"):
-              resolved_mode = dispatch_mode
+          if dispatch_mode in ("daily", "discover", "expand"):
+              mode = dispatch_mode
           elif schedule_expr == "53 0 * * 6":
-              resolved_mode = "discover"
+              mode = "discover"
           else:
-              resolved_mode = "daily"
-
-          print(f"Active cloud batches ({len(batches)}): {batches}")
-          print(f"Resolved scrape mode: {resolved_mode} (schedule='{schedule_expr}', input='{dispatch_mode}')")
+              mode = "daily"
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-              fh.write(f"batches={json.dumps(batches)}\n")
-              fh.write(f"has_batches={'true' if batches else 'false'}\n")
-              fh.write(f"mode={resolved_mode}\n")
+              fh.write(f"mode={mode}\n")
+          print(f"Resolved scrape mode: {mode}")
           PY
 
-  scrape-batch:
-    name: Scrape Batch (${{ matrix.batch }} - ${{ needs.plan-batches.outputs.mode }})
+  scrape-offline:
+    name: Offline Scrape (${{ matrix.shard.shard }} - ${{ needs.plan-waves.outputs.mode }})
     runs-on: ubuntu-latest
-    needs: plan-batches
-    if: needs.plan-batches.outputs.has_batches == 'true'
+    needs: plan-waves
+    if: needs.plan-waves.outputs.has_shards == 'true'
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        batch: ${{ fromJson(needs.plan-batches.outputs.batches) }}
+        shard: ${{ fromJson(needs.plan-waves.outputs.shards) }}
 
     steps:
       - name: Checkout repository
@@ -124,41 +119,42 @@ jobs:
       - name: Install data platform dependencies
         run: pip install -r data_platform/requirements.txt
 
-      - name: Run batch scrapers (${{ matrix.batch }} - ${{ needs.plan-batches.outputs.mode }})
+      - name: Run 100% offline shard scraper (ZERO Neon connection / 0 CU)
         continue-on-error: true
         env:
-          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-          DATABASE_URL_READONLY: ${{ secrets.DATABASE_URL_READONLY }}
-          MODE_INPUT: ${{ needs.plan-batches.outputs.mode }}
-          DELTA_INPUT: ${{ github.event.inputs.delta_mode || 'true' }}
-          DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
+          # Explicitly empty — Neon MUST stay suspended during all HTTP scraping
+          DATABASE_URL: ""
+          DATABASE_URL_ADMIN: ""
+          DATABASE_URL_READONLY: ""
+          MODE_INPUT: ${{ needs.plan-waves.outputs.mode }}
+          SHARD_NAME: ${{ matrix.shard.shard }}
+          SHARD_PRIORITY: ${{ matrix.shard.priority }}
+          SHARD_STORES: ${{ join(matrix.shard.stores, ',') }}
         run: |
-          EXTRA_ARGS=""
-          if [ "$DELTA_INPUT" = "false" ]; then
-            EXTRA_ARGS="$EXTRA_ARGS --no-delta"
-          else
-            EXTRA_ARGS="$EXTRA_ARGS --delta"
-          fi
-          if [ "$DRY_RUN_INPUT" = "true" ]; then
-            EXTRA_ARGS="$EXTRA_ARGS --dry-run --delta-preview"
-          fi
-          python data_platform/ingestion/scrapers/run_scrapers.py \
-            --batch "${{ matrix.batch }}" \
+          mkdir -p staging
+          python scripts/offline_tiered_pipeline.py scrape-shard \
+            --shard "$SHARD_NAME" \
+            --priority "$SHARD_PRIORITY" \
+            --stores "$SHARD_STORES" \
             --mode "$MODE_INPUT" \
-            $EXTRA_ARGS
+            --workers 4 \
+            --out "staging/${SHARD_NAME}.jsonl.gz"
 
-  scrape-multi-vertical-groceries:
-    name: Scrape Multi-Vertical Groceries (${{ matrix.store }} - ${{ needs.plan-batches.outputs.mode }})
+      - name: Upload compact gzipped JSONL shard artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-shard-${{ matrix.shard.shard }}
+          path: staging/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  load-match-dbt:
+    name: Single-Session Neon COPY, Match, dbt & Zero-Rest TRUNCATE
     runs-on: ubuntu-latest
-    needs: plan-batches
-    if: needs.plan-batches.outputs.has_batches == 'true' && (github.event.inputs.batch_filter == '' || github.event.inputs.batch_filter == 'all')
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        store:
-          - amazon_eg
-          - noon
+    needs: [plan-waves, scrape-offline]
+    if: always() && needs.plan-waves.outputs.has_shards == 'true'
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -172,58 +168,27 @@ jobs:
       - name: Install data platform dependencies
         run: pip install -r data_platform/requirements.txt
 
-      - name: Run grocery vertical scraper (${{ matrix.store }})
-        continue-on-error: true
+      - name: Download all offline JSONL shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: offline-shard-*
+          path: staging_artifacts
+          merge-multiple: true
+
+      - name: Circuit-breaker -> Bulk COPY (P1 -> P2 -> P3) -> dbt -> Match -> TRUNCATE raw
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-          DATABASE_URL_READONLY: ${{ secrets.DATABASE_URL_READONLY }}
-          MODE_INPUT: ${{ needs.plan-batches.outputs.mode }}
-          DELTA_INPUT: ${{ github.event.inputs.delta_mode || 'true' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_NOTIFY_CHAT_ID: ${{ secrets.TELEGRAM_NOTIFY_CHAT_ID }}
           DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          EXTRA_ARGS=""
-          if [ "$DELTA_INPUT" = "false" ]; then
-            EXTRA_ARGS="$EXTRA_ARGS --no-delta"
-          else
-            EXTRA_ARGS="$EXTRA_ARGS --delta"
-          fi
+          EXTRA=""
           if [ "$DRY_RUN_INPUT" = "true" ]; then
-            EXTRA_ARGS="$EXTRA_ARGS --dry-run --delta-preview"
+            EXTRA="--dry-run"
           fi
-          python data_platform/ingestion/scrapers/run_scrapers.py \
-            --store "${{ matrix.store }}" \
-            --vertical groceries \
-            --mode "$MODE_INPUT" \
-            $EXTRA_ARGS
-
-  match-and-dbt:
-    name: Hybrid Match & Run dbt
-    runs-on: ubuntu-latest
-    needs: [plan-batches, scrape-batch, scrape-multi-vertical-groceries]
-    if: always() && needs.plan-batches.outputs.has_batches == 'true' && github.event.inputs.dry_run != 'true'
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install data platform dependencies
-        run: pip install -r data_platform/requirements.txt
-
-      - name: Run DB-level 3-tier hybrid cross-store matching
-        env:
-          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-        run: python data_platform/ingestion/scrapers/run_scrapers.py --match-db
-
-      - name: Run dbt models, data tests, and 3-day raw retention cleanup
-        env:
-          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-        run: |
-          python data_platform/run_dbt.py run
-          python data_platform/run_dbt.py test
-          python data_platform/ingestion/scrapers/run_scrapers.py --prune-raw --retention-days 3
+          python scripts/offline_tiered_pipeline.py load-and-transform \
+            --artifacts-dir staging_artifacts \
+            --warn-mb 900 \
+            --stop-mb 950 \
+            --soft-exit-on-stop \
+            $EXTRA

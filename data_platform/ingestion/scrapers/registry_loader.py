@@ -64,6 +64,8 @@ class StoreRegistryEntry:
     enabled: bool = False
     verified: bool = False
     batch: str = "default"
+    tier: int = 3
+    priority_group: str = "long_tail"
     extra_verticals: tuple[ScrapeVertical, ...] = ()
     default_limit: Optional[int] = None
     discover_limit: Optional[int] = None
@@ -82,6 +84,16 @@ class StoreRegistryEntry:
             if v not in seen:
                 seen.append(v)
         return tuple(seen)
+
+    @property
+    def priority_rank(self) -> tuple[int, int, str]:
+        """Strict wave ordering: Priority 1 (major_brands) -> Priority 2 (major_stores) -> Tier 2 -> Tier 3."""
+        if self.tier == 1:
+            sub = 0 if self.priority_group == "major_brands" else 1
+            return (1, sub, self.store_key)
+        if self.tier == 2:
+            return (2, 0, self.store_key)
+        return (3, 0, self.store_key)
 
 
 def load_stores_registry(
@@ -109,6 +121,12 @@ def load_stores_registry(
             continue
         seen_keys.add(key)
 
+        raw_tier = item.get("tier")
+        tier = int(raw_tier) if raw_tier in (1, 2, 3, "1", "2", "3") else 3
+        raw_pg = str(item.get("priority_group") or "").strip().lower()
+        if not raw_pg:
+            raw_pg = "major_stores" if tier == 1 else ("mid_specialty" if tier == 2 else "long_tail")
+
         entry = StoreRegistryEntry(
             store_key=key,
             display_name=str(item.get("display_name") or key).strip(),
@@ -120,6 +138,8 @@ def load_stores_registry(
             enabled=bool(item.get("enabled", False)),
             verified=bool(item.get("verified", False)),
             batch=str(item.get("batch") or "default").strip(),
+            tier=tier,
+            priority_group=raw_pg,
             extra_verticals=tuple(
                 str(v).strip().lower() for v in (item.get("extra_verticals") or [])  # type: ignore[misc]
             ),
@@ -147,11 +167,16 @@ def build_platform_scraper_class(entry: StoreRegistryEntry) -> Optional[type[Bas
         "base_url": entry.base_url,
         "supported_verticals": entry.all_verticals,
     }
-    effective_max = entry.max_products or entry.discover_limit or DEFAULT_REGISTRY_MAX_PRODUCTS
+    tier_default_max = 3000 if entry.tier == 1 else (1200 if entry.tier == 2 else DEFAULT_REGISTRY_MAX_PRODUCTS)
+    effective_max = entry.max_products or entry.discover_limit or tier_default_max
     if entry.default_limit:
         common_attrs["default_limit"] = min(entry.default_limit, effective_max)
         if entry.vertical == "groceries":
             common_attrs["groceries_limit"] = min(entry.default_limit, effective_max)
+    elif entry.tier == 1:
+        common_attrs["default_limit"] = 450
+        if entry.vertical == "groceries":
+            common_attrs["groceries_limit"] = 450
     if effective_max:
         common_attrs["discover_limit"] = effective_max
         if entry.vertical == "groceries":
@@ -239,3 +264,97 @@ def list_active_batches(
     for entry in load_stores_registry(path=path, enabled_only=True, region_mode=region_mode):
         batches.add(entry.batch)
     return sorted(batches)
+
+
+def get_store_tier_map(
+    *,
+    enabled_only: bool = True,
+    path: Optional[Path] = None,
+) -> dict[str, tuple[int, str]]:
+    """Return `{store_key: (tier, priority_group)}` for registry stores."""
+    return {
+        e.store_key: (e.tier, e.priority_group)
+        for e in load_stores_registry(path=path, enabled_only=enabled_only)
+    }
+
+
+def plan_tiered_waves_for_day(
+    day_of_year: int,
+    *,
+    region_mode: Optional[RegionMode] = "cloud",
+    tier2_cadence_days: int = 3,
+    tier3_cadence_days: int = 5,
+    include_all_tiers: bool = False,
+    path: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Build deterministic Priority 1 -> Priority 2 -> Priority 3 wave schedule for `day_of_year`.
+
+    Cadence:
+      - Priority 1 (`tier=1, priority_group='major_brands'`): EVERY day.
+      - Priority 2 (`tier=1, priority_group='major_stores'`): EVERY day.
+      - Priority 3A (`tier=2`, mid-specialty): rotated every `tier2_cadence_days` (default: 3 days).
+      - Priority 3B (`tier=3`, long-tail): rotated every `tier3_cadence_days` (default: 5 days).
+    """
+    entries = sorted(
+        load_stores_registry(path=path, enabled_only=True, region_mode=region_mode),
+        key=lambda e: e.priority_rank,
+    )
+    p1_stores: list[str] = []
+    p2_stores: list[str] = []
+    t2_all: list[str] = []
+    t3_all: list[str] = []
+
+    for e in entries:
+        if e.tier == 1 and e.priority_group == "major_brands":
+            p1_stores.append(e.store_key)
+        elif e.tier == 1:
+            p2_stores.append(e.store_key)
+        elif e.tier == 2:
+            t2_all.append(e.store_key)
+        else:
+            t3_all.append(e.store_key)
+
+    t2_cad = max(1, int(tier2_cadence_days))
+    t3_cad = max(1, int(tier3_cadence_days))
+    if include_all_tiers:
+        t2_today = list(t2_all)
+        t3_today = list(t3_all)
+    else:
+        t2_slot = day_of_year % t2_cad
+        t3_slot = day_of_year % t3_cad
+        t2_today = [s for idx, s in enumerate(t2_all) if idx % t2_cad == t2_slot]
+        t3_today = [s for idx, s in enumerate(t3_all) if idx % t3_cad == t3_slot]
+
+    # Chunk each priority group into balanced offline worker shards (<= 14 stores/shard)
+    def _chunk(items: list[str], prefix: str, size: int = 14) -> list[dict[str, Any]]:
+        shards: list[dict[str, Any]] = []
+        for i in range(0, len(items), size):
+            shards.append(
+                {
+                    "shard": f"{prefix}_{i // size + 1}",
+                    "priority": prefix,
+                    "stores": items[i : i + size],
+                }
+            )
+        return shards
+
+    p1_shards = _chunk(p1_stores, "p1_major_brands", size=12)
+    p2_shards = _chunk(p2_stores, "p2_major_stores", size=10)
+    p3_shards = _chunk(t2_today, "p3_tier2", size=14) + _chunk(t3_today, "p3_tier3", size=14)
+
+    return {
+        "day_of_year": day_of_year,
+        "counts": {
+            "p1_major_brands": len(p1_stores),
+            "p2_major_stores": len(p2_stores),
+            "tier2_total": len(t2_all),
+            "tier2_today": len(t2_today),
+            "tier3_total": len(t3_all),
+            "tier3_today": len(t3_today),
+        },
+        "priority_1_stores": p1_stores,
+        "priority_2_stores": p2_stores,
+        "tier2_today_stores": t2_today,
+        "tier3_today_stores": t3_today,
+        "shards": p1_shards + p2_shards + p3_shards,
+    }

@@ -33,6 +33,7 @@ from data_platform.ingestion.scrapers import (  # noqa: E402
     ScrapeMode,
     ScrapeVertical,
     assign_canonical_keys,
+    fetch_gold_catalog_for_matching,
     fetch_latest_snapshots_from_neon,
     fetch_tracked_store_ids_from_neon,
     get_batch_targets,
@@ -40,7 +41,9 @@ from data_platform.ingestion.scrapers import (  # noqa: E402
     preview_delta_savings,
     prune_old_raw_snapshots,
     save_discovery_state,
+    truncate_raw_snapshots_after_dbt,
     update_canonical_keys_in_neon,
+    update_gold_canonical_keys_in_neon,
     upsert_snapshots_to_neon,
 )
 
@@ -101,6 +104,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Post-dbt storage guardrail: delete raw.raw_product_snapshots older than --retention-days "
             "and run VACUUM (ANALYZE). Invoke ONLY after dbt run and dbt test succeed."
+        ),
+    )
+    parser.add_argument(
+        "--truncate-raw",
+        action="store_true",
+        help=(
+            "Zero-rest raw staging cleanup: TRUNCATE raw.raw_product_snapshots after dbt run and "
+            "dbt test succeed so raw stays near 0 MB at rest."
         ),
     )
     parser.add_argument(
@@ -248,10 +259,18 @@ def _run_match_db(dry_run: bool) -> int:
     from data_platform.ingestion.scrapers.matcher_verticals import effective_category as _eff_cat
 
     t0 = _time.perf_counter()
-    snap_date, records = fetch_latest_snapshots_from_neon(for_matching=True)
+    use_gold_source = True
+    try:
+        snap_date, records = fetch_gold_catalog_for_matching()
+    except Exception:
+        use_gold_source = False
+        snap_date, records = fetch_latest_snapshots_from_neon(for_matching=True)
+    if not records:
+        use_gold_source = False
+        snap_date, records = fetch_latest_snapshots_from_neon(for_matching=True)
     t_load = _time.perf_counter() - t0
     if not records or snap_date is None:
-        print("No rows found in raw.raw_product_snapshots to match.")
+        print("No rows found in gold.mart_product_verdicts or raw.raw_product_snapshots to match.")
         return 0
 
     stores_counter = Counter(r.store_name for r in records)
@@ -357,11 +376,18 @@ def _run_match_db(dry_run: bool) -> int:
         )
         return 0
 
-    updated = update_canonical_keys_in_neon(changed_records)
-    print(
-        f"\nUpdated canonical_product_key across {updated:,} changed rows "
-        f"(out of {len(records):,} latest snapshots) for {snap_date.isoformat()} in Neon."
-    )
+    if use_gold_source:
+        updated = update_gold_canonical_keys_in_neon(changed_records)
+        print(
+            f"\nUpdated canonical_product_key across {updated:,} changed rows "
+            f"(out of {len(records):,} live gold verdicts) in Neon via COPY."
+        )
+    else:
+        updated = update_canonical_keys_in_neon(changed_records)
+        print(
+            f"\nUpdated canonical_product_key across {updated:,} changed rows "
+            f"(out of {len(records):,} latest snapshots) for {snap_date.isoformat()} in Neon."
+        )
     return 0
 
 
@@ -420,10 +446,11 @@ def main(argv: list[str] | None = None) -> int:
         and not args.batch
         and not args.match_db
         and not args.prune_raw
+        and not args.truncate_raw
         and not args.run_dbt_and_prune
     ):
         parser.error(
-            "Provide --store <slug|all>, --batch <name>, --match-db, --prune-raw, and/or --run-dbt-and-prune"
+            "Provide --store <slug|all>, --batch <name>, --match-db, --prune-raw, --truncate-raw, and/or --run-dbt-and-prune"
         )
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be a positive integer")
@@ -448,6 +475,11 @@ def main(argv: list[str] | None = None) -> int:
                 run_dbt_first=True,
                 dry_run=args.dry_run,
             )
+        if args.truncate_raw:
+            cleared = truncate_raw_snapshots_after_dbt(dry_run=args.dry_run)
+            tag = "DRY-RUN" if args.dry_run else "TRUNCATED"
+            print(f"RAW_ZERO_REST ({tag}) | cleared={cleared:,} rows from raw.raw_product_snapshots")
+            return 0
         if args.prune_raw:
             return run_post_dbt_raw_retention_cleanup(
                 retention_days=args.retention_days,
@@ -690,6 +722,11 @@ def main(argv: list[str] | None = None) -> int:
             run_dbt_first=True,
             dry_run=False,
         )
+    if args.truncate_raw:
+        cleared = truncate_raw_snapshots_after_dbt(dry_run=args.dry_run)
+        tag = "DRY-RUN" if args.dry_run else "TRUNCATED"
+        print(f"RAW_ZERO_REST ({tag}) | cleared={cleared:,} rows from raw.raw_product_snapshots")
+        return 0
     if args.prune_raw:
         return run_post_dbt_raw_retention_cleanup(
             retention_days=args.retention_days,

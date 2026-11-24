@@ -29,6 +29,14 @@ SEOUDI_GROCERY_QUERIES: tuple[tuple[str, Category, str], ...] = (
     ("beverages", "groceries", "water"),
     ("detergents", "groceries", "persil"),
     ("detergents", "groceries", "fairy"),
+    ("snacks", "groceries", "chocolate"),
+    ("snacks", "groceries", "biscuits"),
+    ("frozen", "groceries", "chicken"),
+    ("canned_sauces", "groceries", "honey"),
+    ("detergents", "groceries", "shampoo"),
+    ("detergents", "groceries", "tissue"),
+    ("baby_care", "groceries", "pampers"),
+    ("pet_food", "groceries", "cat food"),
 )
 
 

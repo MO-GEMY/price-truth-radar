@@ -55,6 +55,14 @@ BTECH_CATEGORIES: list[tuple[str, Category, str]] = [
     ("fans", "home_appliances", "https://btech.com/en/c/small-home-appliances/fans"),
     ("accessories", "electronics", "https://btech.com/en/c/mobiles-tablets/mobile-accessories"),
     ("accessories", "electronics", "https://btech.com/en/c/laptop-pc/laptop-pc-accessories"),
+    ("personal_care", "beauty", "https://btech.com/en/c/personal-care"),
+    ("cameras", "electronics", "https://btech.com/en/c/cameras"),
+    ("printers", "electronics", "https://btech.com/en/c/laptop-pc/printers-scanners"),
+    ("networking", "electronics", "https://btech.com/en/c/laptop-pc/networking"),
+    ("speakers", "electronics", "https://btech.com/en/c/audio-recording/speakers"),
+    ("irons", "home_appliances", "https://btech.com/en/c/small-home-appliances/irons-garment-steamers"),
+    ("air_purifiers", "home_appliances", "https://btech.com/en/c/small-home-appliances/air-purifiers"),
+    ("cookware", "home_furniture", "https://btech.com/en/c/kitchenware"),
 ]
 
 _MEDIA_BASE_URL = "https://media.btech.com/catalogs/"
@@ -257,8 +265,9 @@ class BTechScraper(BaseScraper):
     store_name = "btech"
     category: Category = "electronics"
     base_url = "https://btech.com"
-    default_limit = 400
-    discover_limit = 700
+    default_limit = 500
+    discover_limit = 1500
+    expand_limit = 2500
     min_delay_seconds = 2.5
 
     def _build_record(

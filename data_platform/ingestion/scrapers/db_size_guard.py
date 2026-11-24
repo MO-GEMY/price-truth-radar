@@ -76,19 +76,42 @@ def get_catalog_summary() -> dict[str, object]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Neon DB storage guardrail & registry helper.")
     parser.add_argument("--check-size", action="store_true", help="Print DB size in MB; exit 42 if >= --max-mb.")
-    parser.add_argument("--max-mb", type=float, default=380.0, help="Hard stop threshold in MB (default: 380).")
+    parser.add_argument("--max-mb", type=float, default=900.0, help="Circuit-breaker threshold in MB (default: 900).")
+    parser.add_argument("--circuit-breaker", action="store_true", help="Print JSON 900 MB / 950 MB circuit-breaker decision.")
     parser.add_argument("--list-batches", action="store_true", help="Print active enabled batches (one per line).")
     parser.add_argument("--include-local", action="store_true", help="Include local_only batches in --list-batches.")
     parser.add_argument("--resolve-store", type=str, default=None, help="Print vertical for a store_key.")
     parser.add_argument("--summary", action="store_true", help="Print JSON catalog + DB size summary.")
     args = parser.parse_args(argv)
 
+    if args.circuit_breaker:
+        from data_platform.ingestion.scrapers.storage_circuit_breaker import (
+            evaluate_storage_mode,
+            inspect_neon_storage,
+        )
+
+        snap = inspect_neon_storage()
+        dec = evaluate_storage_mode(snap.db_size_mb, warn_mb=args.max_mb)
+        print(
+            json.dumps(
+                {
+                    "mode": dec.mode,
+                    "db_size_mb": snap.db_size_mb,
+                    "allow_new_inserts": dec.allow_new_inserts,
+                    "allow_writes": dec.allow_writes,
+                    "reason": dec.reason,
+                },
+                indent=2,
+            )
+        )
+        return 42 if not dec.allow_writes else 0
+
     if args.check_size:
         size_mb = get_neon_db_size_mb()
         print(f"{size_mb:.2f}")
         if size_mb >= args.max_mb:
             print(
-                f"NEON_GUARDRAIL_TRIGGERED: {size_mb:.2f} MB >= {args.max_mb:.2f} MB hard cap (512 MB limit).",
+                f"NEON_GUARDRAIL_TRIGGERED: {size_mb:.2f} MB >= {args.max_mb:.2f} MB cap.",
                 file=sys.stderr,
             )
             return 42

@@ -43,7 +43,7 @@ from .groceries import (
 
 logger = logging.getLogger(__name__)
 
-# Verified live SSR category grids on Noon Egypt, interleaved across all 3 categories
+# Verified live SSR category grids on Noon Egypt spanning ALL major departments
 NOON_CATEGORIES: list[tuple[str, Category, str]] = [
     (
         "smartphones",
@@ -69,6 +69,61 @@ NOON_CATEGORIES: list[tuple[str, Category, str]] = [
         "kitchen_appliances",
         "home_appliances",
         "https://www.noon.com/egypt-en/home-and-kitchen/",
+    ),
+    (
+        "beauty",
+        "beauty",
+        "https://www.noon.com/egypt-en/beauty-and-health/beauty/",
+    ),
+    (
+        "health",
+        "health",
+        "https://www.noon.com/egypt-en/beauty-and-health/health-and-nutrition/",
+    ),
+    (
+        "tvs",
+        "home_appliances",
+        "https://www.noon.com/egypt-en/electronics-and-mobiles/television-and-video/",
+    ),
+    (
+        "gaming",
+        "electronics",
+        "https://www.noon.com/egypt-en/electronics-and-mobiles/video-games-10181/",
+    ),
+    (
+        "tablets",
+        "electronics",
+        "https://www.noon.com/egypt-en/electronics-and-mobiles/tablets/",
+    ),
+    (
+        "headphones",
+        "electronics",
+        "https://www.noon.com/egypt-en/electronics-and-mobiles/headphones/",
+    ),
+    (
+        "footwear",
+        "fashion",
+        "https://www.noon.com/egypt-en/fashion/footwear/",
+    ),
+    (
+        "sports_gear",
+        "sports",
+        "https://www.noon.com/egypt-en/sports-and-outdoors/",
+    ),
+    (
+        "baby_care",
+        "baby_kids",
+        "https://www.noon.com/egypt-en/baby-products/",
+    ),
+    (
+        "toys",
+        "baby_kids",
+        "https://www.noon.com/egypt-en/toys-and-games/",
+    ),
+    (
+        "furniture",
+        "home_furniture",
+        "https://www.noon.com/egypt-en/home-and-kitchen/furniture-10180/",
     ),
     (
         "electronics_general",
@@ -410,10 +465,11 @@ class NoonScraper(BaseScraper):
     store_name = "noon"
     category: Category = "electronics"
     base_url = "https://www.noon.com"
-    default_limit = 300
-    discover_limit = 1100
-    groceries_limit = 300
-    discover_groceries_limit = 850
+    default_limit = 500
+    discover_limit = 2000
+    expand_limit = 3500
+    groceries_limit = 400
+    discover_groceries_limit = 1200
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 3.0
     request_timeout = 30.0
