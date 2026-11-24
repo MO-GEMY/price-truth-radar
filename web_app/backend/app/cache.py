@@ -54,9 +54,10 @@ class TTLCache:
             return len(self._store)
 
 
-# Shared process-level read caches
-api_cache = TTLCache(maxsize=1024, default_ttl=300.0)
-sitemap_cache = TTLCache(maxsize=16, default_ttl=3600.0)
+# Shared process-level read caches (bounded LRU + TTL to keep Neon scaled to zero)
+api_cache = TTLCache(maxsize=2048, default_ttl=1800.0)
+product_detail_cache = TTLCache(maxsize=4096, default_ttl=43200.0)  # 12h TTL
+sitemap_cache = TTLCache(maxsize=64, default_ttl=86400.0)  # 24h TTL
 
 
 def set_cache_headers(
@@ -66,6 +67,6 @@ def set_cache_headers(
     stale_while_revalidate: int = 300,
 ) -> None:
     """Attach Cloudflare/CDN-friendly public Cache-Control headers for read endpoints."""
-    response.headers["Cache-Control"] = (
-        f"public, s-maxage={s_maxage}, stale-while-revalidate={stale_while_revalidate}"
-    )
+    directive = f"public, s-maxage={s_maxage}, stale-while-revalidate={stale_while_revalidate}"
+    response.headers["Cache-Control"] = directive
+    response.headers["CDN-Cache-Control"] = directive

@@ -70,8 +70,11 @@ def get_radar_feed(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> RadarFeedResponse:
-    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
     norm_store = store.strip().lower() if (store and store.strip()) else ""
+    if verdict is None and not norm_store and page == 1:
+        set_cache_headers(response, s_maxage=86400, stale_while_revalidate=604800)
+    else:
+        set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
     cache_key = f"radar:feed:v2:{category}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:
@@ -188,5 +191,5 @@ def get_radar_feed(
         limit=limit,
         total_pages=total_pages,
     )
-    api_cache.set(cache_key, result, ttl=300.0)
+    api_cache.set(cache_key, result, ttl=3600.0)
     return result

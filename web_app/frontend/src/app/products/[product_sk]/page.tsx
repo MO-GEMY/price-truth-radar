@@ -5,19 +5,24 @@ import { absoluteUrl } from "@/lib/site";
 import { buildProductDescription, productMetadata } from "./metadata";
 import { ProductReceipt } from "./receipt";
 
+/**
+ * 24-hour ISR/CDN cache window so crawler visits to canonical product pages
+ * are served from Cloudflare Edge instead of waking Neon PostgreSQL.
+ */
+export const revalidate = 86400;
+
 interface ProductPageProps {
   params: Promise<{ product_sk: string }>;
-  searchParams: Promise<{ sample?: string | string[] }>;
 }
 
-export async function generateMetadata({ params, searchParams }: ProductPageProps) {
-  const [{ product_sk }, { sample }] = await Promise.all([params, searchParams]);
-  return productMetadata(product_sk, sample === "1");
+export async function generateMetadata({ params }: ProductPageProps) {
+  const { product_sk } = await params;
+  return productMetadata(product_sk, false);
 }
 
-export default async function ProductPage({ params, searchParams }: ProductPageProps) {
-  const [{ product_sk }, { sample }] = await Promise.all([params, searchParams]);
-  const load = await loadProduct(product_sk, sample === "1");
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { product_sk } = await params;
+  const load = await loadProduct(product_sk, false);
   if (load.status === "missing") notFound();
 
   const jsonLd =

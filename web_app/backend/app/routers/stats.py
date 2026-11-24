@@ -147,7 +147,7 @@ def get_categories(
     include_empty: bool = False,
     db: Connection = Depends(get_db),
 ) -> CategoriesResponse:
-    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
+    set_cache_headers(response, s_maxage=86400, stale_while_revalidate=604800)
     cache_key = f"stats:categories:{int(include_empty)}"
     cached = api_cache.get(cache_key)
     if cached is not None:
@@ -178,5 +178,5 @@ def get_categories(
         )
 
     result = CategoriesResponse(items=items, total_products=total_products)
-    api_cache.set(cache_key, result, ttl=300.0)
+    api_cache.set(cache_key, result, ttl=43200.0)
     return result

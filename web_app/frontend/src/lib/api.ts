@@ -35,17 +35,25 @@ import { normalizeHighlight, observedTimestamp, type PriceHighlight } from "./hi
 
 const DEFAULT_PROD_API_URL = "https://api.asarak.com";
 
-const API_BASE = (
+const PUBLIC_API_BASE = (
   process.env.NEXT_PUBLIC_API_URL ??
   (process.env.NODE_ENV === "production" ? DEFAULT_PROD_API_URL : "")
 )
   .trim()
   .replace(/\/+$/, "");
 
+function resolveApiBase(): string {
+  if (typeof window === "undefined") {
+    const internal = (process.env.INTERNAL_API_URL ?? "").trim().replace(/\/+$/, "");
+    if (internal) return internal;
+  }
+  return PUBLIC_API_BASE;
+}
+
 const REQUEST_TIMEOUT_MS = 8000;
 
 export function isApiConfigured(): boolean {
-  return API_BASE.length > 0;
+  return resolveApiBase().length > 0;
 }
 
 export type DataSource = "api" | "mock";
@@ -72,7 +80,7 @@ export class ApiError extends Error {
 /* ------------------------------------------------------------------ */
 
 function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
-  const url = `${API_BASE}${path}`;
+  const url = `${resolveApiBase()}${path}`;
   if (!params) return url;
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -88,6 +96,7 @@ export async function fetchJson<T>(
   params?: Record<string, string | number | undefined>,
   signal?: AbortSignal,
   timeoutMs = REQUEST_TIMEOUT_MS,
+  revalidateSeconds?: number,
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -96,13 +105,19 @@ export async function fetchJson<T>(
   else signal?.addEventListener("abort", onOuterAbort, { once: true });
 
   try {
-    // Allow browser HTTP caching on public read-only client fetches so back-navigation
-    // and repeat views honor backend Cache-Control headers; keep no-store on SSR.
+    // Allow browser HTTP caching on public read-only client fetches; on SSR,
+    // use Next.js revalidation when explicitly requested so canonical product &
+    // category pages remain CDN-cacheable instead of emitting private/no-store.
     const isBrowser = typeof window !== "undefined";
+    const cacheOpts: RequestInit & { next?: { revalidate: number } } = isBrowser
+      ? {}
+      : typeof revalidateSeconds === "number" && revalidateSeconds > 0
+        ? { next: { revalidate: revalidateSeconds } }
+        : { cache: "no-store" };
     const response = await fetch(buildUrl(path, params), {
       headers: { Accept: "application/json" },
       signal: controller.signal,
-      ...(isBrowser ? {} : { cache: "no-store" as const }),
+      ...cacheOpts,
     });
     if (!response.ok) {
       throw new ApiError(response.status, `API ${path} responded with ${response.status}`);
@@ -202,6 +217,7 @@ export async function fetchProductDetail(
   productSk: string,
   signal?: AbortSignal,
   timeoutMs = REQUEST_TIMEOUT_MS,
+  revalidateSeconds?: number,
 ): Promise<ApiResult<ProductDetailResponse>> {
   if (!isApiConfigured()) {
     const mock = mockProductDetail(productSk);
@@ -213,6 +229,7 @@ export async function fetchProductDetail(
     undefined,
     signal,
     timeoutMs,
+    revalidateSeconds,
   );
   return { data, source: "api" };
 }
@@ -350,7 +367,7 @@ export async function submitPriceAlert(
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener("abort", onOuterAbort, { once: true });
   try {
-    const res = await fetch(`${API_BASE}/api/alerts`, {
+    const res = await fetch(`${resolveApiBase()}/api/alerts`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body),
@@ -402,6 +419,64 @@ export interface SitemapEntry {
   lastmod?: string;
 }
 
+export interface SitemapChunkProduct {
+  product_sk: string;
+  product_key?: string;
+  category?: string;
+  store_name?: string;
+  last_updated?: string;
+}
+
+export interface SitemapChunkPayload {
+  chunk_id: number;
+  chunk_size: number;
+  total_chunks: number;
+  total_products: number;
+  last_updated?: string;
+  products: SitemapChunkProduct[];
+}
+
+/**
+ * GET /api/v1/seo/sitemap-chunk/{chunkId} — returns 2,500 prioritized products
+ * per chunk (1..4 = top 10,000 URLs) from FastAPI's single 24h-cached query.
+ */
+export async function fetchSitemapChunk(
+  chunkId: number,
+  signal?: AbortSignal,
+  timeoutMs = 6000,
+): Promise<SitemapChunkPayload | null> {
+  if (!isApiConfigured()) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onOuterAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onOuterAbort, { once: true });
+
+  try {
+    const res = await fetch(`${resolveApiBase()}/api/v1/seo/sitemap-chunk/${chunkId}`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+      next: { revalidate: 604800 },
+    } as RequestInit & { next: { revalidate: number } });
+    if (!res.ok) return null;
+    const body = (await res.json()) as Partial<SitemapChunkPayload>;
+    if (!Array.isArray(body?.products)) return null;
+    return {
+      chunk_id: Number(body.chunk_id ?? chunkId),
+      chunk_size: Number(body.chunk_size ?? 2500),
+      total_chunks: Number(body.total_chunks ?? 4),
+      total_products: Number(body.total_products ?? body.products.length),
+      last_updated: typeof body.last_updated === "string" ? body.last_updated : undefined,
+      products: body.products,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
 /**
  * GET /api/seo/sitemap-entries — tolerant parsing of product/compare slugs.
  * Returns null when the endpoint is missing (sitemap.ts falls back to the
@@ -420,7 +495,7 @@ export async function fetchSitemapEntries(
   else signal?.addEventListener("abort", onOuterAbort, { once: true });
 
   try {
-    const res = await fetch(`${API_BASE}/api/seo/sitemap-entries?limit=${limit}`, {
+    const res = await fetch(`${resolveApiBase()}/api/seo/sitemap-entries?limit=${limit}`, {
       headers: { Accept: "application/json" },
       signal: controller.signal,
       cache: "no-store",

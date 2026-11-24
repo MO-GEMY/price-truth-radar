@@ -8,6 +8,7 @@ import { mockProductDetail } from "./mockData";
  * metadata generation; clients can still retry interactively if needed.
  */
 const SSR_PRODUCT_TIMEOUT_MS = 4500;
+const PRODUCT_SSR_REVALIDATE_SECONDS = 86400; // 24h edge/SSR cache shield
 
 export type ProductLoad =
   | { status: "ready"; result: ApiResult<ProductDetailResponse> }
@@ -21,7 +22,12 @@ export const loadProduct = cache(async (productSk: string, sample = false): Prom
   try {
     return {
       status: "ready",
-      result: await fetchProductDetail(productSk, undefined, SSR_PRODUCT_TIMEOUT_MS),
+      result: await fetchProductDetail(
+        productSk,
+        undefined,
+        SSR_PRODUCT_TIMEOUT_MS,
+        PRODUCT_SSR_REVALIDATE_SECONDS,
+      ),
     };
   } catch (error) {
     return { status: error instanceof ApiError && error.status === 404 ? "missing" : "error" };

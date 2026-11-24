@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from app.cache import api_cache, set_cache_headers
+from app.cache import api_cache, product_detail_cache, set_cache_headers
 from app.catalog_search import build_catalog_query, search_catalog
 from app.database import get_db
 from app.routers.radar import PRODUCT_SELECT_COLS
@@ -383,9 +383,9 @@ def get_product_detail(
     response: Response,
     db: Connection = Depends(get_db),
 ) -> ProductDetailResponse:
-    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
+    set_cache_headers(response, s_maxage=86400, stale_while_revalidate=604800)
     cache_key = f"products:detail:v3:{product_sk}"
-    cached = api_cache.get(cache_key)
+    cached = product_detail_cache.get(cache_key)
     if cached is not None:
         return cached
     product_sql = text(
@@ -491,5 +491,5 @@ def get_product_detail(
         similar_alternatives=similar_alternatives,
         variants=variants,
     )
-    api_cache.set(cache_key, res, ttl=300.0)
+    product_detail_cache.set(cache_key, res, ttl=43200.0)
     return res

@@ -16,7 +16,7 @@ _BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-from app.cache import api_cache, sitemap_cache  # noqa: E402
+from app.cache import api_cache, product_detail_cache, sitemap_cache  # noqa: E402
 from app.database import get_db, get_write_db  # noqa: E402
 from app.main import app  # noqa: E402
 from jobs import check_price_alerts  # noqa: E402
@@ -99,6 +99,7 @@ class _FakeAlertsDB:
 class TestLaunchBackendAPI(unittest.TestCase):
     def setUp(self) -> None:
         api_cache.clear()
+        product_detail_cache.clear()
         sitemap_cache.clear()
         app.dependency_overrides.clear()
 
@@ -421,22 +422,22 @@ class TestLaunchBackendAPI(unittest.TestCase):
             r_bad = client.post("/api/alerts", json=bad)
             self.assertEqual(r_bad.status_code, 422, f"Expected 422 for {bad}, got {r_bad.status_code}")
 
-    def test_seo_sitemap_entries_contract_and_1h_cache(self) -> None:
+    def test_seo_sitemap_entries_and_chunks_7d_cdn_and_24h_ram_cache(self) -> None:
         now = datetime(2026, 11, 22, 10, 30, 0, tzinfo=timezone.utc)
+        fake_products = [
+            {
+                "product_sk": f"sk_{i}",
+                "product_key": f"canon_{i}",
+                "category": "electronics",
+                "store_name": "sigma",
+                "last_updated_at": now,
+            }
+            for i in range(1, 2505)
+        ]
 
         def handler(sql: str, _params: dict[str, Any]) -> _FakeResult:
             if "FROM gold.mart_product_verdicts" in sql:
-                return _FakeResult(
-                    rows=[
-                        {
-                            "product_sk": "sk_1",
-                            "product_key": "canon_1",
-                            "category": "electronics",
-                            "store_name": "sigma",
-                            "last_updated_at": now,
-                        }
-                    ]
-                )
+                return _FakeResult(rows=fake_products)
             return _FakeResult(
                 rows=[
                     {
@@ -455,18 +456,46 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(r1.status_code, 200)
         self.assertEqual(
             r1.headers.get("cache-control"),
-            "public, s-maxage=3600, stale-while-revalidate=7200",
+            "public, s-maxage=604800, stale-while-revalidate=604800",
+        )
+        self.assertEqual(
+            r1.headers.get("cdn-cache-control"),
+            "public, s-maxage=604800, stale-while-revalidate=604800",
         )
         body = r1.json()
         self.assertEqual(body["last_updated"], "2026-11-22T10:30:00Z")
-        self.assertEqual(len(body["products"]), 1)
+        self.assertEqual(len(body["products"]), 500)
         self.assertEqual(len(body["comparisons"]), 1)
 
-        # Second call served from 1-hour sitemap_cache
+        # Second call served from 24h sitemap_cache (0 additional DB queries)
         calls_before = len(fake_db.calls)
         r2 = client.get("/api/seo/sitemap-entries?limit=500")
         self.assertEqual(r2.status_code, 200)
         self.assertEqual(len(fake_db.calls), calls_before)
+
+        # Chunks 1..4 all share the exact same 24h cached 10k product list (0 extra DB queries!)
+        c1 = client.get("/api/v1/seo/sitemap-chunk/1")
+        self.assertEqual(c1.status_code, 200)
+        self.assertEqual(
+            c1.headers.get("cache-control"),
+            "public, s-maxage=604800, stale-while-revalidate=604800",
+        )
+        c1_body = c1.json()
+        self.assertEqual(c1_body["chunk_id"], 1)
+        self.assertEqual(c1_body["chunk_size"], 2500)
+        self.assertEqual(c1_body["total_chunks"], 2)
+        self.assertEqual(c1_body["total_products"], 2504)
+        self.assertEqual(len(c1_body["products"]), 2500)
+
+        c2 = client.get("/api/v1/seo/sitemap-chunk/2")
+        self.assertEqual(c2.status_code, 200)
+        self.assertEqual(len(c2.json()["products"]), 4)
+        self.assertEqual(c2.json()["products"][0]["product_sk"], "sk_2501")
+        self.assertEqual(len(fake_db.calls), calls_before)
+
+        # Out-of-range chunk IDs rejected cleanly
+        self.assertEqual(client.get("/api/v1/seo/sitemap-chunk/0").status_code, 422)
+        self.assertEqual(client.get("/api/v1/seo/sitemap-chunk/5").status_code, 422)
 
     @patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": ""}, clear=False)
     def test_alert_checker_job_dry_run_without_secrets(self) -> None:
@@ -631,13 +660,31 @@ class TestLaunchBackendAPI(unittest.TestCase):
         app.dependency_overrides[get_db] = lambda: fake_db
         client = TestClient(app)
 
-        # /api/v1/categories returns only >0 categories with AR+EN metadata
+        # /api/v1/categories returns only >0 categories with AR+EN metadata and 24h CDN cache
         r_cats = client.get("/api/v1/categories")
         self.assertEqual(r_cats.status_code, 200)
+        self.assertEqual(
+            r_cats.headers.get("cache-control"),
+            "public, s-maxage=86400, stale-while-revalidate=604800",
+        )
         cats_body = r_cats.json()
         self.assertEqual([c["slug"] for c in cats_body["items"]], ["electronics", "beauty", "pet_care"])
         self.assertEqual(cats_body["items"][2]["label_ar"], "مستلزمات الحيوانات")
         self.assertEqual(cats_body["total_products"], 11680)
+
+        # Clean category page-1 feed receives 24h CDN shield; deeper pages receive 1h CDN cache
+        r_cat_p1 = client.get("/api/v1/radar/feed?category=electronics&page=1&limit=12")
+        self.assertEqual(r_cat_p1.status_code, 200)
+        self.assertEqual(
+            r_cat_p1.headers.get("cache-control"),
+            "public, s-maxage=86400, stale-while-revalidate=604800",
+        )
+        r_cat_p2 = client.get("/api/v1/radar/feed?category=electronics&page=2&limit=12")
+        self.assertEqual(r_cat_p2.status_code, 200)
+        self.assertEqual(
+            r_cat_p2.headers.get("cache-control"),
+            "public, s-maxage=3600, stale-while-revalidate=86400",
+        )
 
         # All new canonical categories accepted cleanly across feed, highlights, and compare
         for cat in ("home_furniture", "beauty", "health", "sports", "pet_care", "baby_kids"):
@@ -847,10 +894,24 @@ class TestLaunchBackendAPI(unittest.TestCase):
 
         r = client.get("/api/v1/products/sk_single_1")
         self.assertEqual(r.status_code, 200)
+        self.assertEqual(
+            r.headers.get("cache-control"),
+            "public, s-maxage=86400, stale-while-revalidate=604800",
+        )
+        self.assertEqual(
+            r.headers.get("cdn-cache-control"),
+            "public, s-maxage=86400, stale-while-revalidate=604800",
+        )
         body = r.json()
         self.assertEqual(len(body["variants"]), 1)
         self.assertEqual(body["variants"][0]["product_sk"], "sk_single_1")
         self.assertFalse(any("parent_product_key = :parent_key" in sql for sql in fake_db.calls))
+
+        # Second identical product detail request hits 12h product_detail_cache (0 extra DB queries)
+        calls_after_first = len(fake_db.calls)
+        r2 = client.get("/api/v1/products/sk_single_1")
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(len(fake_db.calls), calls_after_first)
 
     def test_url_lookup_narrows_by_store_name_for_known_domains(self) -> None:
         captured: list[tuple[str, dict[str, Any]]] = []
