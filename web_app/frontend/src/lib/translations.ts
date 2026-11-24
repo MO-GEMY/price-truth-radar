@@ -15,6 +15,7 @@ export const translations = {
     "nav.feed": "Check a price",
     "nav.compare": "Compare stores",
     "nav.deals": "Price highlights",
+    "nav.addStore": "Add store",
     "ui.skip": "Skip to content",
     "ui.navigation": "Main navigation",
     "ui.example": "Example",
@@ -380,12 +381,15 @@ export const translations = {
     "common.egpShort": "EGP",
     "footer.note":
       "Asarak · Prices in Egyptian Pounds (EGP) · Automated daily snapshots across 200 Egyptian retailers",
-    "footer.affiliateDisclosure":
-      "Some store links may be affiliate links that help keep Asarak free at no extra cost to you.",
+    "footer.independenceDisclaimer":
+      "Asarak is a fully independent price-comparison and discount-analysis platform. It is not affiliated with and does not represent any store or brand shown. All names and logos are the property of their respective owners, and prices may change at any time on the store's website. We may earn an affiliate commission on purchases made through some links, at no extra cost to you.",
     "footer.about": "About",
     "footer.privacy": "Privacy Policy",
     "footer.terms": "Terms & Disclaimer",
+    "footer.disclaimer": "Disclaimer",
+    "footer.linksLabel": "Footer",
     "footer.contact": "Contact Us",
+    "footer.addStore": "Add your store",
   },
 
   ar: {
@@ -426,6 +430,7 @@ export const translations = {
     "nav.feed": "افحص السعر",
     "nav.compare": "قارن المتاجر",
     "nav.deals": "أبرز الأسعار",
+    "nav.addStore": "أضف متجرك",
 
     "deals.title": "أبرز الأسعار",
     "deals.subtitle":
@@ -759,12 +764,15 @@ export const translations = {
     "common.retry": "إعادة المحاولة",
     "common.egpShort": "ج.م",
     "footer.note": "أسعارك · جميع الأسعار بالجنيه المصري · تتبّع يومي تلقائي عبر 200 متجر مصري",
-    "footer.affiliateDisclosure":
-      "قد تحتوي بعض روابط المتاجر على روابط تسويق بالعمولة تساعدنا في إبقاء أسعارك مجانياً دون أي تكلفة إضافية عليك.",
+    "footer.independenceDisclaimer":
+      "أسعارك منصة مستقلة تماماً لمقارنة الأسعار وتحليل الخصومات، ولا تتبع أو تمثل أي متجر أو علامة تجارية معروضة. جميع الأسماء والشعارات مملوكة لأصحابها، والأسعار قابلة للتغيير في أي وقت على موقع المتجر. قد نحصل على عمولة تسويق بالعمولة عند الشراء عبر بعض الروابط دون أي تكلفة إضافية عليك.",
     "footer.about": "من نحن",
     "footer.privacy": "سياسة الخصوصية",
     "footer.terms": "شروط الاستخدام",
+    "footer.disclaimer": "التنويه وإخلاء المسؤولية",
+    "footer.linksLabel": "روابط الموقع",
     "footer.contact": "تواصل معنا",
+    "footer.addStore": "أضف متجرك",
   },
 } as const;
 
