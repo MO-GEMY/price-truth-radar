@@ -90,6 +90,7 @@ class ShopifyScraper(BaseScraper):
     min_delay_seconds: float = 1.0
     per_page: int = 250
     use_impersonation: bool = True
+    skip_new_out_of_stock: bool = True
 
     def _resolve_brand(self, vendor_raw: Optional[str]) -> str:
         if self.override_brand:
@@ -135,6 +136,11 @@ class ShopifyScraper(BaseScraper):
                 priced_available.append((price, claimed))
 
         if not priced_all:
+            return None
+
+        ext_id = str(product_id).strip()[:120]
+        if self.skip_new_out_of_stock and not any_available and ext_id not in self.tracked_external_ids:
+            self.skipped_oos_count += 1
             return None
 
         chosen_pool = priced_available if priced_available else priced_all
@@ -231,12 +237,13 @@ class ShopifyScraper(BaseScraper):
             max_page = self.start_page + max(1, self.expand_max_pages)
         else:
             page = 1
-            max_page = max(1, (target_limit // self.per_page) + 4)
+            max_page = max(4, (target_limit // self.per_page) + 6)
 
         last_good_page = self.start_page
         pages_used = 0
         exhausted = False
         had_error = False
+        seen_raw_pids: set[str] = set()
 
         while len(collected) < target_limit and page <= max_page:
             logger.info(
@@ -286,31 +293,44 @@ class ShopifyScraper(BaseScraper):
                 exhausted = True
                 break
 
+            new_raw_products = 0
             page_records: list[RawProductSnapshot] = []
             for raw in products:
                 if not isinstance(raw, dict):
                     continue
+                raw_pid = str(raw.get("id") or "").strip()
+                if raw_pid:
+                    if raw_pid not in seen_raw_pids:
+                        seen_raw_pids.add(raw_pid)
+                        new_raw_products += 1
+                else:
+                    new_raw_products += 1
                 rec = self._parse_product(raw, snapshot_date, scraped_at)
                 if rec is not None and rec.external_id not in seen_ids:
                     page_records.append(rec)
 
             page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
 
-            added_this_page = 0
             for rec in page_records:
                 if rec.external_id in seen_ids:
                     continue
                 seen_ids.add(rec.external_id)
                 collected.append(rec)
-                added_this_page += 1
                 if len(collected) >= target_limit:
                     break
 
             last_good_page = page
-            if len(products) < self.per_page or (added_this_page == 0 and self.mode != "expand"):
+            if len(products) < self.per_page or new_raw_products == 0:
                 exhausted = True
                 break
             page += 1
+
+        if self.skipped_oos_count > 0:
+            logger.info(
+                "[%s] Skipped %d brand-new out-of-stock Shopify items.",
+                self.store_name,
+                self.skipped_oos_count,
+            )
 
         if self.mode == "expand" and (exhausted or pages_used > 0 or not had_error):
             self._checkpoint_updated = True

@@ -1019,6 +1019,7 @@ class BaseScraper(ABC):
         self.exhausted_catalog: bool = False
         self._checkpoint_updated: bool = False
         self.skipped_count: int = 0
+        self.skipped_oos_count: int = 0
         self.pages_fetched: int = 0
         self.category_counts: dict[str, int] = {}
 

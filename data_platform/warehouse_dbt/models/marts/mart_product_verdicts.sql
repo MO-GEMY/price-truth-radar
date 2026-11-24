@@ -56,13 +56,39 @@ current_products_all AS (
     ORDER BY product_sk, snapshot_date DESC, scraped_at DESC
 ),
 
+-- Never re-ingest brand-new archived out-of-stock unmatched SKUs into the serving catalog.
+-- Preserves 100% of:
+--   1. In-stock products (`in_stock = TRUE`)
+--   2. Cross-store matched products (`canonical_product_key IS NOT NULL`)
+--   3. Already-tracked serving catalog rows (during incremental runs)
+--   4. Products ever observed in stock in `gold.fct_price_history`
+current_products_eligible AS (
+    SELECT cp.*
+    FROM current_products_all cp
+    {% if is_incremental() %}
+    LEFT JOIN {{ this }} existing
+        ON existing.product_sk = cp.product_sk
+    {% endif %}
+    WHERE cp.in_stock = TRUE
+       OR cp.canonical_product_key IS NOT NULL
+       {% if is_incremental() %}
+       OR existing.product_sk IS NOT NULL
+       {% endif %}
+       OR EXISTS (
+           SELECT 1
+           FROM {{ ref('fct_price_history') }} h
+           WHERE h.product_sk = cp.product_sk
+             AND h.in_stock = TRUE
+       )
+),
+
 {% if is_incremental() %}
 -- Detect SKUs with new snapshots, price/stock/title changes, or changed canonical_product_key,
 -- then expand to sibling SKUs sharing the same parent_product_key so sibling variant rollups
 -- (`sibling_count`, `min/max_variant_price`, `is_primary_variant`) stay 100% consistent.
 changed_parents AS MATERIALIZED (
     SELECT DISTINCT cp.parent_product_key
-    FROM current_products_all cp
+    FROM current_products_eligible cp
     LEFT JOIN {{ this }} t
         ON t.product_sk = cp.product_sk
     WHERE t.product_sk IS NULL
@@ -77,14 +103,14 @@ changed_parents AS MATERIALIZED (
 
 current_products_base AS MATERIALIZED (
     SELECT cp.*
-    FROM current_products_all cp
+    FROM current_products_eligible cp
     INNER JOIN changed_parents ap
         ON cp.parent_product_key = ap.parent_product_key
 ),
 {% else %}
 current_products_base AS (
     SELECT *
-    FROM current_products_all
+    FROM current_products_eligible
 ),
 {% endif %}
 

@@ -261,6 +261,7 @@ class ShopifyBaseScraper(BaseScraper):
     request_timeout: float = 25.0
     use_impersonation: bool = True
     per_page: int = 250
+    skip_new_out_of_stock: bool = True
 
     def _resolve_sub_category(self, title: str, product_type: str, default_sub: Optional[str], cat: Category) -> str:
         if cat == "groceries":
@@ -336,6 +337,63 @@ class ShopifyBaseScraper(BaseScraper):
         parent_product_key = f"{self.store_name}::{pid}"
         split_by_variant = variant_count > 1 and max_variant_price > min_variant_price
 
+        def _variant_ext_id(v_dict: dict[str, Any], p_val: Decimal, v_lbl: Optional[str]) -> str:
+            raw_vid = v_dict.get("id")
+            vid_str = str(raw_vid).strip() if raw_vid is not None else ""
+            if vid_str:
+                return f"{pid}__v{vid_str}"[:120]
+            slug_lbl = normalize_snake_slug(v_lbl or str(p_val), fallback="var", max_len=40)
+            return f"{pid}__v_{slug_lbl}"[:120]
+
+        if split_by_variant:
+            # Deduplicate variants that share identical (price, normalized_label) so
+            # e.g. 5 colors of the same rug size at the same price don't bloat snapshots,
+            # preferring in-stock (and tracked) representatives first.
+            ordered_variants = sorted(
+                valid_variants,
+                key=lambda item: (
+                    0 if bool(item[0].get("available")) else (1 if _variant_ext_id(item[0], item[1], item[2]) in self.tracked_external_ids else 2)
+                ),
+            )
+            deduped: list[tuple[dict[str, Any], Decimal, Optional[str]]] = []
+            seen_tier: set[tuple[Decimal, str]] = set()
+            for v, p, lbl in ordered_variants:
+                tier_key = (p, (lbl or "").lower())
+                if tier_key in seen_tier:
+                    continue
+                seen_tier.add(tier_key)
+                deduped.append((v, p, lbl))
+
+            if self.skip_new_out_of_stock:
+                eligible_deduped: list[tuple[dict[str, Any], Decimal, Optional[str]]] = []
+                for v, p, lbl in deduped:
+                    v_ext_id = _variant_ext_id(v, p, lbl)
+                    if bool(v.get("available")) or v_ext_id in self.tracked_external_ids:
+                        eligible_deduped.append((v, p, lbl))
+                    else:
+                        self.skipped_oos_count += 1
+                if not eligible_deduped:
+                    return []
+                deduped = eligible_deduped
+
+            # If multiple distinct variants exist with distinct labels/prices, emit up to cap
+            emitted_variants = _sample_price_variants(deduped, self.max_variants_per_product)
+            kept_prices = [p for _, p, _ in emitted_variants]
+            min_variant_price = min(kept_prices)
+            max_variant_price = max(kept_prices)
+            variant_count = len(emitted_variants)
+        else:
+            single_ext_id = str(pid)[:120]
+            if self.skip_new_out_of_stock and not any_available and single_ext_id not in self.tracked_external_ids:
+                self.skipped_oos_count += 1
+                return []
+            # Single-variant or uniform-price multi-variant: prefer first in-stock variant
+            chosen = next(
+                (item for item in valid_variants if bool(item[0].get("available"))),
+                valid_variants[0],
+            )
+            emitted_variants = [chosen]
+
         base_image_url: Optional[str] = None
         images = raw.get("images")
         if isinstance(images, list) and images and isinstance(images[0], dict) and images[0].get("src"):
@@ -378,29 +436,6 @@ class ShopifyBaseScraper(BaseScraper):
             )
         except Exception:
             pass
-
-        if split_by_variant:
-            # Deduplicate variants that share identical (price, normalized_label) so
-            # e.g. 5 colors of the same rug size at the same price don't bloat snapshots,
-            # preferring in-stock representatives first.
-            deduped: list[tuple[dict[str, Any], Decimal, Optional[str]]] = []
-            seen_tier: set[tuple[Decimal, str]] = set()
-            for v, p, lbl in valid_variants:
-                tier_key = (p, (lbl or "").lower())
-                if tier_key in seen_tier:
-                    continue
-                seen_tier.add(tier_key)
-                deduped.append((v, p, lbl))
-
-            # If multiple distinct variants exist with distinct labels/prices, emit up to cap
-            emitted_variants = _sample_price_variants(deduped, self.max_variants_per_product)
-        else:
-            # Single-variant or uniform-price multi-variant: prefer first in-stock variant
-            chosen = next(
-                (item for item in valid_variants if bool(item[0].get("available"))),
-                valid_variants[0],
-            )
-            emitted_variants = [chosen]
 
         records: list[RawProductSnapshot] = []
         for v, current_price, variant_label in emitted_variants:
@@ -537,13 +572,15 @@ class ShopifyBaseScraper(BaseScraper):
                 break
             ep_collected = 0
             page = 1
-            max_pages = max(1, math.ceil(per_ep_cap / self.per_page) + 2)
+            req_limit = min(self.per_page, max(20, per_ep_cap))
+            max_pages = max(4, math.ceil(per_ep_cap / self.per_page) + 4)
+            seen_raw_pids: set[str] = set()
 
             while len(collected) < target_limit and ep_collected < per_ep_cap and page <= max_pages:
                 logger.info("[%s] Fetching Shopify JSON page %d (%s)", self.store_name, page, endpoint)
                 try:
                     get_kwargs: dict[str, Any] = {
-                        "params": {"limit": min(self.per_page, max(20, per_ep_cap)), "page": page},
+                        "params": {"limit": req_limit, "page": page},
                         "min_delay_seconds": effective_delay,
                         "timeout": self.request_timeout,
                     }
@@ -560,31 +597,44 @@ class ShopifyBaseScraper(BaseScraper):
                 if not isinstance(products, list) or not products:
                     break
 
+                new_raw_products = 0
                 page_records: list[RawProductSnapshot] = []
                 for raw in products:
                     if not isinstance(raw, dict):
                         continue
+                    raw_pid = str(raw.get("id") or "").strip()
+                    if raw_pid:
+                        if raw_pid not in seen_raw_pids:
+                            seen_raw_pids.add(raw_pid)
+                            new_raw_products += 1
+                    else:
+                        new_raw_products += 1
                     for rec in self._parse_product_variants(raw, cat, default_sub, snapshot_date, scraped_at):
                         if rec.external_id not in seen_ids:
                             page_records.append(rec)
 
                 page_records = self.prioritize_tracked(page_records, lambda r: r.external_id)
-                added = 0
                 for rec in page_records:
                     if rec.external_id in seen_ids:
                         continue
                     seen_ids.add(rec.external_id)
                     collected.append(rec)
                     ep_collected += 1
-                    added += 1
                     if len(collected) >= target_limit or ep_collected >= per_ep_cap:
                         break
 
-                if len(products) < min(self.per_page, max(20, per_ep_cap)) or added == 0:
+                if len(products) < req_limit or new_raw_products == 0:
                     break
                 page += 1
 
             self.category_counts[default_sub or cat] = self.category_counts.get(default_sub or cat, 0) + ep_collected
+
+        if self.skipped_oos_count > 0:
+            logger.info(
+                "[%s] Skipped %d brand-new out-of-stock Shopify items.",
+                self.store_name,
+                self.skipped_oos_count,
+            )
 
         return collected
 
@@ -629,6 +679,7 @@ class ShopifyBaseScraper(BaseScraper):
         last_good_ep = start_ep
         last_good_page = start_p
         had_error = False
+        seen_raw_pids_ep: set[str] = set()
 
         while cur_ep < len(endpoints) and len(collected) < target_limit and pages_used < max_pages_budget:
             default_sub, cat, endpoint = endpoints[cur_ep]
@@ -679,14 +730,23 @@ class ShopifyBaseScraper(BaseScraper):
             if not isinstance(products, list) or not products:
                 cur_ep += 1
                 page = 1
+                seen_raw_pids_ep.clear()
                 last_good_ep = cur_ep
                 last_good_page = 0
                 continue
 
+            new_raw_products = 0
             ep_added = 0
             for raw in products:
                 if not isinstance(raw, dict):
                     continue
+                raw_pid = str(raw.get("id") or "").strip()
+                if raw_pid:
+                    if raw_pid not in seen_raw_pids_ep:
+                        seen_raw_pids_ep.add(raw_pid)
+                        new_raw_products += 1
+                else:
+                    new_raw_products += 1
                 for rec in self._parse_product_variants(raw, cat, default_sub, snapshot_date, scraped_at):
                     if rec.external_id in seen_ids:
                         continue
@@ -702,13 +762,21 @@ class ShopifyBaseScraper(BaseScraper):
             last_good_ep = cur_ep
             last_good_page = page
 
-            if len(products) < req_limit:
+            if len(products) < req_limit or new_raw_products == 0:
                 cur_ep += 1
                 page = 1
+                seen_raw_pids_ep.clear()
                 last_good_ep = cur_ep
                 last_good_page = 0
             else:
                 page += 1
+
+        if self.skipped_oos_count > 0:
+            logger.info(
+                "[%s] Expand skipped %d brand-new out-of-stock Shopify items.",
+                self.store_name,
+                self.skipped_oos_count,
+            )
 
         if not had_error or pages_used > 0:
             self._checkpoint_updated = True

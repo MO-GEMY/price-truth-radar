@@ -111,6 +111,8 @@ models:
               arguments:
                 to: ref('mart_product_verdicts')
                 field: product_sk
+              config:
+                where: "in_stock = true"
       - name: snapshot_date
         tests:
           - not_null

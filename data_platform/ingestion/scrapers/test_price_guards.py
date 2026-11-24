@@ -235,20 +235,33 @@ class TestInstallmentAndPriceFloorGuards(unittest.TestCase):
         self.assertEqual(rec_oos_first.claimed_original_price, Decimal("850.00"))
         self.assertTrue(rec_oos_first.in_stock)
 
-        # All variants OOS -> falls back to first valid variant, paired strictly with its own compare_at_price
+        # Brand-new all-OOS product is skipped to prevent archived OOS catalog bloat
+        all_oos_raw = {
+            "id": 99003,
+            "handle": "leonardo-all-oos",
+            "title": "Leonardo Cat Food",
+            "vendor": "Leonardo",
+            "product_type": "Cat Food",
+            "images": [{"src": "https://happet.net/leonardo.jpg"}],
+            "variants": [
+                {"id": 1, "title": "300gm", "price": "130.00", "compare_at_price": "120.00", "available": False},
+                {"id": 2, "title": "15kg", "price": "4000.00", "compare_at_price": "4450.00", "available": False},
+            ],
+        }
+        self.assertIsNone(
+            scraper._parse_product(
+                all_oos_raw,
+                "pet_care",
+                None,
+                date(2026, 11, 23),
+                datetime(2026, 11, 23, 1, 0, 0),
+            )
+        )
+
+        # Already-tracked all-OOS variants are preserved and paired strictly with their own compare_at_price
+        scraper.tracked_external_ids = {"99003__v1", "99003__v2"}
         rec_all_oos = scraper._parse_product(
-            {
-                "id": 99003,
-                "handle": "leonardo-all-oos",
-                "title": "Leonardo Cat Food",
-                "vendor": "Leonardo",
-                "product_type": "Cat Food",
-                "images": [{"src": "https://happet.net/leonardo.jpg"}],
-                "variants": [
-                    {"id": 1, "title": "300gm", "price": "130.00", "compare_at_price": "120.00", "available": False},
-                    {"id": 2, "title": "15kg", "price": "4000.00", "compare_at_price": "4450.00", "available": False},
-                ],
-            },
+            all_oos_raw,
             "pet_care",
             None,
             date(2026, 11, 23),
@@ -322,7 +335,10 @@ class TestInstallmentAndPriceFloorGuards(unittest.TestCase):
         self.assertEqual(rec_uniform.claimed_original_price, Decimal("650.00"))
 
     def test_shopify_multi_size_rug_emits_distinct_variant_snapshots_with_metadata(self) -> None:
-        scraper = ShopifyBaseScraper(http_client=None)  # type: ignore[arg-type]
+        scraper = ShopifyBaseScraper(
+            http_client=None,  # type: ignore[arg-type]
+            tracked_external_ids={"10887656898854__v103"},
+        )
         scraper.store_name = "kabbani"
         scraper.category = "home_furniture"
         scraper.base_url = "https://www.kabbanifurniture.com"
@@ -359,7 +375,8 @@ class TestInstallmentAndPriceFloorGuards(unittest.TestCase):
 
         for r, vid, lbl in zip(recs, ("101", "102", "103"), ("120x180 cm", "160x230 cm", "200x300 cm")):
             attrs = r.attributes_json
-            self.assertEqual(attrs["parent_product_key"], "kabbani::10887656898854")
+            # Default parent_product_key (store::parent_id) is compacted away and derived in stg_products.sql
+            self.assertNotIn("parent_product_key", attrs)
             self.assertEqual(attrs["variant_id"], vid)
             self.assertEqual(attrs["variant_label"], lbl)
             self.assertEqual(attrs["variant_count"], 3)
@@ -395,7 +412,7 @@ class TestInstallmentAndPriceFloorGuards(unittest.TestCase):
         self.assertEqual(len(recs), 1)
         r = recs[0]
         self.assertEqual(r.external_id, "777001")
-        self.assertEqual(r.attributes_json["parent_product_key"], "town_team::777001")
+        self.assertNotIn("parent_product_key", r.attributes_json)
         self.assertEqual(r.attributes_json["variant_count"], 3)
         self.assertEqual(r.attributes_json["variant_min_price"], 999.0)
         self.assertEqual(r.attributes_json["variant_max_price"], 999.0)
@@ -438,7 +455,7 @@ class TestInstallmentAndPriceFloorGuards(unittest.TestCase):
         self.assertEqual(r.external_id, "32439__v32440")
         self.assertEqual(r.current_price, Decimal("5843.00"))
         self.assertIsNone(r.claimed_original_price)
-        self.assertEqual(r.attributes_json["parent_product_key"], "habitat_eg::32439")
+        self.assertNotIn("parent_product_key", r.attributes_json)
         self.assertEqual(r.attributes_json["variant_id"], "32440")
         self.assertEqual(r.attributes_json["variant_label"], "190x90")
         self.assertEqual(r.attributes_json["variant_count"], 2)
