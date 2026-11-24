@@ -1,5 +1,5 @@
 /**
- * Price Truth Radar — Frozen API Contract types.
+ * Asarak (أسعارك) — Frozen API Contract types.
  *
  * Mirrors Section 5 of CONTRACTS.md 100% verbatim (field names, types, enums).
  * Field names MUST NOT be renamed — they map 1:1 to the FastAPI responses

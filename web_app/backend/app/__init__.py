@@ -1,1 +1,1 @@
-"""Price Truth Radar FastAPI read-only backend package."""
+"""Asarak (أسعارك) FastAPI serving backend package."""

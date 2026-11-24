@@ -70,8 +70,8 @@ export const translations = {
       "✅ Verified real deal: {title} at {store} for {real} EGP — {pct}% below its claimed price. Check it on Asarak:",
     "deals.empty": "No highlights for this selection.",
     "deals.emptyHint":
-      "The radar is sweeping the stores — check again after the next daily snapshot.",
-    "deals.errorHint": "The radar feed is unreachable — try again in a moment.",
+      "Asarak is sweeping the stores — check again after the next daily snapshot.",
+    "deals.errorHint": "Live highlights are temporarily unreachable — try again in a moment.",
     "deals.viewTruth": "View price evidence",
 
     "alert.title": "Notify me when the price drops",
@@ -259,7 +259,7 @@ export const translations = {
     "detail.openAtStore": "Open at {store}",
     "detail.openAtStoreGeneric": "Open at store",
     "detail.compareAcross": "Compare across {count} stores",
-    "detail.verdictHeroTitle": "Price Truth Verdict",
+    "detail.verdictHeroTitle": "Asarak Price Verdict",
     "detail.notFound": "Product not found",
     "detail.notFoundBody":
       "This product is not in the tracked dataset. It may have been removed or never tracked.",
@@ -427,8 +427,8 @@ export const translations = {
       "✅ صفقة حقيقية مؤكدة: {title} في {store} بـ {real} ج.م — أقل من السعر المعلن بـ {pct}%. شوفها على أسعارك:",
     "deals.empty": "مفيش أسعار بارزة للاختيار ده.",
     "deals.emptyHint":
-      "الرادار يفحص المتاجر — عد بعد اللقطة اليومية القادمة.",
-    "deals.errorHint": "لا يمكن الوصول إلى الرادار — حاول بعد قليل.",
+      "أسعارك يفحص المتاجر — عد بعد اللقطة اليومية القادمة.",
+    "deals.errorHint": "تعذر الوصول إلى بيانات أسعارك حالياً — حاول بعد قليل.",
     "deals.viewTruth": "شوف دليل السعر",
 
     "alert.title": "نبّهني لما السعر ينزل",
@@ -520,7 +520,7 @@ export const translations = {
     "stores.moreCount": "+{count} متجر آخر",
     "stores.showLess": "عرض أقل",
 
-    "how.toggle": "كيف يعمل الرادار؟",
+    "how.toggle": "كيف يعمل أسعارك؟",
     "how.step1Title": "الصق رابطاً أو ابحث",
     "how.step1Desc": "أدخل رابط منتج من نون أو أمازون مصر أو بي تك أو 2B أو سيجما، أو تصفّح حسب الماركة.",
     "how.step2Title": "اكشف الخصم الحقيقي من الوهمي",

@@ -1,4 +1,4 @@
-# Price Truth Radar — Frozen Architecture & API Contracts
+# Asarak (أسعارك) — Frozen Architecture & API Contracts
 
 > **STRICT RULE FOR ALL AI AGENTS (Antigravity & Z.ai):**
 > This file is the Single Source of Truth. Do NOT rename any table, column, enum value, endpoint path, or JSON field defined here without explicit owner approval.

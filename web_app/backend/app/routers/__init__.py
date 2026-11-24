@@ -1,1 +1,1 @@
-"""API routers for Price Truth Radar."""
+"""API routers for Asarak (أسعارك)."""

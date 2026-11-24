@@ -1,7 +1,7 @@
-# Price Truth Radar — Frontend UI
+# Asarak (أسعارك) — Frontend UI
 
-Bilingual (English LTR / Arabic RTL) price-integrity radar for the Price Truth Radar platform.
-Built with **Next.js (App Router) + TypeScript + Tailwind CSS v4 + Recharts + Lucide React**.
+Bilingual (Arabic RTL / English LTR) Egypt price tracking and cross-store comparison platform (`https://asarak.com`).
+Built with **Next.js 15 (App Router) + TypeScript + Tailwind CSS v4 + Recharts + Lucide React**, deployed on **Cloudflare Workers** via `@opennextjs/cloudflare`.
 
 > **Frozen contract:** every API type mirrors Section 5 of the root `CONTRACTS.md` verbatim
 > (field names, enums, response shapes). Do not rename fields. See `src/types/contract.ts`.
@@ -11,16 +11,19 @@ Built with **Next.js (App Router) + TypeScript + Tailwind CSS v4 + Recharts + Lu
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm run build      # production build (must pass cleanly)
+npm run build      # production Next.js build
 npm run lint       # ESLint (next/core-web-vitals + next/typescript)
+npm run cf:build   # OpenNext Cloudflare Workers build
+npm run cf:deploy  # Deploy to Cloudflare Workers
 ```
 
 ## Connecting the backend
 
-Copy `.env.example` → `.env.local` and set the FastAPI base URL:
+Production builds automatically use `.env.production` and `wrangler.jsonc`:
 
 ```
-NEXT_PUBLIC_API_URL=https://<your-render-backend>.onrender.com
+NEXT_PUBLIC_SITE_URL=https://asarak.com
+NEXT_PUBLIC_API_URL=https://api.asarak.com
 ```
 
 - **Configured** → every request hits the live endpoints directly:

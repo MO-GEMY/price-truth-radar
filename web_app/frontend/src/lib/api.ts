@@ -1,5 +1,5 @@
 /**
- * Typed API client for the Price Truth Radar FastAPI serving layer
+ * Typed API client for the Asarak (أسعارك) FastAPI serving layer
  * (CONTRACTS.md §5). Reads the backend base URL from
  * `process.env.NEXT_PUBLIC_API_URL`.
  *

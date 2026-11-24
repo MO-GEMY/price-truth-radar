@@ -1,4 +1,4 @@
-"""Database engines for Price Truth Radar FastAPI backend.
+"""Database engines for Asarak (أسعارك) FastAPI backend.
 
 - `get_engine()` / `get_db()`: Read-only engine via `DATABASE_URL_READONLY`
   for all gold-layer serving queries.

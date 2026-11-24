@@ -1,1 +1,1 @@
-"""Background jobs for Price Truth Radar backend."""
+"""Background jobs for Asarak (أسعارك) backend."""

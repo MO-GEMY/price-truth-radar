@@ -1,4 +1,4 @@
-"""Price drop alert checker job for Price Truth Radar.
+"""Price drop alert checker job for Asarak (أسعارك).
 
 Compares active rows in `public.price_alerts` against latest prices in
 `gold.mart_product_verdicts`, sends Telegram or SMTP email notifications when
@@ -87,9 +87,9 @@ def _format_alert_message(alert: dict[str, Any], match: dict[str, Any]) -> tuple
     target_price = float(alert["target_price"])
     url = str(match.get("product_url") or "")
 
-    subject = f"Price Drop Alert: {title[:70]} is now {current_price:,.2f} EGP"
+    subject = f"أسعارك (Asarak) — Price Drop Alert: {title[:70]} is now {current_price:,.2f} EGP"
     body = (
-        f"Price Truth Radar — Target Price Hit!\n\n"
+        f"أسعارك (Asarak) — Target Price Hit!\n\n"
         f"Product: {title}\n"
         f"Store: {store}\n"
         f"Current Price: {current_price:,.2f} EGP\n"
@@ -125,7 +125,7 @@ def send_email_alert(destination: str, subject: str, body: str, *, dry_run: bool
     smtp_user = os.getenv("SMTP_USER", "").strip()
     smtp_pass = os.getenv("SMTP_PASS", "").strip()
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_from = os.getenv("SMTP_FROM", smtp_user or "alerts@pricetruthradar.eg").strip()
+    smtp_from = os.getenv("SMTP_FROM", smtp_user or "alerts@asarak.com").strip()
 
     if dry_run or not (smtp_host and smtp_user and smtp_pass):
         reason = "dry-run flag" if dry_run else "SMTP credentials not configured"
@@ -222,7 +222,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-    parser = argparse.ArgumentParser(description="Check active Price Truth Radar price drop alerts.")
+    parser = argparse.ArgumentParser(description="Check active Asarak price drop alerts.")
     parser.add_argument(
         "--dry-run",
         action="store_true",

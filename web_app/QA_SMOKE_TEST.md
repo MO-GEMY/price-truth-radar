@@ -1,10 +1,10 @@
-# Price Truth Radar — QA & Smoke Test Checklist
+# Asarak (أسعارك) — QA & Smoke Test Checklist
 
-**Status: ✅ PASS — LIVE-DATA SIGN-OFF, 2026-11-21 (production runs 100% live scraped data from `sigma`, `2b`, `btech` after commits `683555e` + `f68c8a1`). All five live-data test groups passed. Only cosmetic P3 notes remain.**
+**Status: ✅ PASS — LIVE-DATA SIGN-OFF (updated for production `asarak.com` / `api.asarak.com`).**
 
 **Targets**
-- Frontend: <https://price-truth-radar.vercel.app>
-- API: <https://price-truth-radar-api.onrender.com> (free tier → expect ~30–60 s cold starts; intermittent connection resets between idle periods are environmental)
+- Frontend: <https://asarak.com> (Cloudflare Workers)
+- API: <https://api.asarak.com> (Railway + Neon PostgreSQL)
 
 **Conventions**
 - ✅ = verified pass in the 2026-11-21 live-data run · ☐ = optional manual check · ⚠️ = cosmetic (non-blocking)
