@@ -7,7 +7,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import alerts, compare, health, highlights, products, radar, seo, stats
+from app.routers import alerts, compare, health, highlights, products, radar, seo, stats, submissions
 
 DEFAULT_CORS_ORIGINS: tuple[str, ...] = (
     "https://asarak.com",
@@ -42,6 +42,8 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Lets the browser read the public-form rate limit back-off (429 responses).
+    expose_headers=["Retry-After"],
 )
 
 app.include_router(health.router)
@@ -52,3 +54,4 @@ app.include_router(products.router)
 app.include_router(compare.router)
 app.include_router(alerts.router)
 app.include_router(seo.router)
+app.include_router(submissions.router)

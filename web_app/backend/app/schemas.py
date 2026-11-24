@@ -8,6 +8,8 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
+from app.sanitize import http_url, normalize_email, normalize_whatsapp
+
 CANONICAL_CATEGORIES: tuple[str, ...] = (
     "electronics",
     "home_appliances",
@@ -369,3 +371,106 @@ class SitemapEntriesResponse(BaseModel):
     @field_serializer("last_updated")
     def serialize_last_updated(self, v: Optional[datetime]) -> str:
         return _format_utc_z(v or datetime.now(timezone.utc)) or ""
+
+
+# ---------------------------------------------------------------------------
+# Public Inbound Forms: Contact Messages & Store Suggestions
+# (zero DB — validated in memory, forwarded to the team, never stored)
+# ---------------------------------------------------------------------------
+
+ContactCategory = Literal["price_error", "general", "partnership"]
+StoreSuggestKind = Literal["suggest", "owner"]
+StorePlatform = Literal["shopify", "woocommerce", "salla_zid", "custom"]
+
+_TURNSTILE_TOKEN_MAX_LENGTH = 4096
+
+
+class ContactCreateRequest(BaseModel):
+    category: ContactCategory
+    name: str = Field(default="", max_length=80)
+    email: str = Field(..., max_length=254)
+    message: str = Field(..., min_length=10, max_length=3000)
+    product_url: str = Field(default="", max_length=2048)
+    # Anti-spam: `website` is a honeypot — hidden from humans, filled by bots.
+    website: str = Field(default="", max_length=200)
+    turnstile_token: str = Field(default="", max_length=_TURNSTILE_TOKEN_MAX_LENGTH)
+
+    @field_validator(
+        "name", "email", "message", "product_url", "website", "turnstile_token", mode="before"
+    )
+    @classmethod
+    def _strip_strings(cls, v: Any) -> Any:
+        return v.strip() if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _validate_fields(self) -> "ContactCreateRequest":
+        email = normalize_email(self.email)
+        if email is None:
+            raise ValueError("Invalid email address format.")
+        self.email = email
+        product_url = http_url(self.product_url) if self.product_url else ""
+        if self.product_url and not product_url:
+            raise ValueError("Enter a complete http(s) product URL.")
+        if self.category == "price_error" and not product_url:
+            raise ValueError("A product URL is required to report a wrong price.")
+        self.product_url = product_url
+        return self
+
+
+class StoreSuggestCreateRequest(BaseModel):
+    kind: StoreSuggestKind
+    store_name: str = Field(..., min_length=2, max_length=120)
+    store_url: str = Field(..., max_length=2048)
+    notes: str = Field(default="", max_length=2000)
+    platform: Optional[StorePlatform] = None
+    contact_email: Optional[str] = Field(default=None, max_length=254)
+    contact_whatsapp: Optional[str] = Field(default=None, max_length=32)
+    website: str = Field(default="", max_length=200)
+    turnstile_token: str = Field(default="", max_length=_TURNSTILE_TOKEN_MAX_LENGTH)
+
+    @field_validator(
+        "store_name", "store_url", "notes", "contact_email", "contact_whatsapp",
+        "website", "turnstile_token", mode="before",
+    )
+    @classmethod
+    def _strip_strings(cls, v: Any) -> Any:
+        return v.strip() if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _validate_fields(self) -> "StoreSuggestCreateRequest":
+        # Syntax only: the URL is never requested, resolved, or scraped.
+        store_url = http_url(self.store_url)
+        if not store_url:
+            raise ValueError("Enter a complete http(s) store URL.")
+        self.store_url = store_url
+
+        if self.kind != "owner":
+            # Owner-only details never travel with a plain suggestion.
+            self.platform = None
+            self.contact_email = None
+            self.contact_whatsapp = None
+            return self
+
+        if self.platform is None:
+            raise ValueError("Store owners must choose the store platform.")
+        email = normalize_email(self.contact_email) if self.contact_email else None
+        if self.contact_email and email is None:
+            raise ValueError("Invalid contact email address format.")
+        whatsapp = normalize_whatsapp(self.contact_whatsapp) if self.contact_whatsapp else None
+        if self.contact_whatsapp and whatsapp is None:
+            raise ValueError("Invalid WhatsApp number.")
+        if not email and not whatsapp:
+            raise ValueError("Provide a contact email or a WhatsApp number.")
+        self.contact_email = email
+        self.contact_whatsapp = whatsapp
+        return self
+
+
+class SubmissionsConfigResponse(BaseModel):
+    form_enabled: bool
+    turnstile_site_key: str = ""
+
+
+class SubmissionAcceptedResponse(BaseModel):
+    status: Literal["received"] = "received"
+    message: str
