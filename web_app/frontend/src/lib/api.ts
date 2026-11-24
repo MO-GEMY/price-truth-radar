@@ -394,6 +394,105 @@ export async function submitPriceAlert(
 }
 
 /* ------------------------------------------------------------------ */
+/* Contact & store suggestions (zero-DB public forms)                  */
+/* ------------------------------------------------------------------ */
+
+const SUBMISSION_TIMEOUT_MS = 20000;
+const SUBMISSION_CONFIG_TIMEOUT_MS = 6000;
+
+export interface SubmissionsConfig {
+  form_enabled: boolean;
+  /** Cloudflare Turnstile site key; empty when the widget is not enabled. */
+  turnstile_site_key: string;
+}
+
+/**
+ * Why a submission was not accepted. `unavailable` covers a backend with no
+ * notification channel, a provider outage, or an API that is not deployed yet —
+ * in every case the UI must offer the direct-email fallback.
+ */
+export type SubmissionFailure =
+  | { reason: "validation"; fields: string[] }
+  | { reason: "rate_limited"; retryAfterSeconds: number | null }
+  | { reason: "turnstile" }
+  | { reason: "unavailable" }
+  | { reason: "network" };
+
+export type SubmissionResult = { ok: true } | ({ ok: false } & SubmissionFailure);
+
+/** GET /api/submissions/config — null when the backend cannot be reached. */
+export async function fetchSubmissionsConfig(signal?: AbortSignal): Promise<SubmissionsConfig | null> {
+  if (!isApiConfigured()) return { form_enabled: false, turnstile_site_key: "" };
+  try {
+    return await fetchJson<SubmissionsConfig>(
+      "/api/submissions/config",
+      undefined,
+      signal,
+      SUBMISSION_CONFIG_TIMEOUT_MS,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** POST /api/submissions/* — failures are classified instead of thrown so forms can react. */
+export async function postSubmission(
+  path: "/api/submissions/contact" | "/api/submissions/store-suggestion",
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<SubmissionResult> {
+  if (!isApiConfigured()) return { ok: false, reason: "unavailable" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
+  const onOuterAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onOuterAbort, { once: true });
+
+  try {
+    // buildUrl() keeps this call on whatever base the client resolves to (public
+    // or internal), instead of depending on the base constant's name.
+    const res = await fetch(buildUrl(path), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (res.status === 202) return { ok: true };
+    if (res.status === 422) {
+      const fields: string[] = [];
+      try {
+        const payload = await res.json();
+        if (Array.isArray(payload?.detail)) {
+          for (const issue of payload.detail) {
+            const field = Array.isArray(issue?.loc) ? issue.loc.at(-1) : undefined;
+            if (typeof field === "string" && !fields.includes(field)) fields.push(field);
+          }
+        }
+      } catch {
+        /* non-JSON body — still a validation failure */
+      }
+      return { ok: false, reason: "validation", fields };
+    }
+    if (res.status === 429) {
+      const seconds = Number(res.headers.get("retry-after"));
+      return {
+        ok: false,
+        reason: "rate_limited",
+        retryAfterSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : null,
+      };
+    }
+    if (res.status === 403) return { ok: false, reason: "turnstile" };
+    return { ok: false, reason: "unavailable" };
+  } catch {
+    return { ok: false, reason: "network" };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* SEO — dynamic sitemap entries                                       */
 /* ------------------------------------------------------------------ */
 

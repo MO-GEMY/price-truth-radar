@@ -8,6 +8,7 @@ import {
   Moon,
   Search,
   Sparkles,
+  Store,
   Sun,
 } from "lucide-react";
 import { browseHref, safeBrowseHref, useBrowseParams } from "@/lib/browse-state";
@@ -15,10 +16,13 @@ import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { AsarakLogo } from "./AsarakLogo";
 
+// `wideOnly` tabs do not fit beside the brand and the toggles on tablets and
+// are hidden there by `.ptr-nav-secondary` (they still show in the mobile tab bar).
 const destinations = [
-  { href: "/", text: "nav.feed", icon: Search },
-  { href: "/deals", text: "nav.deals", icon: Sparkles },
-  { href: "/compare", text: "nav.compare", icon: ArrowLeftRight },
+  { href: "/", text: "nav.feed", icon: Search, wideOnly: false },
+  { href: "/deals", text: "nav.deals", icon: Sparkles, wideOnly: false },
+  { href: "/compare", text: "nav.compare", icon: ArrowLeftRight, wideOnly: false },
+  { href: "/add-store", text: "nav.addStore", icon: Store, wideOnly: true },
 ] as const;
 
 export function Header() {
@@ -46,10 +50,12 @@ export function Header() {
         </Link>
 
         <nav className="ptr-nav" aria-label={t("ui.navigation")}>
-          {destinations.map(({ href, text, icon: Icon }) => (
+          {destinations.map(({ href, text, icon: Icon, wideOnly }) => (
             <Link
               key={href}
-              href={pathname === href ? browseHref(href, query) : href}
+              className={wideOnly ? "ptr-nav-secondary" : undefined}
+              // Only browse tabs carry filters; "/add-store" links to itself as-is.
+              href={pathname === href && href !== "/add-store" ? browseHref(href, query) : href}
               aria-current={active === href ? "page" : undefined}
             >
               <Icon size={16} strokeWidth={2.1} aria-hidden="true" />

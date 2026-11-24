@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   CONTACT_EMAIL,
   SITE_DOMAIN,
@@ -33,6 +34,20 @@ export default function PrivacyPage() {
             <li>
               <strong>تنبيهات انخفاض السعر الاختيارية:</strong> عند تفعيل تنبيه سعر، نحتفظ بعنوان بريدك الإلكتروني أو
               معرّف تليجرام الخاص بك مع المنتج والسعر المستهدف لغرض واحد فقط هو إرسال إشعار عند تحقق السعر المطلوب.
+            </li>
+            <li>
+              <strong>نماذج التواصل واقتراح المتاجر:</strong> عند إرسال رسالة عبر صفحة{" "}
+              <Link className="ptr-link" href="/contact">
+                تواصل معنا
+              </Link>{" "}
+              أو صفحة{" "}
+              <Link className="ptr-link" href="/add-store">
+                أضف متجرك
+              </Link>
+              ، نستخدم البيانات التي تكتبها بنفسك (مثل الاسم والبريد الإلكتروني ونص الرسالة ورابط المتجر
+              وبيانات التواصل) لغرض واحد هو الرد عليك أو مراجعة طلبك. تُمرَّر هذه البيانات إلى فريقنا عبر
+              مزوّد إرسال البريد أو قناة تليجرام داخلية ولا تُحفَظ في قاعدة بيانات الموقع. ولمنع الرسائل
+              المزعجة نحتفظ في ذاكرة الخادم بنسخة مشفّرة من عنوان IP لعدّ معدل الإرسال فقط لفترة قصيرة.
             </li>
             <li>
               <strong>تفضيلات المتصفح المحلية:</strong> نستخدم التخزين المحلي للمتصفح (<code>localStorage</code>)
@@ -124,6 +139,12 @@ export default function PrivacyPage() {
           <p>
             {SITE_NAME} ({SITE_DOMAIN}) does not require account registration. Optional price-drop alert emails or
             Telegram identifiers are used solely to notify you when a tracked product reaches your target price.
+          </p>
+          <p>
+            Contact and add-store submissions are used only to reply to you or review your request: they are
+            forwarded to our team through our email or Telegram provider and are not stored in the site&apos;s
+            database. A hashed copy of your IP address is kept in server memory for a short time solely to rate-limit
+            the forms.
           </p>
           <ul>
             <li>

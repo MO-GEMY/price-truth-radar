@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
+import { translations } from "@/lib/translations";
 import { AsarakLogo } from "./AsarakLogo";
 import { VerdictLegend } from "./VerdictLegend";
 
@@ -9,11 +10,13 @@ const LEGAL_LINKS = [
   { href: "/about", key: "footer.about" },
   { href: "/privacy", key: "footer.privacy" },
   { href: "/terms", key: "footer.terms" },
+  { href: "/disclaimer", key: "footer.disclaimer" },
   { href: "/contact", key: "footer.contact" },
+  { href: "/add-store", key: "footer.addStore" },
 ] as const;
 
 export function Footer() {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   return (
     <footer className="ptr-footer">
       <div className="ptr-wrap ptr-footer-inner">
@@ -22,10 +25,18 @@ export function Footer() {
             <AsarakLogo variant="dark" size="sm" />
           </Link>
           <p className="text-slate-200 font-medium">{t("footer.note")}</p>
-          <p className="ptr-footer-disclosure">
-            {t("footer.affiliateDisclosure")}
-          </p>
-          <nav className="ptr-footer-links" aria-label={t("footer.about")}>
+          <div className="ptr-footer-disclaimer">
+            {lang === "en" && (
+              <p className="ptr-footer-disclosure" lang="en">
+                {t("footer.independenceDisclaimer")}
+              </p>
+            )}
+            {/* Arabic is the authoritative wording: it stays on every page in every language. */}
+            <p className="ptr-footer-disclosure" dir="rtl" lang="ar">
+              {translations.ar["footer.independenceDisclaimer"]}
+            </p>
+          </div>
+          <nav className="ptr-footer-links" aria-label={t("footer.linksLabel")}>
             {LEGAL_LINKS.map(({ href, key }) => (
               <Link key={href} href={href} className="ptr-link">
                 {t(key)}

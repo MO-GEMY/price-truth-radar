@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
-import {
-  CONTACT_EMAIL,
-  SITE_DOMAIN,
-  SITE_NAME,
-  SITE_NAME_AR,
-  absoluteUrl,
-} from "@/lib/site";
+import Link from "next/link";
+import { Mail } from "lucide-react";
+import { CONTACT_EMAIL, SITE_DOMAIN, SITE_NAME, SITE_NAME_AR, absoluteUrl } from "@/lib/site";
+import { ContactForm } from "@/components/ContactForm";
 
 export const metadata: Metadata = {
   title: `تواصل معنا — Contact ${SITE_NAME}`,
-  description: `تواصل مع فريق ${SITE_NAME_AR} (${SITE_DOMAIN}) عبر البريد الإلكتروني ${CONTACT_EMAIL} لاقتراح متجر جديد أو الإبلاغ عن خطأ سعري أو استفسارات الشراكات.`,
+  description: `تواصل مع فريق ${SITE_NAME_AR} (${SITE_DOMAIN}) عبر نموذج التواصل أو البريد الإلكتروني ${CONTACT_EMAIL} للإبلاغ عن سعر خاطئ أو للاستفسارات العامة وطلبات التعاون والإعلانات.`,
   alternates: { canonical: absoluteUrl("/contact") },
 };
 
@@ -20,57 +17,56 @@ export default function ContactPage() {
         <p className="ptr-eyebrow">الدعم والتواصل · CONTACT US</p>
         <h1>تواصل معنا</h1>
         <p className="ptr-muted">
-          يسعدنا سماع ملاحظاتك، اقتراحات المتاجر الجديدة، أو أي استفسارات تقنية وتجارية.
+          يسعدنا سماع ملاحظاتك، أو الإبلاغ عن سعر خاطئ، أو دراسة طلبات التعاون والإعلانات.
         </p>
       </header>
 
-      <article className="surface ptr-section ptr-legal">
-        <section className="ptr-legal-block">
-          <h2>البريد الإلكتروني الرسمي</h2>
+      <div className="ptr-form-layout">
+        <section className="surface ptr-section" aria-labelledby="contact-form-title">
+          <h2 id="contact-form-title">أرسل رسالة</h2>
+          <ContactForm />
+        </section>
+
+        <aside className="surface ptr-section ptr-aside" aria-labelledby="contact-direct-title">
+          <h2 id="contact-direct-title">أو راسلنا مباشرة</h2>
           <p>
-            للتواصل المباشر مع فريق <strong>{SITE_NAME_AR} ({SITE_NAME})</strong> يرجى مراسلتنا على:
+            إذا فضّلت البريد الإلكتروني، تواصل مع فريق {SITE_NAME_AR} ({SITE_NAME}) على:
           </p>
           <p>
-            <a
-              className="ptr-button ptr-primary"
-              href={`mailto:${CONTACT_EMAIL}`}
-              dir="ltr"
-            >
+            <a className="ptr-button ptr-primary w-fit" href={`mailto:${CONTACT_EMAIL}`} dir="ltr">
+              <Mail size={16} aria-hidden="true" />
               {CONTACT_EMAIL}
             </a>
           </p>
-        </section>
-
-        <section className="ptr-legal-block">
-          <h2>كيف يمكننا مساعدتك؟</h2>
+          <h3>ماذا يحدث بعد الإرسال؟</h3>
           <ul>
+            <li>نراجع الرسائل بالترتيب ونرد عادةً خلال 1–2 يوم عمل.</li>
             <li>
-              <strong>الإبلاغ عن خطأ في السعر أو المطابقة:</strong> أرسل لنا رابط صفحة المنتج على {SITE_DOMAIN} مع
-              الرابط الأصلي في المتجر وسنراجع البيانات فوراً.
+              للإبلاغ عن سعر خاطئ: أرفق رابط المنتج على {SITE_DOMAIN} والسعر الصحيح الظاهر في
+              المتجر.
             </li>
             <li>
-              <strong>اقتراح متجر مصري جديد:</strong> إذا كنت صاحب متجر إلكتروني في مصر أو متسوقاً ترغب في تتبع متجر
-              معين، أرسل لنا رابط المتجر لدراسة إضافته.
-            </li>
-            <li>
-              <strong>الخصوصية أو الشراكات التجارية:</strong> نرد عادةً خلال 1–2 يوم عمل على جميع الاستفسارات الواردة
-              إلى{" "}
-              <a className="ptr-link" href={`mailto:${CONTACT_EMAIL}`} dir="ltr">
-                {CONTACT_EMAIL}
-              </a>
+              لإضافة متجر جديد أو اقتراح متجر: استخدم صفحة{" "}
+              <Link className="ptr-link" href="/add-store">
+                أضف متجرك
+              </Link>
               .
             </li>
+            <li>لحذف تنبيه سعر نشط: أرسل طلبك من البريد الإلكتروني المسجّل في التنبيه.</li>
           </ul>
-        </section>
+        </aside>
+      </div>
 
-        <section className="ptr-legal-block ptr-legal-en" dir="ltr" lang="en">
+      <article className="surface ptr-section ptr-legal">
+        <section className="ptr-legal-block" dir="ltr" lang="en">
           <h2>Contact {SITE_NAME}</h2>
           <p>
-            Have feedback, a price mismatch report, a store suggestion, or a partnership inquiry? Email us directly at{" "}
-            <a className="ptr-link" href={`mailto:${CONTACT_EMAIL}`}>
+            Have feedback, a wrong-price report, or a partnership inquiry? Use the form above or email
+            us directly at{" "}
+            <a className="ptr-link" href={`mailto:${CONTACT_EMAIL}`} dir="ltr">
               {CONTACT_EMAIL}
             </a>
-            .
+            . We usually reply within 1–2 business days.
           </p>
         </section>
       </article>

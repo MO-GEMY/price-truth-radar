@@ -2300,6 +2300,142 @@ html[dir="rtl"] .asarak-bar-fill--winner {
 }
 
 /* ==========================================================================
+   Public Forms (Contact / Add Store)
+   ========================================================================== */
+
+.ptr-form-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.85fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.ptr-form {
+  position: relative; /* anchors the off-screen honeypot inside the form box */
+  display: grid;
+  gap: 20px;
+}
+
+.ptr-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ptr-form textarea.ptr-field {
+  min-height: 132px;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+/* Segmented control stretched into equal columns (tabs / request types) */
+.ptr-form-segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  width: 100%;
+}
+
+.ptr-form-segmented button {
+  justify-content: center;
+  padding-inline: 8px;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+}
+
+.ptr-sublabel {
+  color: var(--asarak-ink);
+  font-weight: 600;
+}
+
+.ptr-required {
+  margin-inline-start: 2px;
+  color: var(--asarak-fake-discount);
+}
+
+/* Native select with a direction-aware chevron */
+.ptr-select {
+  position: relative;
+}
+
+.ptr-select select.ptr-field {
+  padding-inline-end: 40px;
+  cursor: pointer;
+  appearance: none;
+}
+
+.ptr-select > svg {
+  position: absolute;
+  inset-inline-end: 13px;
+  top: calc(50% + 2px); /* .ptr-field carries a 4px block-start margin */
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--asarak-ink-muted);
+}
+
+.ptr-turnstile {
+  min-height: 65px;
+}
+
+/* Honeypot: in the layout for bots, invisible and out of the tab order for people */
+.ptr-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ptr-notice-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ptr-submit {
+  justify-self: start;
+}
+
+.ptr-aside {
+  display: grid;
+  gap: 12px;
+}
+
+.ptr-aside p,
+.ptr-aside li {
+  color: var(--asarak-ink-muted);
+  line-height: 1.75;
+}
+
+.ptr-aside ul,
+.ptr-aside ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 20px;
+}
+
+.ptr-aside h3 {
+  margin-block-start: 6px;
+  color: var(--asarak-ink-secondary);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* Footer: the independence / affiliate disclaimer is a distinct block */
+.ptr-footer-disclaimer {
+  display: grid;
+  gap: 10px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid #1e3557;
+}
+
+/* ==========================================================================
    Responsive Breakpoints
    ========================================================================== */
 
@@ -2618,5 +2754,33 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   .skeleton-light::after,
   .asarak-hero-greeting .ptr-eyebrow::before {
     animation: none;
+  }
+}
+
+/* ==========================================================================
+   Public Forms — Responsive
+   ========================================================================== */
+
+@media (max-width: 860px) {
+  .ptr-form-layout,
+  .ptr-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Header: a fourth tab no longer fits beside the brand and the toggles between
+   the mobile tab bar and 800px (measured for both Arabic and English labels). */
+@media (min-width: 640px) and (max-width: 799px) {
+  .ptr-nav a.ptr-nav-secondary {
+    display: none;
+  }
+}
+
+/* Very narrow phones (below 360px): let tab labels wrap instead of clipping a tab. */
+@media (max-width: 359px) {
+  .ptr-nav a {
+    padding-inline: 2px;
+    line-height: 1.15;
+    white-space: normal;
   }
 }
