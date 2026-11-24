@@ -252,7 +252,7 @@ Category = Literal[
     "pet_care",
     "baby_kids",
 ]
-ScrapeMode = Literal["daily", "discover"]
+ScrapeMode = Literal["daily", "discover", "expand"]
 ScrapeVertical = Literal["core", "groceries", "fashion"]
 
 
@@ -786,6 +786,8 @@ class BaseScraper(ABC):
     base_url: str
     default_limit: int = 300
     discover_limit: int = 0
+    expand_limit: int = 500
+    expand_max_pages: int = 8
     groceries_limit: int = 300
     discover_groceries_limit: int = 0
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
@@ -799,11 +801,19 @@ class BaseScraper(ABC):
         mode: ScrapeMode = "daily",
         vertical: ScrapeVertical = "core",
         tracked_external_ids: Optional[set[str]] = None,
+        start_page: int = 0,
+        start_cursor: Optional[str] = None,
     ) -> None:
         self.http = http_client
         self.mode: ScrapeMode = mode
         self.vertical: ScrapeVertical = vertical
         self.tracked_external_ids: set[str] = set(tracked_external_ids or ())
+        self.start_page: int = max(0, int(start_page or 0))
+        self.start_cursor: Optional[str] = start_cursor
+        self.next_page: int = self.start_page
+        self.next_cursor: Optional[str] = self.start_cursor
+        self.exhausted_catalog: bool = False
+        self._checkpoint_updated: bool = False
         self.skipped_count: int = 0
         self.pages_fetched: int = 0
         self.category_counts: dict[str, int] = {}
@@ -816,6 +826,8 @@ class BaseScraper(ABC):
         """Return default product target for the requested scrape mode & vertical."""
         effective_mode = mode or self.mode
         effective_vertical = vertical or self.vertical
+        if effective_mode == "expand":
+            return self.expand_limit
         if effective_vertical == "groceries":
             base_cap = self.groceries_limit
             if effective_mode == "discover":
@@ -1067,6 +1079,7 @@ def upsert_snapshots_to_neon(
     *,
     max_attempts: int = 5,
     delta_mode: bool = False,
+    new_counts_by_store: Optional[dict[str, int]] = None,
 ) -> int:
     """Non-destructively upsert scraped snapshots into `raw.raw_product_snapshots`.
 
@@ -1109,6 +1122,13 @@ def upsert_snapshots_to_neon(
                         target_snapshots, touch_rows, dstats = compute_delta_snapshots(
                             snapshots, existing
                         )
+                        if new_counts_by_store is not None:
+                            new_counts_by_store.clear()
+                            for snap in target_snapshots:
+                                if (snap.store_name, snap.external_id) not in existing:
+                                    new_counts_by_store[snap.store_name] = (
+                                        new_counts_by_store.get(snap.store_name, 0) + 1
+                                    )
                         logger.info(
                             "[delta] total=%d inserted/changed=%d (new=%d changed=%d) skipped_unchanged=%d (storage_saved=%.1f%%)",
                             dstats.total_scraped,

@@ -598,11 +598,93 @@ class WooCommerceBaseScraper(BaseScraper):
 
         return collected
 
+    def _run_expand_fetch(self, fetcher: Any, target_limit: int) -> list[RawProductSnapshot]:
+        """Checkpointed incremental catalog expansion resuming from `start_page + 1`."""
+        snapshot_date = datetime.now(timezone.utc).date()
+        scraped_at = utc_now_naive()
+        collected: list[RawProductSnapshot] = []
+        seen_ids: set[str] = set()
+        effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
+        endpoint = f"{self.base_url.rstrip('/')}{self.api_path}"
+        req_per_page = min(self.per_page, max(10, target_limit))
+        max_pages_budget = max(1, self.expand_max_pages)
+        start_p = self.start_page + 1
+        last_good_page = self.start_page
+        pages_used = 0
+        exhausted = False
+        had_error = False
+
+        for page in range(start_p, start_p + max_pages_budget):
+            if len(collected) >= target_limit:
+                break
+            logger.info("[%s] Expand WooCommerce API page %d (%s)", self.store_name, page, endpoint)
+            try:
+                get_kwargs: dict[str, Any] = {
+                    "params": {"per_page": req_per_page, "page": page},
+                    "min_delay_seconds": effective_delay,
+                    "timeout": self.request_timeout,
+                }
+                if self.use_impersonation:
+                    get_kwargs["check_throttle"] = False
+                resp = fetcher.get(endpoint, **get_kwargs)
+                payload = resp.json()
+            except ThrottledResponseError as exc:
+                logger.warning("[%s] Expand WAF/throttle block on page %d (%s); stopping.", self.store_name, page, exc)
+                had_error = True
+                break
+            except Exception as exc:
+                # WooCommerce returns HTTP 400 rest_post_invalid_page_number past final page
+                status_code = getattr(getattr(exc, "response", None), "status_code", None)
+                if status_code == 400 and page > 1:
+                    exhausted = True
+                    break
+                logger.warning("[%s] Expand WooCommerce error on page %d: %s", self.store_name, page, exc)
+                had_error = True
+                break
+
+            self.pages_fetched += 1
+            pages_used += 1
+            if not isinstance(payload, list) or not payload:
+                exhausted = True
+                break
+
+            for raw in payload:
+                if not isinstance(raw, dict):
+                    continue
+                for rec in self._parse_item_variants(raw, snapshot_date, scraped_at):
+                    if rec.external_id in seen_ids:
+                        continue
+                    seen_ids.add(rec.external_id)
+                    collected.append(rec)
+                    if len(collected) >= target_limit:
+                        break
+                if len(collected) >= target_limit:
+                    break
+
+            last_good_page = page
+            if len(payload) < req_per_page:
+                exhausted = True
+                break
+
+        if exhausted or pages_used > 0 or not had_error:
+            self._checkpoint_updated = True
+            if exhausted:
+                self.exhausted_catalog = True
+                self.next_page = 0
+                self.next_cursor = None
+            else:
+                self.exhausted_catalog = False
+                self.next_page = last_good_page
+                self.next_cursor = None
+
+        return collected
+
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
         target_limit = self.get_target_limit() if limit is None else limit
         if target_limit <= 0:
             return []
 
+        runner = self._run_expand_fetch if self.mode == "expand" else self._run_fetch
         if self.use_impersonation:
             with ImpersonatedHttpClient(
                 impersonate="chrome",
@@ -612,6 +694,6 @@ class WooCommerceBaseScraper(BaseScraper):
                 min_delay_seconds=max(self.min_delay_seconds, self.http.min_delay_seconds),
                 jitter_range=(0.25, 0.8),
             ) as client:
-                return self._run_fetch(client, target_limit)
+                return runner(client, target_limit)
 
-        return self._run_fetch(self.http, target_limit)
+        return runner(self.http, target_limit)

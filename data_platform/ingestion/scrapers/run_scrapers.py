@@ -24,6 +24,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from data_platform.ingestion.scrapers import (  # noqa: E402
     DeltaStats,
+    DiscoveryCheckpoint,
     MatchSummary,
     PoliteHttpClient,
     RawProductSnapshot,
@@ -34,7 +35,9 @@ from data_platform.ingestion.scrapers import (  # noqa: E402
     fetch_latest_snapshots_from_neon,
     fetch_tracked_store_ids_from_neon,
     get_batch_targets,
+    load_discovery_state,
     preview_delta_savings,
+    save_discovery_state,
     update_canonical_keys_in_neon,
     upsert_snapshots_to_neon,
 )
@@ -65,9 +68,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mode",
-        choices=["daily", "discover", "discovery"],
+        choices=["daily", "discover", "discovery", "expand"],
         default="daily",
-        help="Scrape mode: 'daily' (balanced refresh prioritizing tracked SKUs) or 'discover'/'discovery' (deeper catalog sweep with higher limits).",
+        help=(
+            "Scrape mode: 'daily' (balanced refresh prioritizing tracked SKUs), "
+            "'discover'/'discovery' (deeper catalog sweep), or "
+            "'expand' (checkpointed pagination resuming from scraper_discovery_state)."
+        ),
     )
     parser.add_argument(
         "--limit",
@@ -309,6 +316,8 @@ def main(argv: list[str] | None = None) -> int:
 
     all_records: list[RawProductSnapshot] = []
     per_store_meta: list[tuple[str, ScrapeVertical, list[RawProductSnapshot], int, int, int, int, dict[str, int]]] = []
+    expand_updates: list[tuple[str, Optional[str], int, bool, int]] = []
+    any_expand_exhausted = False
     scrape_mode: ScrapeMode = "discover" if args.mode == "discovery" else args.mode
 
     with PoliteHttpClient(min_delay_seconds=args.delay) as http_client:
@@ -322,25 +331,41 @@ def main(argv: list[str] | None = None) -> int:
                 if scrape_mode == "daily"
                 else set()
             )
+            checkpoint: Optional[DiscoveryCheckpoint] = (
+                load_discovery_state(store_slug) if scrape_mode == "expand" else None
+            )
             scraper = scraper_cls(
                 http_client,
                 mode=scrape_mode,
                 vertical=target_vertical,
                 tracked_external_ids=tracked_ids,
+                start_page=checkpoint.last_page if checkpoint else 0,
+                start_cursor=checkpoint.last_cursor if checkpoint else None,
             )
             effective_limit = (
                 scraper.get_target_limit(scrape_mode, target_vertical)
                 if args.limit is None
                 else args.limit
             )
-            logging.info(
-                "[%s] Starting scrape (vertical=%s, mode=%s, target_limit=%d, tracked_watchlist=%d)",
-                store_slug,
-                target_vertical,
-                scrape_mode,
-                effective_limit,
-                len(tracked_ids),
-            )
+            if checkpoint is not None:
+                logging.info(
+                    "[%s] Starting expand scrape (vertical=%s, target_limit=%d, resume_page=%d, resume_cursor=%r, discovered_total=%d)",
+                    store_slug,
+                    target_vertical,
+                    effective_limit,
+                    checkpoint.last_page,
+                    checkpoint.last_cursor,
+                    checkpoint.products_discovered_total,
+                )
+            else:
+                logging.info(
+                    "[%s] Starting scrape (vertical=%s, mode=%s, target_limit=%d, tracked_watchlist=%d)",
+                    store_slug,
+                    target_vertical,
+                    scrape_mode,
+                    effective_limit,
+                    len(tracked_ids),
+                )
             try:
                 records = scraper.scrape(limit=effective_limit)
             except Exception as exc:
@@ -360,6 +385,26 @@ def main(argv: list[str] | None = None) -> int:
                     dict(scraper.category_counts),
                 )
             )
+            if scrape_mode == "expand":
+                if scraper._checkpoint_updated:
+                    if scraper.exhausted_catalog:
+                        any_expand_exhausted = True
+                    expand_updates.append(
+                        (
+                            store_slug,
+                            scraper.next_cursor,
+                            scraper.next_page,
+                            scraper.exhausted_catalog,
+                            len(records),
+                        )
+                    )
+                elif scraper.pages_fetched > 0:
+                    # Fallback advancement for custom scrapers without native cursor support
+                    wrapped = len(records) == 0
+                    if wrapped:
+                        any_expand_exhausted = True
+                    next_p = 0 if wrapped else (scraper.start_page + scraper.pages_fetched)
+                    expand_updates.append((store_slug, None, next_p, wrapped, len(records)))
 
     match_summary = assign_canonical_keys(all_records)
 
@@ -389,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(run_targets) > 1 or match_summary.matched_groups > 0:
         _print_match_summary(match_summary)
 
-    if len(run_targets) == 1 and len(all_records) == 0:
+    if len(run_targets) == 1 and len(all_records) == 0 and not (scrape_mode == "expand" and any_expand_exhausted):
         logging.error(
             "[%s] Collected 0 valid records (mode=%s); failing run so silent blocks are surfaced.",
             run_targets[0][0],
@@ -402,17 +447,52 @@ def main(argv: list[str] | None = None) -> int:
             preview = preview_delta_savings(all_records)
             if preview is not None:
                 _print_delta_preview(preview)
+        if scrape_mode == "expand" and expand_updates:
+            for store_slug, next_cur, next_p, wrapped, scraped_cnt in expand_updates:
+                print(
+                    f"EXPAND_CHECKPOINT (DRY-RUN) | store={store_slug} "
+                    f"| next_page={next_p} | next_cursor={next_cur!r} "
+                    f"| scraped={scraped_cnt} | wrapped={wrapped}"
+                )
         if args.match_db:
             return _run_match_db(dry_run=True)
         print("\nDry-run complete. Zero writes made to Neon.")
         return 0
 
-    upserted = upsert_snapshots_to_neon(all_records, delta_mode=args.delta)
+    new_counts_by_store: dict[str, int] = {}
+    upserted = (
+        upsert_snapshots_to_neon(
+            all_records,
+            delta_mode=args.delta,
+            new_counts_by_store=new_counts_by_store,
+        )
+        if all_records
+        else 0
+    )
     mode_tag = "delta" if args.delta else "full"
     print(
         f"\nUpserted {upserted} live rows into raw.raw_product_snapshots "
         f"(mode={mode_tag}, total_scraped={len(all_records)}, existing rows preserved)."
     )
+
+    if scrape_mode == "expand" and expand_updates:
+        for store_slug, next_cur, next_p, wrapped, scraped_cnt in expand_updates:
+            newly_discovered = new_counts_by_store.get(store_slug, 0) if args.delta else scraped_cnt
+            try:
+                saved = save_discovery_state(
+                    store_slug,
+                    last_cursor=next_cur,
+                    last_page=next_p,
+                    newly_discovered=newly_discovered,
+                )
+                print(
+                    f"EXPAND_CHECKPOINT | store={saved.store_id} "
+                    f"| next_page={saved.last_page} | next_cursor={saved.last_cursor!r} "
+                    f"| newly_discovered={newly_discovered} "
+                    f"| total_discovered={saved.products_discovered_total} | wrapped={wrapped}"
+                )
+            except Exception as exc:
+                logging.warning("[%s] Failed to save scraper_discovery_state (%s).", store_slug, exc)
 
     if args.match_db:
         return _run_match_db(dry_run=False)

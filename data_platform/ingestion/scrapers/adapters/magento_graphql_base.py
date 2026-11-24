@@ -10,6 +10,7 @@ Supports both plain HTTP (`PoliteHttpClient`) and optional TLS impersonation
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
+import json
 import logging
 import math
 import re
@@ -528,11 +529,152 @@ class MagentoGraphQLBaseScraper(BaseScraper):
         logger.info("[%s] Per-subcategory counts: %s", self.store_name, self.category_counts)
         return snapshots
 
+    def _run_expand_queries(self, fetcher: Any, target_limit: int) -> list[RawProductSnapshot]:
+        """Checkpointed incremental catalog expansion resuming from `(start_cursor, start_page)`."""
+        now = utc_now_naive()
+        today = now.date()
+        snapshots: list[RawProductSnapshot] = []
+        seen_ids: set[str] = set()
+        self.category_counts = {}
+        effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
+        queries = self.search_queries or ((self.category, self.category, "a"),)
+
+        start_q = 0
+        start_p = self.start_page
+        if self.start_cursor:
+            try:
+                cur_data = json.loads(self.start_cursor)
+                if isinstance(cur_data, dict):
+                    start_q = max(0, int(cur_data.get("q", 0)))
+                    start_p = max(0, int(cur_data.get("page", self.start_page)))
+            except Exception:
+                start_q = 0
+                start_p = self.start_page
+
+        if start_q >= len(queries):
+            start_q = 0
+            start_p = 0
+
+        extra_headers = {"Accept": "application/json, text/plain, */*"}
+        if self.store_header:
+            extra_headers["Store"] = self.store_header
+
+        max_pages_budget = max(1, self.expand_max_pages)
+        pages_used = 0
+        cur_q = start_q
+        page = start_p + 1
+        last_good_q = start_q
+        last_good_page = start_p
+        had_error = False
+
+        while cur_q < len(queries) and len(snapshots) < target_limit and pages_used < max_pages_budget:
+            default_sub, cat, query = queries[cur_q]
+            logger.info(
+                "[%s] Expand GraphQL q=%d/%d (%r) page=%d",
+                self.store_name,
+                cur_q + 1,
+                len(queries),
+                query,
+                page,
+            )
+            variables_dict = {"search": query, "pageSize": self.page_size, "currentPage": page}
+            variables_json = json.dumps(variables_dict)
+            try:
+                if self.use_post:
+                    post_headers = {"Content-Type": "application/json", **extra_headers}
+                    post_body = {"query": self.gql_query, "variables": variables_dict}
+                    post_kwargs: dict[str, Any] = {
+                        "json": post_body,
+                        "headers": post_headers,
+                        "min_delay_seconds": effective_delay,
+                        "timeout": self.request_timeout,
+                    }
+                    if self.use_impersonation:
+                        post_kwargs["check_throttle"] = False
+                    resp = fetcher.post(self.graphql_url, **post_kwargs)
+                else:
+                    get_kwargs: dict[str, Any] = {
+                        "params": {"query": self.gql_query, "variables": variables_json},
+                        "headers": extra_headers,
+                        "min_delay_seconds": effective_delay,
+                        "timeout": self.request_timeout,
+                    }
+                    if self.use_impersonation:
+                        get_kwargs["check_throttle"] = False
+                    resp = fetcher.get(self.graphql_url, **get_kwargs)
+                payload = resp.json()
+            except ThrottledResponseError as exc:
+                logger.warning("[%s] Expand GraphQL WAF/403 on q=%r page=%d (%s).", self.store_name, query, page, exc)
+                had_error = True
+                break
+            except Exception as exc:
+                logger.warning("[%s] Expand GraphQL error on q=%r page=%d: %s", self.store_name, query, page, exc)
+                had_error = True
+                break
+
+            self.pages_fetched += 1
+            pages_used += 1
+            if not isinstance(payload, dict) or payload.get("errors"):
+                cur_q += 1
+                page = 1
+                last_good_q = cur_q
+                last_good_page = 0
+                continue
+
+            products_block = (payload.get("data") or {}).get("products") or {}
+            raw_items = products_block.get("items") or []
+            if not raw_items:
+                cur_q += 1
+                page = 1
+                last_good_q = cur_q
+                last_good_page = 0
+                continue
+
+            q_added = 0
+            for raw in raw_items:
+                if not isinstance(raw, dict):
+                    continue
+                rec = self._parse_item(raw, default_sub, cat, today, now)
+                if rec is not None and rec.external_id not in seen_ids:
+                    seen_ids.add(rec.external_id)
+                    snapshots.append(rec)
+                    q_added += 1
+                    if len(snapshots) >= target_limit:
+                        break
+
+            self.category_counts[default_sub] = self.category_counts.get(default_sub, 0) + q_added
+            last_good_q = cur_q
+            last_good_page = page
+
+            page_info = products_block.get("page_info") or {}
+            total_pages = int(page_info.get("total_pages") or 1)
+            if page >= total_pages:
+                cur_q += 1
+                page = 1
+                last_good_q = cur_q
+                last_good_page = 0
+            else:
+                page += 1
+
+        if not had_error or pages_used > 0:
+            self._checkpoint_updated = True
+            if cur_q >= len(queries):
+                self.exhausted_catalog = True
+                self.next_page = 0
+                self.next_cursor = None
+            else:
+                self.exhausted_catalog = False
+                self.next_page = last_good_page
+                self.next_cursor = json.dumps({"q": last_good_q, "page": last_good_page})
+
+        return snapshots
+
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
         target_limit = self.get_target_limit() if limit is None else limit
         if target_limit <= 0:
             return []
 
+        runner = self._run_expand_queries if self.mode == "expand" else self._run_queries
         if self.use_impersonation:
             with ImpersonatedHttpClient(
                 impersonate="chrome",
@@ -542,6 +684,6 @@ class MagentoGraphQLBaseScraper(BaseScraper):
                 min_delay_seconds=max(self.min_delay_seconds, self.http.min_delay_seconds),
                 jitter_range=(0.3, 1.0),
             ) as client:
-                return self._run_queries(client, target_limit)
+                return runner(client, target_limit)
 
-        return self._run_queries(self.http, target_limit)
+        return runner(self.http, target_limit)

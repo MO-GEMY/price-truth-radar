@@ -28,6 +28,12 @@ from .base import (
     upsert_snapshots_to_neon,
 )
 from .btech import BTechScraper
+from .discovery_state import (
+    DiscoveryCheckpoint,
+    ensure_discovery_state_table,
+    load_discovery_state,
+    save_discovery_state,
+)
 from .expansion_stores import EXPANSION_SCRAPER_CLASSES
 from .expansion_stores_wave2 import WAVE2_EXPANSION_SCRAPER_CLASSES
 from .groceries import (
@@ -115,6 +121,7 @@ __all__ = [
     "ConcreteScraper",
     "DalydressScraper",
     "DejavuScraper",
+    "DiscoveryCheckpoint",
     "DubaiPhoneScraper",
     "EgyptLaptopScraper",
     "ElArabyScraper",
@@ -153,12 +160,15 @@ __all__ = [
     "compute_grocery_barcode_key",
     "compute_grocery_candidate_key",
     "compute_grocery_size_key",
+    "ensure_discovery_state_table",
     "extract_grocery_brand",
     "fetch_latest_snapshots_from_neon",
     "fetch_tracked_store_ids_from_neon",
+    "load_discovery_state",
     "parse_egp_price",
     "parse_grocery_packaging",
     "refine_grocery_sub_category",
+    "save_discovery_state",
     "update_canonical_keys_in_neon",
     "upsert_snapshots_to_neon",
 ]

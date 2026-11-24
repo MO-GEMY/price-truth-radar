@@ -1,0 +1,168 @@
+name: Daily Checkpointed Catalog Expansion (Rotating Batches)
+
+on:
+  schedule:
+    # Runs daily at 04:00 UTC (06:00 AM Cairo UTC+2 / 07:00 AM EEST), after all daily price updates finish
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      day_override:
+        description: "Optional day-of-week index override (0=Mon .. 6=Sun; blank = current UTC day)"
+        required: false
+        default: ""
+        type: string
+      batch_filter:
+        description: "Optional comma-separated batch names to expand (overrides day-of-week rotation)"
+        required: false
+        default: ""
+        type: string
+      limit:
+        description: "Optional per-store expand limit override (blank = scraper expand_limit default)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Dry-run expansion preview (no Neon or checkpoint writes)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: daily-catalog-expansion-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan-expansion:
+    name: Select Today's Rotating Cloud Batches
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      batches: ${{ steps.plan.outputs.batches }}
+      has_batches: ${{ steps.plan.outputs.has_batches }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Compute day-of-week batch slice from stores_registry.yaml
+        id: plan
+        env:
+          DAY_OVERRIDE: ${{ github.event.inputs.day_override || '' }}
+          BATCH_FILTER: ${{ github.event.inputs.batch_filter || '' }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import yaml
+
+          reg = yaml.safe_load(Path("data_platform/ingestion/stores_registry.yaml").read_text(encoding="utf-8"))
+          stores = reg.get("stores") or []
+          all_batches = sorted({
+              str(s["batch"]).strip()
+              for s in stores
+              if s.get("enabled") and s.get("region_mode") == "cloud" and s.get("batch")
+          })
+
+          raw_filter = os.environ.get("BATCH_FILTER", "").strip()
+          if raw_filter:
+              allowed = {b.strip() for b in raw_filter.split(",") if b.strip()}
+              selected = [b for b in all_batches if b in allowed]
+              reason = f"manual batch_filter={sorted(allowed)}"
+          else:
+              raw_day = os.environ.get("DAY_OVERRIDE", "").strip()
+              if raw_day.isdigit() and 0 <= int(raw_day) <= 6:
+                  dow = int(raw_day)
+              else:
+                  dow = datetime.now(timezone.utc).weekday()  # 0=Mon .. 6=Sun
+              selected = [b for idx, b in enumerate(all_batches) if idx % 7 == dow]
+              reason = f"day_of_week={dow} (0=Mon..6=Sun)"
+
+          print(f"Total active cloud batches: {len(all_batches)}")
+          print(f"Selected expansion batches ({len(selected)}, {reason}): {selected}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"batches={json.dumps(selected)}\n")
+              fh.write(f"has_batches={'true' if selected else 'false'}\n")
+          PY
+
+  expand-batch:
+    name: Expand Batch (${{ matrix.batch }})
+    runs-on: ubuntu-latest
+    needs: plan-expansion
+    if: needs.plan-expansion.outputs.has_batches == 'true'
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        batch: ${{ fromJson(needs.plan-expansion.outputs.batches) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run checkpointed catalog expansion (${{ matrix.batch }})
+        continue-on-error: true
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+          DATABASE_URL_READONLY: ${{ secrets.DATABASE_URL_READONLY }}
+          LIMIT_INPUT: ${{ github.event.inputs.limit || '' }}
+          DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          EXTRA_ARGS=""
+          if [ -n "$LIMIT_INPUT" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --limit $LIMIT_INPUT"
+          fi
+          if [ "$DRY_RUN_INPUT" = "true" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS --dry-run --delta-preview"
+          fi
+          python data_platform/ingestion/scrapers/run_scrapers.py \
+            --batch "${{ matrix.batch }}" \
+            --mode expand \
+            --delta \
+            $EXTRA_ARGS
+
+  match-and-dbt:
+    name: Match Cross-Store & Incremental dbt Run
+    runs-on: ubuntu-latest
+    needs: [plan-expansion, expand-batch]
+    if: always() && needs.plan-expansion.outputs.has_batches == 'true' && github.event.inputs.dry_run != 'true'
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install data platform dependencies
+        run: pip install -r data_platform/requirements.txt
+
+      - name: Run DB-level hybrid cross-store matching
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/ingestion/scrapers/run_scrapers.py --match-db
+
+      - name: Run dbt models (incremental-ready)
+        env:
+          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+        run: python data_platform/run_dbt.py run

@@ -15,6 +15,7 @@ Supports all 4 verticals (`fashion`, `groceries`, `electronics`, `home_appliance
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import re
@@ -548,11 +549,129 @@ class ShopifyBaseScraper(BaseScraper):
 
         return collected
 
+    def _scrape_expand_with_fetcher(self, fetcher: Any, target_limit: int) -> list[RawProductSnapshot]:
+        """Checkpointed incremental catalog expansion resuming from `(start_cursor, start_page)`."""
+        snapshot_date = datetime.now(timezone.utc).date()
+        scraped_at = utc_now_naive()
+        collected: list[RawProductSnapshot] = []
+        seen_ids: set[str] = set()
+        self.category_counts = {}
+        effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
+
+        if self.collection_handles:
+            endpoints: list[tuple[Optional[str], Category, str]] = [
+                (sub, cat, f"{self.base_url.rstrip('/')}/collections/{handle}/products.json")
+                for sub, cat, handle in self.collection_handles
+            ]
+        else:
+            endpoints = [(None, self.category, f"{self.base_url.rstrip('/')}/products.json")]
+
+        start_ep = 0
+        start_p = self.start_page
+        if self.start_cursor:
+            try:
+                cur_data = json.loads(self.start_cursor)
+                if isinstance(cur_data, dict):
+                    start_ep = max(0, int(cur_data.get("ep", 0)))
+                    start_p = max(0, int(cur_data.get("page", self.start_page)))
+            except Exception:
+                start_ep = 0
+                start_p = self.start_page
+
+        if start_ep >= len(endpoints):
+            start_ep = 0
+            start_p = 0
+
+        max_pages_budget = max(1, min(self.expand_max_pages, 6))
+        req_limit = min(self.per_page, max(50, target_limit))
+        pages_used = 0
+        cur_ep = start_ep
+        page = start_p + 1
+        last_good_ep = start_ep
+        last_good_page = start_p
+        had_error = False
+
+        while cur_ep < len(endpoints) and len(collected) < target_limit and pages_used < max_pages_budget:
+            default_sub, cat, endpoint = endpoints[cur_ep]
+            logger.info(
+                "[%s] Expand Shopify JSON ep=%d/%d page=%d (%s)",
+                self.store_name,
+                cur_ep + 1,
+                len(endpoints),
+                page,
+                endpoint,
+            )
+            try:
+                get_kwargs: dict[str, Any] = {
+                    "params": {"limit": req_limit, "page": page},
+                    "min_delay_seconds": effective_delay,
+                    "timeout": self.request_timeout,
+                }
+                if self.use_impersonation:
+                    get_kwargs["check_throttle"] = False
+                resp = fetcher.get(endpoint, **get_kwargs)
+                payload = resp.json()
+            except Exception as exc:
+                logger.warning("[%s] Expand error fetching %s page %d: %s", self.store_name, endpoint, page, exc)
+                had_error = True
+                break
+
+            self.pages_fetched += 1
+            pages_used += 1
+            products = payload.get("products") if isinstance(payload, dict) else None
+            if not isinstance(products, list) or not products:
+                cur_ep += 1
+                page = 1
+                last_good_ep = cur_ep
+                last_good_page = 0
+                continue
+
+            ep_added = 0
+            for raw in products:
+                if not isinstance(raw, dict):
+                    continue
+                for rec in self._parse_product_variants(raw, cat, default_sub, snapshot_date, scraped_at):
+                    if rec.external_id in seen_ids:
+                        continue
+                    seen_ids.add(rec.external_id)
+                    collected.append(rec)
+                    ep_added += 1
+                    if len(collected) >= target_limit:
+                        break
+                if len(collected) >= target_limit:
+                    break
+
+            self.category_counts[default_sub or cat] = self.category_counts.get(default_sub or cat, 0) + ep_added
+            last_good_ep = cur_ep
+            last_good_page = page
+
+            if len(products) < req_limit:
+                cur_ep += 1
+                page = 1
+                last_good_ep = cur_ep
+                last_good_page = 0
+            else:
+                page += 1
+
+        if not had_error or pages_used > 0:
+            self._checkpoint_updated = True
+            if cur_ep >= len(endpoints):
+                self.exhausted_catalog = True
+                self.next_page = 0
+                self.next_cursor = None
+            else:
+                self.exhausted_catalog = False
+                self.next_page = last_good_page
+                self.next_cursor = json.dumps({"ep": last_good_ep, "page": last_good_page})
+
+        return collected
+
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
         target_limit = self.get_target_limit() if limit is None else limit
         if target_limit <= 0:
             return []
 
+        runner = self._scrape_expand_with_fetcher if self.mode == "expand" else self._scrape_with_fetcher
         if self.use_impersonation:
             with ImpersonatedHttpClient(
                 impersonate="chrome",
@@ -562,6 +681,6 @@ class ShopifyBaseScraper(BaseScraper):
                 min_delay_seconds=max(self.min_delay_seconds, self.http.min_delay_seconds),
                 jitter_range=(0.25, 0.8),
             ) as client:
-                return self._scrape_with_fetcher(client, target_limit)
+                return runner(client, target_limit)
 
-        return self._scrape_with_fetcher(self.http, target_limit)
+        return runner(self.http, target_limit)
