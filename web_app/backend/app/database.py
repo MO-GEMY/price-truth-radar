@@ -23,8 +23,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger(__name__)
+
 
 def _resolve_repo_root() -> Path:
     env_root = os.getenv("REPO_ROOT", "").strip()
@@ -40,6 +42,62 @@ load_dotenv(_REPO_ROOT / ".env")
 load_dotenv()
 
 _STATEMENT_TIMEOUT_MS = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", "10000"))
+_IDLE_DISPOSE_DEFAULT = 90
+
+
+def _idle_dispose_seconds() -> int:
+    raw = os.getenv("DB_IDLE_DISPOSE_SECONDS", "").strip()
+    try:
+        val = int(raw) if raw else _IDLE_DISPOSE_DEFAULT
+    except ValueError:
+        val = _IDLE_DISPOSE_DEFAULT
+    return max(15, min(300, val))
+
+
+class _IdlePoolReaper:
+    """Drops idle SQLAlchemy pooled connections after `idle_seconds` of inactivity.
+
+    Keeps warm connection reuse during short request bursts while guaranteeing
+    `min_size=0` idle sockets after `idle_seconds` (default 90s) with ZERO
+    background keepalive pings so Neon's Scale-to-Zero suspends promptly.
+    """
+
+    def __init__(self, engine: Engine, idle_seconds: float) -> None:
+        self._engine = engine
+        self._idle_seconds = float(idle_seconds)
+        self._lock = threading.Lock()
+        self._checked_out = 0
+        self._timer: threading.Timer | None = None
+
+    def on_checkout(self) -> None:
+        with self._lock:
+            self._checked_out += 1
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+
+    def on_checkin(self) -> None:
+        with self._lock:
+            self._checked_out = max(0, self._checked_out - 1)
+            if self._checked_out == 0:
+                if self._timer is not None:
+                    self._timer.cancel()
+                timer = threading.Timer(self._idle_seconds, self._dispose_if_idle)
+                timer.daemon = True
+                self._timer = timer
+                timer.start()
+
+    def _dispose_if_idle(self) -> None:
+        with self._lock:
+            self._timer = None
+            if self._checked_out > 0:
+                return
+        try:
+            self._engine.dispose()
+            logger.debug("Disposed idle PostgreSQL pool after %.0fs inactivity for Neon Scale-to-Zero.", self._idle_seconds)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("Idle pool dispose skipped: %s", exc)
+
 
 _engine: Engine | None = None
 _write_engine: Engine | None = None
@@ -73,15 +131,38 @@ def _normalize_pg_url(db_url: str) -> str:
 
 
 def _build_pooled_engine(db_url: str, *, pool_size: int, max_overflow: int) -> Engine:
-    engine = create_engine(
-        _normalize_pg_url(db_url),
-        pool_pre_ping=True,
-        pool_recycle=240,
-        pool_size=pool_size,
-        max_overflow=max_overflow,
-        pool_timeout=15,
-        connect_args={"connect_timeout": 10},
-    )
+    pool_mode = os.getenv("DB_POOL_MODE", "lazy_reap").strip().lower()
+    idle_seconds = _idle_dispose_seconds()
+    connect_args = {
+        "connect_timeout": 10,
+        # Disable background TCP keepalives so idle sockets never keep Neon awake
+        "keepalives": 0,
+    }
+    if pool_mode == "null" or pool_size <= 0:
+        engine = create_engine(
+            _normalize_pg_url(db_url),
+            poolclass=NullPool,
+            connect_args=connect_args,
+        )
+    else:
+        engine = create_engine(
+            _normalize_pg_url(db_url),
+            pool_pre_ping=True,
+            pool_recycle=idle_seconds,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=15,
+            connect_args=connect_args,
+        )
+        reaper = _IdlePoolReaper(engine, idle_seconds=idle_seconds)
+
+        @event.listens_for(engine, "checkout")
+        def _on_checkout(*_args: object) -> None:
+            reaper.on_checkout()
+
+        @event.listens_for(engine, "checkin")
+        def _on_checkin(*_args: object) -> None:
+            reaper.on_checkin()
 
     @event.listens_for(engine, "connect")
     def _set_statement_timeout(dbapi_connection: object, _connection_record: object) -> None:
@@ -107,8 +188,8 @@ def get_engine() -> Engine:
             raise RuntimeError("DATABASE_URL_READONLY environment variable is not set")
         _engine = _build_pooled_engine(
             db_url,
-            pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
-            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "5")),
+            pool_size=int(os.getenv("DB_POOL_SIZE", "1")),
+            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "4")),
         )
     return _engine
 
@@ -127,8 +208,8 @@ def get_write_engine() -> Engine:
             )
         _write_engine = _build_pooled_engine(
             db_url,
-            pool_size=int(os.getenv("DB_WRITE_POOL_SIZE", "3")),
-            max_overflow=int(os.getenv("DB_WRITE_MAX_OVERFLOW", "3")),
+            pool_size=int(os.getenv("DB_WRITE_POOL_SIZE", "1")),
+            max_overflow=int(os.getenv("DB_WRITE_MAX_OVERFLOW", "2")),
         )
     return _write_engine
 

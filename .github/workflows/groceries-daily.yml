@@ -1,9 +1,8 @@
 name: Daily Groceries Pipeline
 
 on:
-  schedule:
-    # Off-peak daily run at 02:17 UTC (04:17 AM Cairo EET / 05:17 AM EEST), isolated from core & fashion pipelines
-    - cron: '17 2 * * *'
+  # Consolidated into daily-stores-matrix.yml (single 00:53 UTC Neon compute window covers
+  # all 9 grocery stores including amazon_eg/noon groceries). Keep manual dispatch for targeted runs.
   workflow_dispatch:
 
 jobs:

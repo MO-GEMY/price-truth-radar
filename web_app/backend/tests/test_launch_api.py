@@ -157,7 +157,11 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(resp1.status_code, 200)
         self.assertEqual(
             resp1.headers.get("cache-control"),
-            "public, s-maxage=600, stale-while-revalidate=300",
+            "public, s-maxage=3600, stale-while-revalidate=86400",
+        )
+        self.assertEqual(
+            resp1.headers.get("cdn-cache-control"),
+            "public, s-maxage=3600, stale-while-revalidate=86400",
         )
         body = resp1.json()
         self.assertEqual(body["updated_at"], "2026-11-22T12:00:00Z")
@@ -309,7 +313,11 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(r_stats.status_code, 200)
         self.assertEqual(
             r_stats.headers.get("cache-control"),
-            "public, s-maxage=600, stale-while-revalidate=300",
+            "public, s-maxage=3600, stale-while-revalidate=86400",
+        )
+        self.assertEqual(
+            r_stats.headers.get("cdn-cache-control"),
+            "public, s-maxage=3600, stale-while-revalidate=86400",
         )
         self.assertEqual(r_stats.json()["total_tracked"], 25400)
 
@@ -323,7 +331,11 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(r_cmp.status_code, 200)
         self.assertEqual(
             r_cmp.headers.get("cache-control"),
-            "public, s-maxage=600, stale-while-revalidate=300",
+            "public, s-maxage=3600, stale-while-revalidate=86400",
+        )
+        self.assertEqual(
+            r_cmp.headers.get("cdn-cache-control"),
+            "public, s-maxage=3600, stale-while-revalidate=86400",
         )
 
     def test_alerts_creation_validation_dedup_and_rate_limit(self) -> None:

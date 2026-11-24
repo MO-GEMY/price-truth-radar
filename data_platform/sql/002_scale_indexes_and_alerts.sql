@@ -33,18 +33,16 @@ CREATE INDEX IF NOT EXISTS idx_price_alerts_created_at
     ON public.price_alerts (created_at DESC);
 
 -- 2. Raw Ingestion Layer Indexes (raw.raw_product_snapshots)
+-- Keep only the composite date/store/category index alongside the PK (store_name, external_id, snapshot_date).
+-- Redundant idx_raw_snapshots_store_cat_ext & idx_raw_snapshots_date are dropped to save ~36 MB.
 DO $$
 BEGIN
     IF to_regclass('raw.raw_product_snapshots') IS NOT NULL THEN
         CREATE INDEX IF NOT EXISTS idx_raw_snapshots_date_store_cat
             ON raw.raw_product_snapshots (snapshot_date DESC, store_name, category);
 
-        CREATE INDEX IF NOT EXISTS idx_raw_snapshots_store_cat_ext
-            ON raw.raw_product_snapshots (store_name, category, external_id);
-
-        CREATE INDEX IF NOT EXISTS idx_raw_snapshots_canonical_date
-            ON raw.raw_product_snapshots (canonical_product_key, snapshot_date DESC)
-            WHERE canonical_product_key IS NOT NULL;
+        DROP INDEX IF EXISTS raw.idx_raw_snapshots_store_cat_ext;
+        DROP INDEX IF EXISTS raw.idx_raw_snapshots_date;
     END IF;
 END $$;
 

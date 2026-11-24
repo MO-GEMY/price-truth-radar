@@ -479,6 +479,114 @@ class TestNeonStorageGuardrails(unittest.TestCase):
         self.assertEqual(rc, 1)
         prune_mock.assert_not_called()
 
+    def test_compact_attributes_json_strips_bloat_and_stores_null_when_empty(self) -> None:
+        # Bloated single-variant Shopify payload -> empty dict -> serialized as SQL NULL
+        compacted = scraper_base.compact_attributes_json(
+            {
+                "parent_product_key": "hedeya::12345",
+                "variant_count": 1,
+                "variant_min_price": 500.0,
+                "variant_max_price": 500.0,
+                "shopify_product_type": "Toys",
+                "hedeya_category": "Baby Toys",
+                "amazon_query": "lego",
+                "sku": "12345",
+                "pack_count": 1,
+                "available_sizes": ["M"],  # stripped for non-fashion
+            },
+            store_name="hedeya",
+            external_id="12345",
+            category="baby_kids",
+        )
+        self.assertEqual(compacted, {})
+
+        # Useful keys (EAN, unit weight, multi-variant prices, fashion sizes, specs) preserved
+        kept_groc = scraper_base.compact_attributes_json(
+            {
+                "ean": "6222023700642",
+                "net_weight_g": 400,
+                "pack_size": "400g",
+                "pack_count": 2,
+                "seoudi_category": "Dairy",
+            },
+            store_name="seoudi",
+            external_id="991",
+            category="groceries",
+        )
+        self.assertEqual(
+            kept_groc,
+            {"ean": "6222023700642", "net_weight_g": 400, "pack_size": "400g", "pack_count": 2},
+        )
+
+        kept_fashion = scraper_base.compact_attributes_json(
+            {
+                "available_sizes": ["M", "L"],
+                "total_sizes": 4,
+                "variant_count": 3,
+                "variant_min_price": 450.0,
+                "variant_max_price": 650.0,
+                "shopify_product_type": "Shirts",
+            },
+            store_name="town_team",
+            external_id="555__v1",
+            category="fashion",
+        )
+        self.assertEqual(
+            kept_fashion,
+            {
+                "available_sizes": ["M", "L"],
+                "total_sizes": 4,
+                "variant_count": 3,
+                "variant_min_price": 450.0,
+                "variant_max_price": 650.0,
+            },
+        )
+
+    def test_product_schema_coerces_null_attributes_json_to_empty_dict(self) -> None:
+        from app.schemas import ProductVerdictItem
+
+        item = ProductVerdictItem.model_validate(
+            {
+                "product_sk": "sk_null_attr",
+                "store_name": "btech",
+                "category": "electronics",
+                "sub_category": "smartphones",
+                "brand": "Apple",
+                "product_title": "Apple iPhone 16",
+                "product_url": "https://btech.com/p/1",
+                "attributes_json": None,
+                "current_price": 45000.0,
+                "rolling_60d_median": 45000.0,
+                "min_historical_price": 45000.0,
+                "max_historical_price": 45000.0,
+                "claimed_discount_pct": 0.0,
+                "real_discount_pct": 0.0,
+                "discount_verdict": "NORMAL_PRICE",
+                "scarcity_flag": False,
+                "in_stock": True,
+                "last_updated_at": datetime(2026, 11, 24, 12, 0, tzinfo=timezone.utc),
+            }
+        )
+        self.assertEqual(item.attributes_json, {})
+
+    def test_idle_pool_reaper_disposes_engine_after_idle_timeout(self) -> None:
+        import time as _time
+        from app.database import _IdlePoolReaper
+
+        fake_engine = MagicMock()
+        reaper = _IdlePoolReaper(fake_engine, idle_seconds=0.05)
+        reaper.on_checkout()
+        reaper.on_checkin()
+        _time.sleep(0.12)
+        fake_engine.dispose.assert_called_once()
+
+    def test_health_is_zero_db_and_alerts_is_no_store(self) -> None:
+        client = TestClient(app)
+        r_health = client.get("/health")
+        self.assertEqual(r_health.status_code, 200)
+        self.assertEqual(r_health.text, "OK")
+        self.assertEqual(r_health.headers.get("cache-control"), "no-store")
+
 
 if __name__ == "__main__":
     unittest.main()

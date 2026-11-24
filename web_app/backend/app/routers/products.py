@@ -182,7 +182,7 @@ def search_products(
     limit: int = Query(default=20, ge=1, le=50),
     db: Connection = Depends(get_db),
 ) -> SearchResponse:
-    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
+    set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
     cache_key = f"products:search:v3:{(q or '').strip().lower()}:{(url or '').strip().lower()}:{limit}"
     cached = search_cache.get(cache_key)
     if cached is not None:
@@ -359,12 +359,12 @@ def search_products(
         if rows:
             items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
             res = SearchResponse(match_type="url_exact", items=items, total=len(items))
-            search_cache.set(cache_key, res, ttl=600.0)
+            search_cache.set(cache_key, res, ttl=3600.0)
             return res
 
         if not (q and q.strip()):
             res = SearchResponse(match_type="url_not_found", items=[], total=0)
-            search_cache.set(cache_key, res, ttl=120.0)
+            search_cache.set(cache_key, res, ttl=300.0)
             return res
 
     query = build_catalog_query(q or "", db=db)
@@ -374,7 +374,7 @@ def search_products(
     rows, total, match_type = search_catalog(db, query, limit)
     items = [ProductVerdictItem.model_validate(row) for row in rows]
     res = SearchResponse(match_type=match_type, items=items, total=total)
-    search_cache.set(cache_key, res, ttl=600.0)
+    search_cache.set(cache_key, res, ttl=3600.0)
     return res
 
 
@@ -542,6 +542,7 @@ def get_product_detail(
                     product_url
                 FROM gold.mart_product_verdicts
                 WHERE parent_product_key = :parent_key
+                  AND has_multiple_variants = TRUE
                 ORDER BY current_price ASC, in_stock DESC, product_sk ASC
                 LIMIT 50
                 """

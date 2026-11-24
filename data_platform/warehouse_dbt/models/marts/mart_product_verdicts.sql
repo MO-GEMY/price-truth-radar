@@ -9,7 +9,7 @@
             "CREATE EXTENSION IF NOT EXISTS pg_trgm",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_mart_verdicts_product_sk ON {{ this }} (product_sk)",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_canonical_key ON {{ this }} (canonical_product_key) WHERE canonical_product_key IS NOT NULL",
-            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_parent_key ON {{ this }} (parent_product_key)",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_parent_key ON {{ this }} (parent_product_key) WHERE has_multiple_variants = TRUE",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_search_doc_trgm ON {{ this }} USING GIN (search_document gin_trgm_ops)",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_store_name ON {{ this }} (store_name)",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_non_normal_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict <> 'NORMAL_PRICE'"
@@ -312,7 +312,36 @@ SELECT
     product_title::TEXT AS product_title,
     product_url::TEXT AS product_url,
     image_url::TEXT AS image_url,
-    attributes_json::JSONB AS attributes_json,
+    -- Compact serving attributes_json: store ONLY UI/API/test keys and NULL instead of '{}'
+    -- when empty (promoted variant columns & store breadcrumbs are never duplicated here).
+    NULLIF(
+        jsonb_strip_nulls(
+            jsonb_build_object(
+                'available_sizes', CASE WHEN category = 'fashion' THEN attributes_json -> 'available_sizes' END,
+                'total_sizes', CASE WHEN category = 'fashion' THEN attributes_json -> 'total_sizes' END,
+                'pack_size', attributes_json -> 'pack_size',
+                'net_weight_g', attributes_json -> 'net_weight_g',
+                'net_volume_ml', attributes_json -> 'net_volume_ml',
+                'pack_count', CASE
+                    WHEN (attributes_json ->> 'pack_count') ~ '^[0-9]+$'
+                         AND (attributes_json ->> 'pack_count')::INTEGER > 1
+                    THEN attributes_json -> 'pack_count'
+                END,
+                'ean', CASE WHEN category = 'groceries' THEN attributes_json -> 'ean' END,
+                'ram_gb', attributes_json -> 'ram_gb',
+                'storage_gb', attributes_json -> 'storage_gb',
+                'screen_size_inch', attributes_json -> 'screen_size_inch',
+                'screen_inches', attributes_json -> 'screen_inches',
+                'refresh_hz', attributes_json -> 'refresh_hz',
+                'refresh_rate_hz', attributes_json -> 'refresh_rate_hz',
+                'panel', attributes_json -> 'panel',
+                'anc', attributes_json -> 'anc',
+                'battery_hours', attributes_json -> 'battery_hours',
+                'warranty', attributes_json -> 'warranty'
+            )
+        ),
+        '{}'::jsonb
+    )::JSONB AS attributes_json,
     current_price::NUMERIC(12,2) AS current_price,
     claimed_original_price::NUMERIC(12,2) AS claimed_original_price,
     rolling_60d_median::NUMERIC(12,2) AS rolling_60d_median,

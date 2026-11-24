@@ -116,7 +116,7 @@ def get_overview_stats(
     response: Response,
     db: Connection = Depends(get_db),
 ) -> OverviewStatsResponse:
-    set_cache_headers(response, s_maxage=600, stale_while_revalidate=300)
+    set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
     cache_key = "stats:overview"
     cached = api_cache.get(cache_key)
     if cached is not None:
@@ -141,7 +141,7 @@ def get_overview_stats(
         category_counts=cat_counts,
         cross_store_matches_count=int(row.get("cross_store_matches_count") or 0),
     )
-    api_cache.set(cache_key, result, ttl=300.0)
+    api_cache.set(cache_key, result, ttl=3600.0)
     return result
 
 

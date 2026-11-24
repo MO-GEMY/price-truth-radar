@@ -1,9 +1,8 @@
 name: Daily Core Electronics & Appliances Pipeline
 
 on:
-  schedule:
-    # Off-peak daily run at 00:37 UTC (02:37 AM Cairo EET / 03:37 AM EEST)
-    - cron: '37 0 * * *'
+  # Consolidated into daily-stores-matrix.yml (single 00:53 UTC Neon compute window covers
+  # all 13 core stores + match + dbt + 3-day prune). Keep manual dispatch for targeted runs.
   workflow_dispatch:
 
 jobs:

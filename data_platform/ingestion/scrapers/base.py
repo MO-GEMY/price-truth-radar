@@ -347,6 +347,12 @@ class RawProductSnapshot(BaseModel):
             self.claimed_original_price = None
         if self.scraped_at.tzinfo is not None:
             self.scraped_at = self.scraped_at.astimezone(timezone.utc).replace(tzinfo=None)
+        self.attributes_json = compact_attributes_json(
+            self.attributes_json,
+            store_name=self.store_name,
+            external_id=self.external_id,
+            category=self.category,
+        )
         return self
 
     def to_json_dict(self) -> dict[str, Any]:
@@ -374,6 +380,11 @@ class RawProductSnapshot(BaseModel):
         }
 
     def to_db_tuple(self) -> tuple[Any, ...]:
+        attrs_payload = (
+            json.dumps(self.attributes_json, ensure_ascii=False)
+            if self.attributes_json
+            else None
+        )
         return (
             self.store_name,
             self.external_id,
@@ -384,13 +395,119 @@ class RawProductSnapshot(BaseModel):
             self.product_title,
             self.product_url,
             self.image_url,
-            json.dumps(self.attributes_json, ensure_ascii=False),
+            attrs_payload,
             self.current_price,
             self.claimed_original_price,
             self.in_stock,
             self.snapshot_date,
             self.scraped_at,
         )
+
+
+_COMPACT_RAW_ATTR_KEYS: frozenset[str] = frozenset(
+    {
+        # Exact identifier & matcher keys
+        "ean",
+        "gtin",
+        "gtin13",
+        "gtin14",
+        "barcode",
+        "mpn",
+        "sku",
+        # Packaging / unit-price keys
+        "pack_size",
+        "net_weight_g",
+        "net_volume_ml",
+        "pack_count",
+        # Multi-variant rollup keys (filtered further below when single-variant default)
+        "parent_product_key",
+        "variant_id",
+        "variant_label",
+        "variant_count",
+        "variant_min_price",
+        "variant_max_price",
+        # Fashion sizing keys (fashion only)
+        "available_sizes",
+        "total_sizes",
+        # Hardware / UI AttributesPanel keys
+        "ram_gb",
+        "storage_gb",
+        "screen_size_inch",
+        "screen_inches",
+        "refresh_hz",
+        "refresh_rate_hz",
+        "panel",
+        "anc",
+        "battery_hours",
+        "warranty",
+    }
+)
+
+
+def compact_attributes_json(
+    raw_attrs: Any,
+    *,
+    store_name: str = "",
+    external_id: str = "",
+    category: str = "",
+) -> dict[str, Any]:
+    """Strip unused scraper metadata keys from `attributes_json` before Neon storage.
+
+    Retains ONLY keys read by `stg_products.sql`, cross-store entity resolution,
+    FastAPI unit-price derivation, or frontend `AttributesPanel.tsx`. Drops
+    redundant single-variant defaults (`variant_count=1`, default `parent_product_key`,
+    `pack_count=1`) and store breadcrumb keys (`shopify_product_type`, `*_category`,
+    `amazon_query`, `product_id`, etc.) to cut Neon JSONB storage by ~75%.
+    """
+    if not isinstance(raw_attrs, dict) or not raw_attrs:
+        return {}
+
+    raw_vc = raw_attrs.get("variant_count")
+    try:
+        variant_count = int(raw_vc) if raw_vc is not None else 1
+    except (TypeError, ValueError):
+        variant_count = 1
+    is_multi_variant = variant_count > 1
+
+    default_parent = (
+        f"{store_name.strip().lower()}::{re.sub(r'__v.*$', '', external_id.strip())}"
+        if store_name and external_id
+        else ""
+    )
+    ext_upper = external_id.strip().upper()
+    is_fashion = category.strip().lower() == "fashion"
+
+    out: dict[str, Any] = {}
+    for k, v in raw_attrs.items():
+        if k not in _COMPACT_RAW_ATTR_KEYS or v is None:
+            continue
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                continue
+        elif isinstance(v, (list, dict)) and not v:
+            continue
+
+        if k in ("available_sizes", "total_sizes") and not is_fashion:
+            continue
+        if k == "parent_product_key" and default_parent and str(v).strip() == default_parent:
+            continue
+        if k == "variant_count" and not is_multi_variant:
+            continue
+        if k in ("variant_min_price", "variant_max_price") and not is_multi_variant:
+            continue
+        if k == "pack_count":
+            try:
+                if int(v) <= 1:
+                    continue
+            except (TypeError, ValueError):
+                continue
+        if k == "sku" and ext_upper and str(v).upper() == ext_upper:
+            continue
+
+        out[k] = v
+
+    return out
 
 
 class PoliteHttpClient:
@@ -980,7 +1097,7 @@ CREATE TABLE IF NOT EXISTS raw.raw_product_snapshots (
     product_title           TEXT         NOT NULL,
     product_url             TEXT         NOT NULL,
     image_url               TEXT,
-    attributes_json         JSONB        NOT NULL,
+    attributes_json         JSONB,
     current_price           NUMERIC(12,2) NOT NULL,
     claimed_original_price  NUMERIC(12,2),
     in_stock                BOOLEAN      NOT NULL,
@@ -993,8 +1110,11 @@ CREATE TABLE IF NOT EXISTS raw.raw_product_snapshots (
 ALTER TABLE raw.raw_product_snapshots
     ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
 
-CREATE INDEX IF NOT EXISTS idx_raw_snapshots_date
-    ON raw.raw_product_snapshots (snapshot_date);
+ALTER TABLE raw.raw_product_snapshots
+    ALTER COLUMN attributes_json DROP NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_raw_snapshots_date_store_cat
+    ON raw.raw_product_snapshots (snapshot_date DESC, store_name, category);
 """
 
 UPSERT_SQL = """

@@ -1,9 +1,8 @@
 name: Catalog Discovery Pipeline (Twice-Weekly)
 
 on:
-  schedule:
-    # Runs every Tuesday & Friday at 01:13 UTC (03:13 AM Cairo EET / 04:13 AM EEST)
-    - cron: '13 1 * * 2,5'
+  # Consolidated into daily-stores-matrix.yml Saturday 00:53 UTC discover run so Neon never wakes
+  # on separate Tuesday/Friday windows. Keep manual dispatch for ad-hoc store discovery.
   workflow_dispatch:
     inputs:
       store:

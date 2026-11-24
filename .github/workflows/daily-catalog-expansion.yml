@@ -1,9 +1,8 @@
 name: Daily Checkpointed Catalog Expansion (Rotating Batches)
 
 on:
-  schedule:
-    # Runs daily at 04:00 UTC (06:00 AM Cairo UTC+2 / 07:00 AM EEST), after all daily price updates finish
-    - cron: '0 4 * * *'
+  # Manual dispatch only while Neon Free-Tier storage & CU-hrs are being conserved (avoids a
+  # separate 04:00 UTC Neon wakeup and unplanned catalog growth toward the 1 GB quota).
   workflow_dispatch:
     inputs:
       day_override:

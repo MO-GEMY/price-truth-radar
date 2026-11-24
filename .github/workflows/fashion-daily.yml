@@ -1,9 +1,8 @@
 name: Daily Fashion & Footwear Pipeline
 
 on:
-  schedule:
-    # Off-peak daily run at 01:47 UTC (03:47 AM Cairo EET / 04:47 AM EEST), isolated from core & groceries pipelines
-    - cron: '47 1 * * *'
+  # Consolidated into daily-stores-matrix.yml (single 00:53 UTC Neon compute window covers
+  # all 8 fashion stores + match + dbt + 3-day prune). Keep manual dispatch for targeted runs.
   workflow_dispatch:
 
 jobs:

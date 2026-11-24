@@ -134,7 +134,7 @@ class ProductVerdictItem(BaseModel):
     product_title: str
     product_url: str
     image_url: Optional[str] = None
-    attributes_json: dict[str, Any]
+    attributes_json: dict[str, Any] = Field(default_factory=dict)
     current_price: float
     claimed_original_price: Optional[float] = None
     rolling_60d_median: float
@@ -156,6 +156,11 @@ class ProductVerdictItem(BaseModel):
     max_variant_price: Optional[float] = None
     applicable_coupons: list[ApplicableCoupon] = Field(default_factory=list)
     estimated_price_after_coupon: Optional[float] = None
+
+    @field_validator("attributes_json", mode="before")
+    @classmethod
+    def _coerce_null_attributes(cls, v: Any) -> dict[str, Any]:
+        return v if isinstance(v, dict) else {}
 
     @model_validator(mode="after")
     def _populate_unit_pricing(self) -> "ProductVerdictItem":

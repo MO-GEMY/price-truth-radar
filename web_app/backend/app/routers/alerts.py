@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
@@ -27,8 +27,10 @@ MAX_ACTIVE_ALERTS_PER_DESTINATION = 25
 )
 def create_price_alert(
     payload: AlertCreateRequest,
+    response: Response,
     db: Connection = Depends(get_write_db),
 ) -> AlertCreateResponse:
+    response.headers["Cache-Control"] = "no-store"
     ensure_price_alerts_table(db)
 
     # 1. Deduplicate active alert for same destination + product_key

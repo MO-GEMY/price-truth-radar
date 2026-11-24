@@ -55,8 +55,8 @@ class TTLCache:
 
 
 # Shared process-level read caches (bounded LRU + TTL to keep Neon scaled to zero)
-api_cache = TTLCache(maxsize=2048, default_ttl=1800.0)
-search_cache = TTLCache(maxsize=2048, default_ttl=600.0)  # 10m TTL for search responses
+api_cache = TTLCache(maxsize=2048, default_ttl=3600.0)
+search_cache = TTLCache(maxsize=2048, default_ttl=3600.0)  # 1h TTL (catalog refreshes once daily)
 product_detail_cache = TTLCache(maxsize=4096, default_ttl=43200.0)  # 12h TTL
 sitemap_cache = TTLCache(maxsize=64, default_ttl=86400.0)  # 24h TTL
 
@@ -64,8 +64,8 @@ sitemap_cache = TTLCache(maxsize=64, default_ttl=86400.0)  # 24h TTL
 def set_cache_headers(
     response: Response,
     *,
-    s_maxage: int = 600,
-    stale_while_revalidate: int = 300,
+    s_maxage: int = 3600,
+    stale_while_revalidate: int = 86400,
 ) -> None:
     """Attach Cloudflare/CDN-friendly public Cache-Control headers for read endpoints."""
     directive = f"public, s-maxage={s_maxage}, stale-while-revalidate={stale_while_revalidate}"
