@@ -512,17 +512,20 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(summary["checked"], 1)
         self.assertEqual(summary["matched"], 1)
         self.assertEqual(summary["delivered"], 0)
-        self.assertEqual(summary["dry_run_skipped"], 1)
+        # Outside dry-run a missing provider is reported as unconfigured, not as a dry-run skip.
+        self.assertEqual(summary["dry_run_skipped"], 0)
+        self.assertEqual(summary["unconfigured_skipped"], 1)
         self.assertEqual(triggered_ids, [])
 
         # With TELEGRAM_BOT_TOKEN set & mocked HTTP 200 -> delivers & marks triggered_at
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status.return_value = None
+        mock_resp = MagicMock(status_code=200)
         with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "fake-bot-token"}, clear=False):
-            with patch.object(check_price_alerts.httpx, "post", return_value=mock_resp):
+            with patch("app.notify.httpx.post", return_value=mock_resp) as post:
                 summary_live = check_price_alerts.check_alerts_with_conn(conn, dry_run=False)
         self.assertEqual(summary_live["delivered"], 1)
         self.assertEqual(triggered_ids, [42])
+        self.assertIn("/sendMessage", post.call_args.args[0])
+        self.assertEqual(post.call_args.kwargs["json"]["chat_id"], "123456789")
 
     def test_bilingual_arabic_search_expands_to_english_and_fuzzy_fallback(self) -> None:
         now = datetime(2026, 11, 22, 12, 0, 0, tzinfo=timezone.utc)

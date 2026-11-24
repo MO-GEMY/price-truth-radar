@@ -11,12 +11,29 @@ on:
         required: false
         default: false
         type: boolean
+      test_email:
+        description: "Optional: send ONE real test email through the configured provider (no DB writes) and skip the alert check"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   check-alerts:
     name: Check Active Price Alerts
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
+      # Email: Resend is tried first, then SMTP. Blank secrets are treated as unset.
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+      RESEND_FROM_NAME: ${{ secrets.RESEND_FROM_NAME }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -30,15 +47,19 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r web_app/backend/requirements.txt
 
-      - name: Run price drop alert checker
+      - name: Optional provider test send (no database writes)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.test_email != '' }}
         env:
-          DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          TEST_EMAIL: ${{ inputs.test_email }}
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            EXTRA_ARGS="--dry-run"
+          fi
+          python web_app/backend/jobs/send_test_notification.py --to "$TEST_EMAIL" $EXTRA_ARGS
+
+      - name: Run price drop alert checker
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.test_email == '' }}
         run: |
           EXTRA_ARGS=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then

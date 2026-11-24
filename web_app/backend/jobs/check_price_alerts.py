@@ -1,9 +1,10 @@
 """Price drop alert checker job for Asarak (أسعارك).
 
 Compares active rows in `public.price_alerts` against latest prices in
-`gold.mart_product_verdicts`, sends Telegram or SMTP email notifications when
-configured, logs clean dry-run output when secrets are absent, and marks
-delivered alerts with `triggered_at = NOW(), is_active = FALSE`.
+`gold.mart_product_verdicts`, sends Telegram or email (Resend, then SMTP)
+notifications when a provider is configured, logs clean dry-run output when
+secrets are absent, and marks delivered alerts with `triggered_at = NOW(),
+is_active = FALSE`.
 
 Usage:
     python web_app/backend/jobs/check_price_alerts.py
@@ -15,13 +16,10 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import smtplib
 import sys
-from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Optional
 
-import httpx
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
@@ -30,6 +28,7 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from app.database import ensure_price_alerts_table, get_write_engine  # noqa: E402
+from app.notify import email_providers, send_email, send_telegram  # noqa: E402
 
 logger = logging.getLogger("check_price_alerts")
 
@@ -100,48 +99,35 @@ def _format_alert_message(alert: dict[str, Any], match: dict[str, Any]) -> tuple
 
 
 def send_telegram_alert(destination: str, body: str, *, dry_run: bool = False) -> bool:
+    """Deliver one Telegram alert. False only for dry-run / unconfigured; failures raise."""
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if dry_run or not token:
         reason = "dry-run flag" if dry_run else "TELEGRAM_BOT_TOKEN not configured"
         logger.info("[DRY-RUN][telegram] (%s) Would send to %s: %s", reason, destination, body.splitlines()[0])
         return False
 
-    api_url = f"https://api.telegram.org/bot{token}/sendMessage"
-    resp = httpx.post(
-        api_url,
-        json={
-            "chat_id": destination,
-            "text": body,
-            "disable_web_page_preview": False,
-        },
-        timeout=15.0,
-    )
-    resp.raise_for_status()
+    result = send_telegram(destination, body, token=token)
+    if not result.ok:
+        raise RuntimeError(result.reason)
     return True
 
 
 def send_email_alert(destination: str, subject: str, body: str, *, dry_run: bool = False) -> bool:
-    smtp_host = os.getenv("SMTP_HOST", "").strip()
-    smtp_user = os.getenv("SMTP_USER", "").strip()
-    smtp_pass = os.getenv("SMTP_PASS", "").strip()
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_from = os.getenv("SMTP_FROM", smtp_user or "alerts@asarak.com").strip()
-
-    if dry_run or not (smtp_host and smtp_user and smtp_pass):
-        reason = "dry-run flag" if dry_run else "SMTP credentials not configured"
-        logger.info("[DRY-RUN][email] (%s) Would send to %s | Subject: %s", reason, destination, subject)
+    """Deliver one email alert via Resend, then SMTP. False only for dry-run / unconfigured."""
+    if dry_run:
+        logger.info("[DRY-RUN][email] (dry-run flag) Would send to %s | Subject: %s", destination, subject)
+        return False
+    if not email_providers():
+        logger.warning(
+            "[SKIPPED][email] No email provider configured (RESEND_API_KEY or "
+            "SMTP_HOST/SMTP_USER/SMTP_PASS) — alert to %s stays active",
+            destination,
+        )
         return False
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = smtp_from
-    msg["To"] = destination
-    msg.set_content(body)
-
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
+    result = send_email(destination, subject, body)
+    if not result.ok:
+        raise RuntimeError(result.reason)
     return True
 
 
@@ -159,6 +145,7 @@ def check_alerts_with_conn(
         "matched": 0,
         "delivered": 0,
         "dry_run_skipped": 0,
+        "unconfigured_skipped": 0,
         "errors": 0,
     }
 
@@ -201,8 +188,11 @@ def check_alerts_with_conn(
                     float(match["current_price"]),
                     float(alert["target_price"]),
                 )
-            else:
+            elif dry_run:
                 summary["dry_run_skipped"] += 1
+            else:
+                # A False return outside dry-run means the channel is not configured.
+                summary["unconfigured_skipped"] += 1
         except Exception as exc:
             summary["errors"] += 1
             logger.warning(
@@ -212,6 +202,13 @@ def check_alerts_with_conn(
                 alert["destination"],
                 exc,
             )
+
+    if summary["unconfigured_skipped"]:
+        logger.warning(
+            "%s matched alert(s) were NOT sent: no notification provider is configured "
+            "(set RESEND_API_KEY or SMTP_*, or TELEGRAM_BOT_TOKEN). They stay active.",
+            summary["unconfigured_skipped"],
+        )
 
     return summary
 
