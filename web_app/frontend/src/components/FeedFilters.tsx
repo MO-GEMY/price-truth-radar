@@ -1,7 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { LayoutGrid, List, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  List,
+  SlidersHorizontal,
+} from "lucide-react";
 import type {
   CategoryFacetsResponse,
   DiscountVerdict,
@@ -64,10 +70,13 @@ export function FeedFilters({
   onViewChange?: (view: "list" | "grid") => void;
   onChange: (next: FeedFilterState) => void;
 }) {
-  const { lang, t } = useLanguage();
+  const { lang, dir, t } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
+  const subBarRef = useRef<HTMLDivElement>(null);
+  const subAnimRef = useRef<number>(0);
   const [draft, setDraft] = useState(value);
+  const [subScroll, setSubScroll] = useState({ start: false, end: false });
   const shownCategories = visibleCategories(categoryCounts, value.category);
 
   const scopedStoreCounts = new Map<string, number>();
@@ -139,6 +148,95 @@ export function FeedFilters({
       brand: "",
     });
   }
+
+  const syncSubScroll = useCallback(() => {
+    const el = subBarRef.current;
+    if (!el) {
+      setSubScroll((prev) =>
+        prev.start || prev.end ? { start: false, end: false } : prev,
+      );
+      return;
+    }
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 4) {
+      setSubScroll((prev) =>
+        prev.start || prev.end ? { start: false, end: false } : prev,
+      );
+      return;
+    }
+    const scrolled = Math.abs(el.scrollLeft);
+    const start = scrolled > 2;
+    const end = scrolled < maxScroll - 2;
+    setSubScroll((prev) =>
+      prev.start === start && prev.end === end ? prev : { start, end },
+    );
+  }, []);
+
+  useEffect(() => {
+    syncSubScroll();
+    const el = subBarRef.current;
+    if (!el) return;
+    const onResize = () => syncSubScroll();
+    window.addEventListener("resize", onResize, { passive: true });
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(syncSubScroll);
+      ro.observe(el);
+    }
+    return () => {
+      window.removeEventListener("resize", onResize);
+      ro?.disconnect();
+      window.cancelAnimationFrame(subAnimRef.current);
+    };
+  }, [syncSubScroll, value.category, subcategories.length, facetsLoading, lang]);
+
+  function scrollSubBar(direction: "start" | "end") {
+    const el = subBarRef.current;
+    if (!el) return;
+    const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+    if (maxScroll <= 1) return;
+
+    const step = Math.max(160, Math.round(el.clientWidth * 0.65));
+    const from = el.scrollLeft;
+    let to: number;
+    if (dir === "rtl") {
+      to =
+        direction === "end"
+          ? Math.max(-maxScroll, from - step)
+          : Math.min(0, from + step);
+    } else {
+      to =
+        direction === "end"
+          ? Math.min(maxScroll, from + step)
+          : Math.max(0, from - step);
+    }
+    if (Math.abs(to - from) < 1) return;
+
+    window.cancelAnimationFrame(subAnimRef.current);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.scrollLeft = to;
+      syncSubScroll();
+      return;
+    }
+
+    const duration = 200;
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      el.scrollLeft = from + (to - from) * eased;
+      if (progress < 1) {
+        subAnimRef.current = window.requestAnimationFrame(tick);
+      } else {
+        el.scrollLeft = to;
+        syncSubScroll();
+      }
+    };
+    subAnimRef.current = window.requestAnimationFrame(tick);
+  }
+
+  const StartChevron = dir === "rtl" ? ChevronRight : ChevronLeft;
+  const EndChevron = dir === "rtl" ? ChevronLeft : ChevronRight;
 
   return (
     <div className="min-w-0 max-w-full space-y-2.5" data-tour="filters">
@@ -216,50 +314,82 @@ export function FeedFilters({
 
       {value.category !== "all" && (subcategories.length > 0 || facetsLoading) && (
         <div
-          className="ptr-subcategory-bar"
-          role="group"
-          aria-label={t("filters.subcategory")}
+          className="ptr-subcategory-shell"
+          data-can-scroll-start={subScroll.start ? "true" : undefined}
+          data-can-scroll-end={subScroll.end ? "true" : undefined}
         >
-          {facetsLoading && subcategories.length === 0 ? (
-            [0, 1, 2, 3, 4].map((idx) => (
-              <span
-                key={idx}
-                className="skeleton"
-                style={{ width: 92, height: 32, borderRadius: 999, flex: "none" }}
-                aria-hidden="true"
-              />
-            ))
-          ) : (
-            <>
-              <button
-                type="button"
-                className="ptr-subchip"
-                aria-pressed={value.subcategory === ""}
-                onClick={() =>
-                  onChange({ ...value, subcategory: "", brand: "" })
-                }
-              >
-                <span>
-                  {t("filters.subcatAll", {
-                    category: t(categoryLabels[value.category]),
-                  })}
-                </span>
-              </button>
-              {subcategories.map((sub) => (
+          {subScroll.start && (
+            <button
+              type="button"
+              className="ptr-subscroll-btn ptr-subscroll-btn--start"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => scrollSubBar("start")}
+              aria-label={t("filters.scrollBack")}
+            >
+              <StartChevron size={16} aria-hidden="true" />
+            </button>
+          )}
+
+          <div
+            ref={subBarRef}
+            className="ptr-subcategory-bar"
+            role="group"
+            aria-label={t("filters.subcategory")}
+            onScroll={syncSubScroll}
+          >
+            {facetsLoading && subcategories.length === 0 ? (
+              [0, 1, 2, 3, 4].map((idx) => (
+                <span
+                  key={idx}
+                  className="skeleton"
+                  style={{ width: 92, height: 32, borderRadius: 999, flex: "none" }}
+                  aria-hidden="true"
+                />
+              ))
+            ) : (
+              <>
                 <button
-                  key={sub.slug}
                   type="button"
                   className="ptr-subchip"
-                  aria-pressed={value.subcategory === sub.slug}
-                  onClick={() => selectSubcategory(sub.slug)}
+                  aria-pressed={value.subcategory === ""}
+                  onClick={() =>
+                    onChange({ ...value, subcategory: "", brand: "" })
+                  }
                 >
-                  <span>{lang === "ar" ? sub.label_ar : sub.label_en}</span>
-                  <span className="ptr-chip-count">
-                    <bdi>{formatNumber(sub.count, lang)}</bdi>
+                  <span>
+                    {t("filters.subcatAll", {
+                      category: t(categoryLabels[value.category]),
+                    })}
                   </span>
                 </button>
-              ))}
-            </>
+                {subcategories.map((sub) => (
+                  <button
+                    key={sub.slug}
+                    type="button"
+                    className="ptr-subchip"
+                    aria-pressed={value.subcategory === sub.slug}
+                    onClick={() => selectSubcategory(sub.slug)}
+                  >
+                    <span>{lang === "ar" ? sub.label_ar : sub.label_en}</span>
+                    <span className="ptr-chip-count">
+                      <bdi>{formatNumber(sub.count, lang)}</bdi>
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+
+          {subScroll.end && (
+            <button
+              type="button"
+              className="ptr-subscroll-btn ptr-subscroll-btn--end"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => scrollSubBar("end")}
+              aria-label={t("filters.scrollMore")}
+            >
+              <EndChevron size={16} aria-hidden="true" />
+            </button>
           )}
         </div>
       )}

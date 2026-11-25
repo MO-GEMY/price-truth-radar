@@ -868,15 +868,19 @@ html[lang="ar"] :is(
   opacity: 0.76;
 }
 
+.ptr-subcategory-shell {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Desktop & Tablet (>= 768px): wrap all subcategories onto compact rows so every
+   chip is immediately visible & clickable without awkward horizontal mouse scrolling. */
 .ptr-subcategory-bar {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   padding-block: 2px 4px;
   max-width: 100%;
   min-width: 0;
@@ -884,6 +888,80 @@ html[lang="ar"] :is(
 
 .ptr-subcategory-bar::-webkit-scrollbar {
   display: none;
+}
+
+.ptr-subscroll-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--asarak-border-strong);
+  background: var(--asarak-card);
+  color: var(--asarak-ink);
+  box-shadow: var(--asarak-shadow-sm);
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.ptr-subscroll-btn:hover {
+  border-color: var(--asarak-emerald);
+  background: var(--asarak-emerald-soft);
+  color: var(--asarak-emerald-aaa);
+}
+
+.ptr-subscroll-btn--start {
+  inset-inline-start: 0;
+}
+
+.ptr-subscroll-btn--end {
+  inset-inline-end: 0;
+}
+
+/* Mobile (< 768px): smooth horizontal swipe scrolling with subtle edge fades and
+   RTL-aware chevron buttons when additional chips extend off-screen. */
+@media (max-width: 767px) {
+  .ptr-subcategory-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+
+  .ptr-subcategory-shell[data-can-scroll-start="true"]::before,
+  .ptr-subcategory-shell[data-can-scroll-end="true"]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 44px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .ptr-subcategory-shell[data-can-scroll-start="true"]::before {
+    inset-inline-start: 0;
+    background: linear-gradient(to right, var(--asarak-bg) 35%, transparent);
+  }
+
+  .ptr-subcategory-shell[data-can-scroll-end="true"]::after {
+    inset-inline-end: 0;
+    background: linear-gradient(to left, var(--asarak-bg) 35%, transparent);
+  }
+
+  html[dir="rtl"] .ptr-subcategory-shell[data-can-scroll-start="true"]::before {
+    background: linear-gradient(to left, var(--asarak-bg) 35%, transparent);
+  }
+
+  html[dir="rtl"] .ptr-subcategory-shell[data-can-scroll-end="true"]::after {
+    background: linear-gradient(to right, var(--asarak-bg) 35%, transparent);
+  }
 }
 
 .ptr-subchip {
@@ -2684,6 +2762,7 @@ html[dir="rtl"] .asarak-bar-fill--winner {
     max-width: 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
+    touch-action: pan-x;
     padding-block-end: 4px;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
