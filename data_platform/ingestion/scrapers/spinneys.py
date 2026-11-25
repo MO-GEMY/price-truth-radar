@@ -22,6 +22,7 @@ from .base import (
     parse_egp_price,
     utc_now_naive,
 )
+from .currency_guard import is_valid_egp_currency
 from .groceries import (
     extract_grocery_brand,
     parse_grocery_packaging,
@@ -105,8 +106,9 @@ class SpinneysScraper(BaseScraper):
     discover_groceries_limit = 1000
     supported_verticals: tuple[ScrapeVertical, ...] = ("groceries",)
     min_delay_seconds = 1.5
-    request_timeout = 25.0
+    request_timeout = 18.0
     page_size = 24
+    max_consecutive_errors = 3
 
     def _parse_item(
         self,
@@ -126,6 +128,10 @@ class SpinneysScraper(BaseScraper):
         min_price = price_range.get("minimum_price") if isinstance(price_range.get("minimum_price"), dict) else {}
         final_obj = min_price.get("final_price") if isinstance(min_price.get("final_price"), dict) else {}
         regular_obj = min_price.get("regular_price") if isinstance(min_price.get("regular_price"), dict) else {}
+
+        if not is_valid_egp_currency(final_obj.get("currency"), allow_missing=True):
+            logger.error("CURRENCY_MISMATCH_ABORT | store=spinneys | item=%s returned currency=%r", sku, final_obj.get("currency"))
+            return None
 
         current_price = parse_egp_price(final_obj.get("value"))
         if current_price is None:
@@ -197,10 +203,11 @@ class SpinneysScraper(BaseScraper):
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_query_cap = max(2, math.ceil(target_limit / len(SPINNEYS_GROCERY_QUERIES)))
-        max_pages = 8 if self.mode == "discover" else (2 if target_limit <= 100 else 3)
+        max_pages = 8 if self.mode in ("discover", "expand") else (2 if target_limit <= 100 else 3)
+        consecutive_errors = 0
 
         for default_sub, query in SPINNEYS_GROCERY_QUERIES:
-            if len(snapshots) >= target_limit:
+            if len(snapshots) >= target_limit or consecutive_errors >= self.max_consecutive_errors:
                 break
             query_collected = 0
 
@@ -220,8 +227,19 @@ class SpinneysScraper(BaseScraper):
                         timeout=self.request_timeout,
                     )
                     payload = resp.json()
+                    consecutive_errors = 0
                 except Exception as exc:
-                    logger.warning("[spinneys] GraphQL error for query=%r page %d: %s", query, page, exc)
+                    consecutive_errors += 1
+                    logger.warning(
+                        "[spinneys] GraphQL error for query=%r page %d (%d/%d): %s",
+                        query,
+                        page,
+                        consecutive_errors,
+                        self.max_consecutive_errors,
+                        exc,
+                    )
+                    if consecutive_errors >= self.max_consecutive_errors:
+                        logger.warning("[spinneys] Failing fast after %d consecutive GraphQL errors.", consecutive_errors)
                     break
 
                 self.pages_fetched += 1

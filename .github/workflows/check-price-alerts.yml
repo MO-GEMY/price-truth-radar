@@ -2,9 +2,9 @@ name: Price Drop Alert Checker
 
 on:
   schedule:
-    # Runs once daily at 01:45 UTC (tail of the single 00:53 UTC daily pipeline window —
-    # prices refresh once daily, so no second afternoon Neon wakeup is needed).
-    - cron: '45 1 * * *'
+    # Runs once daily at 04:02 UTC (06:02 AM Cairo EET) — 45 minutes after the off-peak
+    # 03:17 UTC Daily Stores Batch Matrix window so fresh prices are live before alerting.
+    - cron: '2 4 * * *'
   workflow_dispatch:
     inputs:
       dry_run:

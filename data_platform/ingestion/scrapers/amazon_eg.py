@@ -272,9 +272,9 @@ class AmazonEgScraper(BaseScraper):
             else max(3, math.ceil(target_limit / len(queries)))
         )
         max_pages = (
-            (5 if self.mode == "discover" else 2)
+            (5 if self.mode in ("discover", "expand") else 2)
             if is_groceries
-            else (6 if self.mode == "discover" else (2 if target_limit <= 120 else 3))
+            else (6 if self.mode in ("discover", "expand") else (2 if target_limit <= 120 else 3))
         )
         throttled = False
 

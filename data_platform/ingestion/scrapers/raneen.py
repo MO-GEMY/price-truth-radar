@@ -75,7 +75,7 @@ class RaneenScraper(BaseScraper):
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(2, math.ceil(target_limit / len(RANEEN_CATEGORIES)))
-        max_pages = 8 if self.mode == "discover" else (3 if target_limit > 40 else 1)
+        max_pages = 8 if self.mode in ("discover", "expand") else (3 if target_limit > 40 else 1)
 
         for default_sub, cat_name, cat_url in RANEEN_CATEGORIES:
             if len(collected) >= target_limit:

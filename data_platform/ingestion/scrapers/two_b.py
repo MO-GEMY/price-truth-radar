@@ -190,6 +190,11 @@ def _extract_dom_tiles(soup: BeautifulSoup, base_url: str) -> tuple[dict[str, di
         link_el = li.select_one("a.product-item-link") or li.select_one("a.product-item-photo")
         href = str(link_el.get("href") or "").strip() if link_el else ""
         full_href = urljoin(base_url, href) if href and href != "#" else ""
+        title_el = li.select_one("a.product-item-link")
+        dom_title = title_el.get_text(" ", strip=True) if title_el else ""
+        img_el = li.select_one("img.product-image-photo") or li.select_one("img")
+        img_src = str((img_el.get("data-src") or img_el.get("src") or "") if img_el else "").strip()
+        full_img = urljoin(base_url, img_src) if img_src and not img_src.startswith("data:") else None
 
         price_box = li.select_one(".price-box") or li
         old_el = price_box.select_one('[data-price-type="oldPrice"]')
@@ -211,6 +216,8 @@ def _extract_dom_tiles(soup: BeautifulSoup, base_url: str) -> tuple[dict[str, di
         tile_info = {
             "product_id": product_id or None,
             "href": full_href or None,
+            "title": dom_title or None,
+            "image": full_img,
             "old_price": old_price,
             "final_price": final_price,
         }
@@ -338,7 +345,7 @@ class TwoBScraper(BaseScraper):
         seen_ids: set[str] = set()
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(5, math.ceil(target_limit / len(TWO_B_CATEGORIES)))
-        max_pages = 8 if self.mode == "discover" else 2
+        max_pages = 8 if self.mode in ("discover", "expand") else 2
         self.category_counts = {}
         failed_categories: list[str] = []
 
@@ -394,8 +401,23 @@ class TwoBScraper(BaseScraper):
                     ld_products = _extract_jsonld_products(soup)
                     tiles_by_url, tiles_ordered = _extract_dom_tiles(soup, self.base_url)
 
+                    if not ld_products and tiles_ordered:
+                        # Fallback to Magento DOM tiles if JSON-LD is omitted by page cache
+                        ld_products = [
+                            {
+                                "name": t.get("title") or "",
+                                "url": t.get("href") or "",
+                                "image": t.get("image"),
+                                "offers": {"price": str(t["final_price"])} if t.get("final_price") else {},
+                            }
+                            for t in tiles_ordered
+                            if t.get("title") and t.get("href") and t.get("final_price")
+                        ]
+                        if ld_products:
+                            logger.info("[2b] Used Magento DOM tile fallback (%d items) on %s page %d.", len(ld_products), cat_key, page)
+
                     if not ld_products:
-                        logger.warning("[2b] No JSON-LD products on %s page %d; moving to next category.", cat_key, page)
+                        logger.warning("[2b] No JSON-LD or DOM products on %s page %d; moving to next category.", cat_key, page)
                         if page == 1:
                             failed_categories.append(f"{cat_key}(empty)")
                         break

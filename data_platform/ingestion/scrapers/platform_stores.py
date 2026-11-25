@@ -81,7 +81,7 @@ class ActivScraper(ShopifyBaseScraper):
 class CarinaScraper(ShopifyBaseScraper):
     store_name = "carina"
     category: Category = "fashion"
-    base_url = "https://carinawear.com"
+    base_url = "https://carina.eg"
     default_brand = "Carina"
     override_brand = True
     default_limit = 180
@@ -310,7 +310,7 @@ class SSRCardScraper(BaseScraper):
             if target_limit <= 10
             else max(5, math.ceil(target_limit / max(1, len(self.category_urls))))
         )
-        max_pages = 8 if self.mode == "discover" else (3 if target_limit > 30 else 1)
+        max_pages = 8 if self.mode in ("discover", "expand") else (3 if target_limit > 30 else 1)
         blocked = False
 
         for default_sub, cat_name, cat_url in self.category_urls:
@@ -702,7 +702,7 @@ class DubaiPhoneScraper(BaseScraper):
             else max(5, math.ceil(target_limit / len(self.category_urls)))
         )
 
-        max_pages = 4 if self.mode == "discover" else 1
+        max_pages = 4 if self.mode in ("discover", "expand") else 1
         blocked = False
 
         with ImpersonatedHttpClient(

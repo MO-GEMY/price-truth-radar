@@ -340,17 +340,33 @@ class TestIngestionCurrencyFlipCircuitBreaker(unittest.TestCase):
         self.assertEqual(alerts, [])
         self.assertEqual(len(kept), 10)
 
-    def test_geo_redirected_stores_are_pinned_to_local_only(self) -> None:
+    def test_geo_redirected_and_cloud_blocked_stores_are_pinned_to_local_only(self) -> None:
+        from pathlib import Path
+        import yaml
         from data_platform.ingestion.scrapers.registry_loader import load_stores_registry
 
         entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
-        for key in ("okhtein", "azza_fahmy"):
+        for key in ("okhtein", "azza_fahmy", "amazon_eg", "egyptlaptop", "dubaiphone", "spinneys", "elaraby"):
             self.assertIn(key, entries)
             self.assertEqual(
                 entries[key].region_mode,
                 "local_only",
-                f"{key} redirects US cloud IPs to a global USD storefront and must remain local_only",
+                f"{key} blocks or geo-redirects US cloud IPs and must remain local_only",
             )
+
+        wf_dir = Path(__file__).resolve().parents[3] / ".github" / "workflows"
+        wf_names = sorted(p.name for p in wf_dir.glob("*.yml"))
+        self.assertEqual(wf_names, ["check-price-alerts.yml", "daily-stores-matrix.yml"])
+
+        matrix_wf = yaml.safe_load((wf_dir / "daily-stores-matrix.yml").read_text(encoding="utf-8"))
+        matrix_on = matrix_wf.get("on") or matrix_wf.get(True)
+        matrix_crons = [c["cron"] for c in matrix_on["schedule"]]
+        self.assertEqual(matrix_crons, ["17 3 * * 0-5", "17 3 * * 6"])
+
+        alerts_wf = yaml.safe_load((wf_dir / "check-price-alerts.yml").read_text(encoding="utf-8"))
+        alerts_on = alerts_wf.get("on") or alerts_wf.get(True)
+        alerts_crons = [c["cron"] for c in alerts_on["schedule"]]
+        self.assertEqual(alerts_crons, ["2 4 * * *"])
 
 
 if __name__ == "__main__":

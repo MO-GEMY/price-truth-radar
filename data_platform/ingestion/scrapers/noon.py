@@ -492,9 +492,9 @@ class NoonScraper(BaseScraper):
             else max(5, math.ceil(target_limit / len(seeds)))
         )
         max_pages = (
-            (6 if self.mode == "discover" else 3)
+            (6 if self.mode in ("discover", "expand") else 3)
             if is_groceries
-            else (12 if self.mode == "discover" else 5)
+            else (12 if self.mode in ("discover", "expand") else 5)
         )
         throttled = False
 

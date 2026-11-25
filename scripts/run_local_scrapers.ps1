@@ -1,49 +1,23 @@
 <#
 .SYNOPSIS
-    Run local/residential Price Truth Radar scrapers, upsert snapshots to Neon,
-    refresh DB-level cross-store canonical keys (`--match-db`), and optionally run dbt.
+    Run all enabled local/residential (`region_mode: local_only`) Price Truth Radar scrapers,
+    upsert snapshots to Neon, refresh DB-level cross-store canonical keys (`--match-db`),
+    optionally run `dbt run` + `dbt test`, and perform zero-rest raw snapshot truncation.
 
 .DESCRIPTION
-    Designed for Windows Task Scheduler or manual residential execution whenever
-    a store blocks cloud/datacenter IPs (such as `2b` and `sigma`, plus optional
-    geo-restricted fallback stores via `-IncludeFallback`).
-    Logs full stdout/stderr to `logs/local_scraper_YYYY-MM-DD.log` and prunes
-    logs older than 14 days automatically.
+    Designed for Windows Task Scheduler or manual Egypt-residential execution for all
+    stores that block/geo-redirect cloud/datacenter IPs (`amazon_eg`, `egyptlaptop`,
+    `dubaiphone`, `elaraby`, `spinneys`, `okhtein`, `azza_fahmy`, `2b`, `sigma`, etc.).
 
-.EXAMPLE
-    # Run default local residential stores (`2b`, `sigma`) in daily mode
-    .\scripts\run_local_scrapers.ps1
-
-.EXAMPLE
-    # Run deep catalog discovery for `2b` and `sigma` from Egypt residential IP
-    .\scripts\run_local_scrapers.ps1 -Discovery
-
-.EXAMPLE
-    # Run daily scrape + dbt run/test
-    .\scripts\run_local_scrapers.ps1 -RunDbt
-
-.EXAMPLE
-    # Include fallback stores (`egyptlaptop`, `dubaiphone`, `elaraby`, `dalydress`)
-    .\scripts\run_local_scrapers.ps1 -IncludeFallback
-
-.EXAMPLE
-    # Dry-run specific stores with a 15-product limit (no Neon writes)
-    .\scripts\run_local_scrapers.ps1 -Stores 2b,sigma -Discovery -Limit 15 -DryRun
+    When `-Stores` is omitted, targets are dynamically loaded from
+    `data_platform/ingestion/stores_registry.yaml` (`enabled: true` & `region_mode: local_only`),
+    including every configured `extra_verticals` (e.g., `amazon_eg` runs both `core` and
+    `groceries`), keeping `stores_registry.yaml` as the single source of truth.
 #>
 
 [CmdletBinding()]
 param(
-    [string[]]$Stores = @(
-        "2b", "sigma",
-        "jumia", "carrefour_eg", "elghazawy", "fresh_eg",
-        "homzmart", "ikea_eg", "oriental_weavers",
-        "decathlon_eg", "pets_egypt",
-        "misr_pharmacies", "tdawi", "el_ezaby", "chefaa", "seif_pharmacies",
-        "faces_eg", "mazaya_eg",
-        "adidas_eg", "lc_waikiki_eg", "defacto_eg",
-        "elnekhely", "maximum_hardware", "gamesworldegypt", "mobilaty_eg",
-        "hedeya"
-    ),
+    [string[]]$Stores = @(),
     [switch]$IncludeFallback,
     [ValidateSet("daily", "discover", "discovery")]
     [string]$Mode = "daily",
@@ -63,10 +37,6 @@ $env:PYTHONIOENCODING = "utf-8"
 if ($Discovery) {
     $Mode = "discovery"
 }
-
-$FallbackStores = @("egyptlaptop", "dubaiphone", "elaraby", "dalydress")
-$FashionOnlyStores = @("town_team", "dejavu", "dalydress", "activ", "carina", "khotwh", "concrete", "mobaco", "hedeya", "lc_waikiki_eg", "defacto_eg", "adidas_eg")
-$GroceriesOnlyStores = @("spinneys", "hyperone", "seoudi", "abu_auf", "gourmet", "imtenan", "metro_market")
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $RunnerScript = Join-Path $RepoRoot "data_platform\ingestion\scrapers\run_scrapers.py"
@@ -108,7 +78,7 @@ function Resolve-PythonExe {
         if (-not $py -or -not (Test-Path $py)) {
             continue
         }
-        & $py -c "import psycopg2, curl_cffi, httpx, bs4" 2>$null | Out-Null
+        & $py -c "import psycopg2, curl_cffi, httpx, bs4, yaml" 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) {
             return $py
         }
@@ -122,17 +92,6 @@ function Resolve-PythonExe {
     return $fallbackWithPsycopg2
 }
 
-function Resolve-Vertical {
-    param([string]$StoreSlug)
-    if ($FashionOnlyStores -contains $StoreSlug) {
-        return "fashion"
-    }
-    if ($GroceriesOnlyStores -contains $StoreSlug) {
-        return "groceries"
-    }
-    return "core"
-}
-
 $PythonExe = Resolve-PythonExe
 if (-not $PythonExe) {
     Write-Log "ERROR: Could not find a working Python interpreter with psycopg2 (checked venv, D:\anaconda3\python.exe, PATH)."
@@ -144,39 +103,69 @@ if (-not (Test-Path $RunnerScript)) {
     exit 1
 }
 
-# Support comma-separated values passed as a single string (e.g. -Stores "2b,sigma")
-$NormalizedStores = @()
-$SeenStores = @{}
-foreach ($entry in $Stores) {
-    foreach ($part in ($entry -split ",")) {
-        $trimmed = $part.Trim().ToLowerInvariant()
-        if ($trimmed -and -not $SeenStores.ContainsKey($trimmed)) {
-            $SeenStores[$trimmed] = $true
-            $NormalizedStores += $trimmed
-        }
-    }
+# Resolve (store_key, vertical) pairs dynamically from stores_registry.yaml
+$ExplicitCsv = ""
+if ($Stores -and $Stores.Count -gt 0) {
+    $ExplicitCsv = ($Stores -join ",")
 }
+$IncludeFallbackFlag = if ($IncludeFallback) { "1" } else { "0" }
 
-if ($IncludeFallback) {
-    foreach ($fb in $FallbackStores) {
-        if (-not $SeenStores.ContainsKey($fb)) {
-            $SeenStores[$fb] = $true
-            $NormalizedStores += $fb
-        }
-    }
-}
+$TargetJson = & $PythonExe -c @"
+import json, sys
+from pathlib import Path
+sys.path.insert(0, r'$RepoRoot')
+from data_platform.ingestion.scrapers.registry_loader import load_stores_registry
 
-if ($NormalizedStores.Count -eq 0) {
-    Write-Log "ERROR: No stores specified."
+explicit = [s.strip().lower() for s in '$ExplicitCsv'.split(',') if s.strip()]
+all_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
+targets = []
+seen = set()
+
+if explicit:
+    for sk in explicit:
+        e = all_entries.get(sk)
+        verts = e.all_verticals if e else ('core',)
+        for v in verts:
+            if (sk, v) not in seen:
+                seen.add((sk, v))
+                targets.append({'store': sk, 'vertical': v})
+else:
+    for e in load_stores_registry(enabled_only=True, region_mode='local_only'):
+        for v in e.all_verticals:
+            if (e.store_key, v) not in seen:
+                seen.add((e.store_key, v))
+                targets.append({'store': e.store_key, 'vertical': v})
+
+if '$IncludeFallbackFlag' == '1':
+    for sk in ('egyptlaptop', 'dubaiphone', 'elaraby', 'dalydress'):
+        e = all_entries.get(sk)
+        verts = e.all_verticals if e else ('core',)
+        for v in verts:
+            if (sk, v) not in seen:
+                seen.add((sk, v))
+                targets.append({'store': sk, 'vertical': v})
+
+print(json.dumps(targets))
+"@
+
+if ($LASTEXITCODE -ne 0 -or -not $TargetJson) {
+    Write-Log "ERROR: Failed to resolve local_only targets from stores_registry.yaml."
     exit 1
 }
 
+$Targets = @($TargetJson | ConvertFrom-Json)
+if ($Targets.Count -eq 0) {
+    Write-Log "ERROR: No local_only stores resolved."
+    exit 1
+}
+
+$TargetLabels = ($Targets | ForEach-Object { "$($_.store):$($_.vertical)" }) -join ", "
+
 Write-Log "======================================================================"
-Write-Log "Price Truth Radar Local Scraper Runner"
+Write-Log "Price Truth Radar Local Scraper Runner (Registry-Driven local_only)"
 Write-Log "RepoRoot        : $RepoRoot"
 Write-Log "PythonExe       : $PythonExe"
-Write-Log "Stores          : $($NormalizedStores -join ', ')"
-Write-Log "IncludeFallback : $IncludeFallback"
+Write-Log "Targets ($($Targets.Count))    : $TargetLabels"
 Write-Log "Mode            : $Mode"
 Write-Log "Limit           : $(if ($Limit -gt 0) { $Limit } else { 'store default' })"
 Write-Log "DryRun          : $DryRun"
@@ -189,8 +178,10 @@ $FailedStores = @()
 $SucceededStores = @()
 
 try {
-    foreach ($store in $NormalizedStores) {
-        $vertical = Resolve-Vertical -StoreSlug $store
+    foreach ($item in $Targets) {
+        $store = $item.store
+        $vertical = $item.vertical
+        $label = "${store}:${vertical}"
         $ArgsList = @($RunnerScript, "--store", $store, "--vertical", $vertical, "--mode", $Mode, "--delta")
         if ($Limit -gt 0) {
             $ArgsList += @("--limit", "$Limit")
@@ -199,7 +190,7 @@ try {
             $ArgsList += "--dry-run"
         }
 
-        Write-Log "Starting store='$store' (vertical=$vertical, mode=$Mode) ..."
+        Write-Log "Starting target='$label' (mode=$Mode) ..."
         & $PythonExe @ArgsList 2>&1 | ForEach-Object {
             $text = $_.ToString()
             Write-Output $text
@@ -207,11 +198,11 @@ try {
         }
         $code = $LASTEXITCODE
         if ($code -eq 0) {
-            Write-Log "SUCCESS: store='$store' completed (exit=0)."
-            $SucceededStores += $store
+            Write-Log "SUCCESS: target='$label' completed (exit=0)."
+            $SucceededStores += $label
         } else {
-            Write-Log "WARNING: store='$store' failed (exit=$code); continuing with remaining stores."
-            $FailedStores += $store
+            Write-Log "WARNING: target='$label' failed (exit=$code); continuing with remaining targets."
+            $FailedStores += $label
         }
     }
 
@@ -236,6 +227,7 @@ try {
         if (-not (Test-Path $DbtRunnerScript)) {
             Write-Log "WARNING: dbt runner not found at $DbtRunnerScript; skipping dbt."
         } else {
+            $DbtOk = $true
             foreach ($dbtCmd in @("run", "test")) {
                 Write-Log "Running dbt $dbtCmd ..."
                 & $PythonExe $DbtRunnerScript $dbtCmd 2>&1 | ForEach-Object {
@@ -246,9 +238,21 @@ try {
                 if ($LASTEXITCODE -ne 0) {
                     Write-Log "WARNING: dbt $dbtCmd exited with code $LASTEXITCODE."
                     $FailedStores += "dbt-$dbtCmd"
+                    $DbtOk = $false
                     break
                 }
                 Write-Log "SUCCESS: dbt $dbtCmd completed."
+            }
+            if ($DbtOk) {
+                Write-Log "Running zero-rest raw snapshot cleanup (--truncate-raw) ..."
+                & $PythonExe $RunnerScript --truncate-raw 2>&1 | ForEach-Object {
+                    $text = $_.ToString()
+                    Write-Output $text
+                    Add-Content -Path $LogFile -Value $text -Encoding UTF8
+                }
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Log "SUCCESS: raw.raw_product_snapshots truncated after clean dbt run + test."
+                }
             }
         }
     }
@@ -257,7 +261,7 @@ try {
 }
 
 Write-Log "======================================================================"
-Write-Log "Run complete | Succeeded: $($SucceededStores -join ', ') | Failed: $(if ($FailedStores.Count -gt 0) { $FailedStores -join ', ' } else { 'none' })"
+Write-Log "Run complete | Succeeded ($($SucceededStores.Count)): $($SucceededStores -join ', ') | Failed: $(if ($FailedStores.Count -gt 0) { $FailedStores -join ', ' } else { 'none' })"
 Write-Log "======================================================================"
 
 if ($FailedStores.Count -gt 0) {

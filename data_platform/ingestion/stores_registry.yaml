@@ -34,7 +34,7 @@ stores:
   vertical: core
   extra_verticals:
   - groceries
-  region_mode: cloud
+  region_mode: local_only  # HTTP 503 bot-wall on GitHub Actions US cloud IPs; runs cleanly from Egypt residential IP
   enabled: true
   verified: true
   batch: core_1
@@ -94,7 +94,7 @@ stores:
   base_url: https://www.elarabygroup.com
   category: home_appliances
   vertical: core
-  region_mode: cloud
+  region_mode: local_only  # Geo-IP returns HTTP 404 on /graphql from US cloud IPs; verified HTTP 200 EGP from Egypt IP
   enabled: true
   verified: true
   batch: core_2
@@ -142,7 +142,7 @@ stores:
   base_url: https://egyptlaptop.com
   category: electronics
   vertical: core
-  region_mode: cloud
+  region_mode: local_only  # HTTP 403 WAF block on GitHub Actions US cloud IPs; runs cleanly from Egypt residential IP
   enabled: true
   verified: true
   batch: core_3
@@ -154,7 +154,7 @@ stores:
   base_url: https://dubaiphone.net
   category: electronics
   vertical: core
-  region_mode: cloud
+  region_mode: local_only  # HTTP 429 WAF block on GitHub Actions US cloud IPs; runs cleanly from Egypt residential IP
   enabled: true
   verified: true
   batch: core_3
@@ -190,7 +190,7 @@ stores:
   base_url: https://spinneys-egypt.com
   category: groceries
   vertical: groceries
-  region_mode: cloud
+  region_mode: local_only  # HTTP 504 timeouts wasting ~10m on GitHub Actions US cloud IPs; runs locally on Egypt IP
   enabled: true
   verified: true
   batch: groceries_1
@@ -319,7 +319,7 @@ stores:
 - store_key: carina
   display_name: Carina Wear
   platform: shopify
-  base_url: https://carinawear.com
+  base_url: https://carina.eg
   category: fashion
   vertical: fashion
   region_mode: cloud
@@ -1338,6 +1338,8 @@ stores:
   max_products: 650
   tier: 2
   priority_group: mid_specialty
+  config:
+    use_impersonation: true
 - store_key: icamstore
   display_name: iCamStore
   platform: woocommerce
@@ -3353,7 +3355,7 @@ stores:
 - store_key: tupperware_eg
   display_name: Tupperware Egypt
   platform: shopify
-  base_url: https://tupperware.com.eg
+  base_url: https://tupperware-egypt.com
   category: home_furniture
   vertical: core
   region_mode: cloud
@@ -3413,7 +3415,7 @@ stores:
 - store_key: mintra_eg
   display_name: Mintra Egypt
   platform: shopify
-  base_url: https://mintra.com.eg
+  base_url: https://mintra.eg
   category: home_furniture
   vertical: core
   region_mode: cloud

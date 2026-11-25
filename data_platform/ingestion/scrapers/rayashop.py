@@ -317,7 +317,7 @@ class RayaShopScraper(BaseScraper):
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(2, math.ceil(target_limit / len(RAYASHOP_CATEGORIES)))
-        max_pages = 6 if self.mode == "discover" else (2 if target_limit > 40 else 1)
+        max_pages = 6 if self.mode in ("discover", "expand") else (2 if target_limit > 40 else 1)
         blocked = False
 
         with ImpersonatedHttpClient(

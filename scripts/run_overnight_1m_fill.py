@@ -60,8 +60,11 @@ from data_platform.ingestion.scrapers.base import (  # noqa: E402
     TOUCH_LAST_SEEN_SQL,
     UPSERT_SQL,
     _fetch_existing_latest_for_stores,
+    bulk_copy_snapshots_to_neon,
     compute_delta_snapshots,
+    truncate_raw_snapshots_after_dbt,
 )
+from data_platform.ingestion.scrapers.currency_guard import filter_currency_flip_batches  # noqa: E402
 from data_platform.ingestion.scrapers.discovery_state import DISCOVERY_STATE_DDL_SQL  # noqa: E402
 
 REGISTRY_PATH = REPO_ROOT / "data_platform" / "ingestion" / "stores_registry.yaml"
@@ -85,14 +88,27 @@ PRIORITY_TIERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 MEGA_PRIORITY_WEIGHTS: dict[str, int] = {
-    "amazon_eg": 120000,
-    "noon": 90000,
+    # Wave 1 High-ROI Electronics & Home Appliances priority anchors
+    "amazon_eg": 150000,
+    "btech": 140000,
+    "2b": 135000,
+    "noon": 130000,
+    "tradeline": 125000,
+    "rayashop": 120000,
+    "dream2000": 115000,
+    "egyptlaptop": 110000,
+    "dubaiphone": 105000,
+    "sigma": 100000,
+    "compumarts": 95000,
+    "elaraby": 92000,
+    "ehab_center": 90000,
+    "raneen": 88000,
+    "cairosales": 85000,
+    # Wave 2 high-depth stores across remaining categories
     "jumia": 75000,
     "homzmart": 40000,
     "chefaa": 25000,
     "carrefour_eg": 20000,
-    "btech": 18000,
-    "raneen": 15000,
     "hyperone": 15000,
     "el_ezaby": 15000,
     "spinneys": 12000,
@@ -102,11 +118,8 @@ MEGA_PRIORITY_WEIGHTS: dict[str, int] = {
     "seoudi": 10000,
     "defacto_eg": 10000,
     "ikea_eg": 9000,
-    "rayashop": 8000,
     "metro_market": 8000,
     "decathlon_eg": 6000,
-    "2b": 6000,
-    "sigma": 5000,
 }
 
 BATCH_UPSERT_CHECKPOINT_SQL = """
@@ -207,8 +220,6 @@ def _load_targets(selected_tiers: set[str]) -> list[StoreTarget]:
             continue
         cat = str(entry.get("category") or "electronics").strip()
         tkey = cat_to_tier.get(cat, "lifestyle")
-        if selected_tiers and tkey not in selected_tiers:
-            continue
         vert = str(entry.get("vertical") or "core").strip()
         if vert not in ("core", "fashion", "groceries"):
             vert = "fashion" if cat == "fashion" else ("groceries" if cat == "groceries" else "core")
@@ -216,18 +227,27 @@ def _load_targets(selected_tiers: set[str]) -> list[StoreTarget]:
         if scraper_cls is None:
             continue
         supported = getattr(scraper_cls, "supported_verticals", ("core",))
-        if vert not in supported:
-            vert = supported[0]
-        targets.append(
-            StoreTarget(
-                store_key=skey,
-                platform=str(entry.get("platform") or "custom").strip(),
-                category=cat,
-                vertical=vert,
-                region_mode=str(entry.get("region_mode") or "cloud").strip(),
-                tier_key=tkey,
+        raw_verts = [vert] + [str(v).strip() for v in (entry.get("extra_verticals") or []) if str(v).strip()]
+        seen_v: set[str] = set()
+        for cand_v in raw_verts:
+            eff_v = cand_v if cand_v in supported else supported[0]
+            if eff_v in seen_v:
+                continue
+            seen_v.add(eff_v)
+            eff_cat = "groceries" if eff_v == "groceries" else ("fashion" if eff_v == "fashion" else cat)
+            eff_tier = cat_to_tier.get(eff_cat, tkey)
+            if selected_tiers and eff_tier not in selected_tiers:
+                continue
+            targets.append(
+                StoreTarget(
+                    store_key=skey,
+                    platform=str(entry.get("platform") or "custom").strip(),
+                    category=eff_cat,
+                    vertical=eff_v,
+                    region_mode=str(entry.get("region_mode") or "cloud").strip(),
+                    tier_key=eff_tier,
+                )
             )
-        )
 
     tier_order = {tkey: idx for idx, (tkey, _, _) in enumerate(PRIORITY_TIERS)}
     targets.sort(
@@ -302,8 +322,8 @@ def _flush_tier_to_neon(
     dedup_keys: set[tuple[str, str, str]] = set()
 
     for m in metas:
-        store_id = m["store_id"]
-        jf = tier_dir / f"{store_id}.jsonl"
+        jf_str = m.get("jsonl_path")
+        jf = Path(jf_str) if jf_str else (tier_dir / f"{m['store_id']}.jsonl")
         if not jf.exists():
             continue
         with jf.open("r", encoding="utf-8") as fh:
@@ -347,6 +367,13 @@ def _flush_tier_to_neon(
                 upserted_rows = 0
 
                 if snapshots:
+                    snapshots, flip_alerts = filter_currency_flip_batches(snapshots, conn)
+                    for fa in flip_alerts:
+                        logger.log(
+                            f"CURRENCY_MISMATCH_SUSPECTED | store={fa.store_name} | quarantined={fa.batch_count} "
+                            f"| median_ratio={fa.median_ratio:.3f}x | reason={fa.reason}"
+                        )
+                if snapshots:
                     stores = sorted({s.store_name for s in snapshots})
                     existing = _fetch_existing_latest_for_stores(cur, stores)
                     target_snaps, touch_rows, dstats = compute_delta_snapshots(snapshots, existing)
@@ -368,16 +395,15 @@ def _flush_tier_to_neon(
                         execute_values(cur, TOUCH_LAST_SEEN_SQL, touch_rows, page_size=1000)
 
                 if checkpoint_metas:
-                    cp_rows = [
-                        (
-                            m["store_id"],
-                            m.get("next_cursor"),
-                            max(0, int(m.get("next_page") or 0)),
-                            max(0, int(new_by_store.get(m["store_id"], 0))),
-                        )
-                        for m in checkpoint_metas
-                    ]
-                    cp_rows.sort(key=lambda r: r[0])
+                    cp_by_store: dict[str, tuple[str, Optional[str], int, int]] = {}
+                    for m in checkpoint_metas:
+                        sid = str(m["store_id"])
+                        cand_page = max(0, int(m.get("next_page") or 0))
+                        cand_new = max(0, int(new_by_store.get(sid, 0)))
+                        prev = cp_by_store.get(sid)
+                        if prev is None or cand_page >= prev[2]:
+                            cp_by_store[sid] = (sid, m.get("next_cursor"), cand_page, cand_new)
+                    cp_rows = sorted(cp_by_store.values(), key=lambda r: r[0])
                     execute_values(
                         cur,
                         BATCH_UPSERT_CHECKPOINT_SQL,
@@ -421,8 +447,9 @@ def _scrape_store_offline(
     delay: float,
     timeout_s: int,
 ) -> dict[str, Any]:
-    out_jsonl = tier_dir / f"{target.store_key}.jsonl"
-    out_meta = tier_dir / f"{target.store_key}.meta.json"
+    stem = f"{target.store_key}__{target.vertical}"
+    out_jsonl = tier_dir / f"{stem}.jsonl"
+    out_meta = tier_dir / f"{stem}.meta.json"
     if out_meta.exists():
         out_meta.unlink(missing_ok=True)
     if out_jsonl.exists():
@@ -489,7 +516,9 @@ def _scrape_store_offline(
 
     if out_meta.exists():
         try:
-            return json.loads(out_meta.read_text(encoding="utf-8"))
+            loaded = json.loads(out_meta.read_text(encoding="utf-8"))
+            loaded["jsonl_path"] = str(out_jsonl)
+            return loaded
         except Exception:
             pass
 
@@ -580,6 +609,9 @@ def _run_final_pipeline(python_exe: str, logger: Logger) -> tuple[int, int, int,
         timeout=1800,
     )
     logger.log(f"OVERNIGHT | FINAL_DBT_TEST | exit={r_test.returncode} | elapsed={time.monotonic() - t_t:.1f}s")
+    if r_dbt.returncode == 0 and r_test.returncode == 0:
+        cleared = truncate_raw_snapshots_after_dbt(dry_run=False)
+        logger.log(f"OVERNIGHT | ZERO_REST_RAW_TRUNCATED | rows={cleared:,}")
     return r_match.returncode, r_dbt.returncode, r_test.returncode, round(time.monotonic() - t0, 1)
 
 
@@ -641,11 +673,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-pages", type=int, default=30, help="Per-store page cap per wave (default: 30).")
     p.add_argument("--workers", type=int, default=4, help="Offline HTTP scraping worker processes (default: 4).")
     p.add_argument("--max-waves", type=int, default=10, help="Maximum waves to auto-loop (default: 10).")
-    p.add_argument("--max-db-mb", type=float, default=890.0, help="Neon DB size stop ceiling in MB (default: 890 for ~950 MB console ceiling).")
+    p.add_argument("--max-db-mb", type=float, default=950.0, help="Neon DB size stop ceiling in MB (default: 950 MB safety guard).")
     p.add_argument("--min-wave-new", type=int, default=500, help="Stop early if a completed wave adds fewer than N new SKUs (default: 500).")
     p.add_argument("--delay", type=float, default=1.0, help="Polite delay per worker in seconds (default: 1.0).")
     p.add_argument("--store-timeout", type=int, default=210, help="Hard per-store subprocess timeout in seconds (default: 210).")
     p.add_argument("--categories", default="", help="Optional comma-separated priority tiers (default: all 6 tiers).")
+    p.add_argument("--stores", default="", help="Optional comma-separated store_keys to run (default: all in selected categories).")
+    p.add_argument("--sync-dbt-per-wave", action="store_true", help="Run fast incremental dbt (stg+history+verdicts) + TRUNCATE raw after each wave so --max-db-mb tracks true gold DB size.")
     p.add_argument("--skip-final-pipeline", action="store_true", help="Skip final --match-db / dbt run / dbt test (for tiny smoke tests).")
     return p
 
@@ -681,6 +715,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                 selected_tiers.add(cat_map[k])
 
     targets = _load_targets(selected_tiers)
+    if args.stores.strip():
+        allowed_stores = {s.strip().lower() for s in args.stores.split(",") if s.strip()}
+        targets = [t for t in targets if t.store_key.lower() in allowed_stores]
     by_tier: dict[str, list[StoreTarget]] = defaultdict(list)
     for t in targets:
         by_tier[t.tier_key].append(t)
@@ -838,6 +875,21 @@ def main(argv: Optional[list[str]] = None) -> int:
                     f"| post_db_mb={post_db_mb:.1f}/{args.max_db_mb:.0f} | session_new={total_new:,}"
                 )
 
+                # If Neon is approaching ceiling while raw staging is populated, run fast gold sync + raw truncate
+                # so we measure true persistent gold DB size without overshooting --max-db-mb.
+                if args.sync_dbt_per_wave and post_db_mb >= max(650.0, args.max_db_mb - 60.0):
+                    rc_mid = subprocess.call(
+                        [python_exe, str(DBT_PY), "run", "--select", "stg_products", "fct_price_history", "mart_product_verdicts"],
+                        cwd=str(REPO_ROOT),
+                    )
+                    if rc_mid == 0:
+                        cleared_mid = truncate_raw_snapshots_after_dbt(dry_run=False)
+                        _, post_db_mb, _ = _read_tier_checkpoints_and_size([], db_url)
+                        logger.log(
+                            f"OVERNIGHT | MID_WAVE_SYNC_DBT | wave={wave} | tier={tkey} | truncated_raw={cleared_mid:,} "
+                            f"| true_gold_db_mb={post_db_mb:.1f}/{args.max_db_mb:.0f}"
+                        )
+
                 if post_db_mb >= args.max_db_mb:
                     stop_reason = f"db_storage_ceiling_reached ({post_db_mb:.1f} MB >= {args.max_db_mb:.0f} MB)"
                     logger.log(f"OVERNIGHT | DB_CEILING_STOP | {stop_reason}")
@@ -852,6 +904,26 @@ def main(argv: Optional[list[str]] = None) -> int:
             )
             wave_history.append(wave_line)
             logger.log(f"OVERNIGHT | WAVE_COMPLETE | {wave_line}")
+
+            if args.sync_dbt_per_wave and wave_scraped > 0:
+                t_sync = time.monotonic()
+                rc_sync = subprocess.call(
+                    [python_exe, str(DBT_PY), "run", "--select", "stg_products", "fct_price_history", "mart_product_verdicts"],
+                    cwd=str(REPO_ROOT),
+                )
+                if rc_sync == 0:
+                    cleared = truncate_raw_snapshots_after_dbt(dry_run=False)
+                    _, post_sync_mb, _ = _read_tier_checkpoints_and_size([], db_url)
+                    logger.log(
+                        f"OVERNIGHT | WAVE_SYNC_DBT | wave={wave} | truncated_raw={cleared:,} "
+                        f"| true_gold_db_mb={post_sync_mb:.1f}/{args.max_db_mb:.0f} | elapsed={time.monotonic() - t_sync:.1f}s"
+                    )
+                    if post_sync_mb >= args.max_db_mb:
+                        stop_reason = f"db_storage_ceiling_reached ({post_sync_mb:.1f} MB >= {args.max_db_mb:.0f} MB)"
+                        logger.log(f"OVERNIGHT | DB_CEILING_STOP | {stop_reason}")
+                        hit_storage_limit = True
+                else:
+                    logger.log(f"OVERNIGHT | WAVE_SYNC_DBT_WARN | wave={wave} | rc={rc_sync}; raw preserved.")
 
             if hit_storage_limit:
                 break

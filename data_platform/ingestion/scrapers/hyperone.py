@@ -247,7 +247,7 @@ class HyperOneScraper(BaseScraper):
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_query_cap = max(2, math.ceil(target_limit / len(HYPERONE_GROCERY_QUERIES)))
-        max_pages = 8 if self.mode == "discover" else (2 if target_limit <= 100 else 3)
+        max_pages = 8 if self.mode in ("discover", "expand") else (2 if target_limit <= 100 else 3)
         blocked = False
 
         with ImpersonatedHttpClient(
