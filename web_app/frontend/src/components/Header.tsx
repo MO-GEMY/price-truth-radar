@@ -79,6 +79,9 @@ export function Header() {
           <Link
             href="/?tour=1"
             className="ptr-button ptr-tour-replay"
+            data-tour="tour-replay"
+            aria-label={t("tour.replay")}
+            title={t("tour.replay")}
             onClick={
               pathname === "/"
                 ? (event) => {
@@ -91,7 +94,7 @@ export function Header() {
             }
           >
             <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
-            <span>{t("tour.replay")}</span>
+            <span className="ptr-tour-replay-label">{t("tour.replay")}</span>
           </Link>
           <button
             type="button"

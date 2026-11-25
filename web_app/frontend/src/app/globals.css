@@ -2640,11 +2640,18 @@ html[dir="rtl"] .asarak-bar-fill--winner {
     flex-direction: column;
     justify-content: center;
     gap: 3px;
-    flex: 1;
+    flex: 1 1 0%;
+    min-width: 0;
     min-height: 48px;
-    padding: 6px 4px;
+    padding: 6px 2px;
     text-align: center;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
+    overflow: hidden;
+  }
+  .ptr-nav a span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .asarak-hero-greeting {
     padding-block: 28px 24px;
@@ -2990,76 +2997,174 @@ html[dir="rtl"] .asarak-bar-fill--winner {
 }
 
 /* ==========================================================================
-   First-Visit Onboarding Tour (Spotlight) — src/components/OnboardingTour.tsx
+   First-Visit Onboarding Tour (SVG Mask Spotlight) — src/components/OnboardingTour.tsx
    ========================================================================== */
 
 .asarak-tour {
   position: fixed;
   inset: 0;
   z-index: 80;
+  touch-action: manipulation;
 }
 
-.asarak-tour-backdrop {
-  position: absolute;
+.asarak-tour-svg {
+  position: fixed;
   inset: 0;
-  background: rgba(11, 25, 46, 0.62);
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 80;
+  cursor: pointer;
 }
 
-.asarak-tour-spotlight {
+.asarak-tour-scrim {
+  fill: rgba(11, 25, 46, 0.64);
+}
+
+[data-theme="dark"] .asarak-tour-scrim {
+  fill: rgba(4, 10, 22, 0.76);
+}
+
+.asarak-tour-ring {
   position: fixed;
   z-index: 81;
   border: 2px solid var(--asarak-emerald);
-  border-radius: 14px;
-  box-shadow: 0 0 0 9999px rgba(11, 25, 46, 0.62);
+  box-shadow:
+    0 0 0 4px rgba(12, 174, 121, 0.24),
+    0 10px 28px rgba(11, 25, 46, 0.2);
   pointer-events: none;
-  transition:
-    top 0.35s ease,
-    left 0.35s ease,
-    width 0.35s ease,
-    height 0.35s ease;
+  animation: asarak-tour-ring-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes asarak-tour-ring-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(12, 174, 121, 0.24),
+      0 8px 24px rgba(11, 25, 46, 0.18);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(12, 174, 121, 0.34),
+      0 10px 28px rgba(12, 174, 121, 0.22);
+  }
 }
 
 .asarak-tour-card {
   position: fixed;
   z-index: 82;
   max-width: calc(100vw - 24px);
-  padding: 20px;
-  border: 1px solid var(--asarak-border);
+  padding: 20px 20px 18px;
+  border: 1px solid var(--asarak-border-strong);
   border-radius: var(--asarak-radius-lg);
   background: var(--asarak-card);
   color: var(--asarak-ink);
-  box-shadow: var(--asarak-shadow-lg);
+  box-shadow:
+    0 20px 44px rgba(11, 25, 46, 0.22),
+    0 4px 14px rgba(11, 25, 46, 0.1);
   outline: none;
+  animation: asarak-tour-card-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[data-theme="dark"] .asarak-tour-card {
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(12, 174, 121, 0.18);
+}
+
+@keyframes asarak-tour-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .asarak-tour-card--centered {
   top: 50%;
   left: 50%;
-  width: min(360px, calc(100vw - 32px));
+  width: min(390px, calc(100vw - 28px));
   transform: translate(-50%, -50%);
+  animation: asarak-tour-center-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Mobile: docked full-width card. The component sets `top` instead of
-   `bottom` when the spotlight target sits at the bottom of the screen
-   (Step 4's fixed bottom tab bar), so the card never covers the target. */
+@keyframes asarak-tour-center-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Mobile (<640px): compact docked sheet */
 .asarak-tour-card--docked {
   left: 12px;
   right: 12px;
   width: auto;
 }
 
+.asarak-tour-card--bottom {
+  bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+/* Directional caret pointing toward the spotlighted target */
+.asarak-tour-caret {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--asarak-card);
+  border-color: var(--asarak-border-strong);
+  border-style: solid;
+  border-width: 0;
+  pointer-events: none;
+}
+
+.asarak-tour-caret--top {
+  top: -7px;
+  transform: translateX(-50%) rotate(45deg);
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+
+.asarak-tour-caret--bottom {
+  bottom: -7px;
+  transform: translateX(-50%) rotate(45deg);
+  border-bottom-width: 1px;
+  border-right-width: 1px;
+}
+
+.asarak-tour-caret--left {
+  left: -7px;
+  transform: translateY(-50%) rotate(45deg);
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+}
+
+.asarak-tour-caret--right {
+  right: -7px;
+  transform: translateY(-50%) rotate(45deg);
+  border-top-width: 1px;
+  border-right-width: 1px;
+}
+
 .asarak-tour-close {
   position: absolute;
-  top: 10px;
-  inset-inline-end: 10px;
+  top: 12px;
+  inset-inline-end: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--asarak-border);
-  border-radius: 8px;
-  background: var(--asarak-card);
+  border-radius: 9px;
+  background: var(--asarak-surface);
   color: var(--asarak-ink-muted);
   transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
 }
@@ -3070,41 +3175,78 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   background: var(--asarak-emerald-soft);
 }
 
-.asarak-tour-progress {
-  margin: 0 0 6px;
-  font-size: 0.78rem;
-  font-weight: 700;
+.asarak-tour-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 10px;
+  padding-inline-end: 38px;
+}
+
+.asarak-tour-icon-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--asarak-emerald-soft);
+  border: 1px solid var(--asarak-emerald-border);
   color: var(--asarak-emerald-text);
 }
 
-.asarak-tour-dots {
-  display: flex;
-  gap: 6px;
-  margin-block-end: 12px;
+.asarak-tour-progress {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--asarak-emerald-text);
+  line-height: 1.2;
 }
 
-.asarak-tour-dot {
-  width: 22px;
+.asarak-tour-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-block-start: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--asarak-surface);
+  border: 1px solid var(--asarak-border);
+  color: var(--asarak-ink-muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.asarak-tour-bar {
+  width: 100%;
   height: 4px;
   border-radius: 999px;
-  background: var(--asarak-border-strong);
+  background: var(--asarak-border);
+  overflow: hidden;
+  margin-block-end: 14px;
 }
 
-.asarak-tour-dot--active {
+.asarak-tour-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
   background: var(--asarak-emerald);
+  transition: width 0.25s ease;
 }
 
 .asarak-tour-title {
   margin: 0 0 8px;
-  padding-inline-end: 34px;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 800;
   line-height: 1.3;
+  color: var(--asarak-ink);
 }
 
 .asarak-tour-body {
   margin: 0 0 18px;
-  font-size: 0.9375rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
   color: var(--asarak-ink-muted);
 }
 
@@ -3119,6 +3261,24 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   flex: 1;
 }
 
+.asarak-tour-btn-skip {
+  border-color: transparent;
+  background: transparent;
+  color: var(--asarak-ink-muted);
+  padding-inline: 10px;
+}
+
+.asarak-tour-btn-skip:hover {
+  background: var(--asarak-surface);
+  border-color: var(--asarak-border);
+  color: var(--asarak-ink);
+}
+
+.asarak-tour-btn-nav {
+  min-height: 44px;
+  padding-inline: 14px;
+}
+
 /* Navbar replay button ("Quick Tour") in the masthead actions. */
 .ptr-tour-replay {
   min-height: 40px;
@@ -3131,7 +3291,15 @@ html[dir="rtl"] .asarak-bar-fill--winner {
 
 @media (max-width: 639px) {
   .asarak-tour-card {
-    padding: 16px;
+    padding: 16px 16px 14px;
+  }
+  .asarak-tour-title {
+    font-size: 1.06rem;
+    margin-block-end: 6px;
+  }
+  .asarak-tour-body {
+    font-size: 0.86rem;
+    margin-block-end: 14px;
   }
   .ptr-tour-replay {
     padding: 6px 8px;
@@ -3139,8 +3307,28 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   }
 }
 
+/* Compact icon-only replay button on narrow phones (< 480px) so the brand logo
+   never collides with header actions in either Arabic or English at 360px. */
+@media (max-width: 479px) {
+  .ptr-tour-replay {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+  }
+  .ptr-tour-replay-label {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .asarak-tour-spotlight {
+  .asarak-tour-ring,
+  .asarak-tour-card,
+  .asarak-tour-card--centered {
+    animation: none;
+  }
+  .asarak-tour-bar-fill {
     transition: none;
   }
 }

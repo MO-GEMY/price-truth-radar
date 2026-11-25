@@ -26,11 +26,13 @@ export function ProductCard({
   from,
   source,
   view = "list",
+  tourTarget = false,
 }: {
   product: Product;
   from: string;
   source: DataSource;
   view?: "list" | "grid";
+  tourTarget?: boolean;
 }) {
   const { lang, t } = useLanguage();
   const [alertOpen, setAlertOpen] = useState(false);
@@ -76,7 +78,10 @@ export function ProductCard({
 
   if (view === "grid") {
     return (
-      <article className="asarak-grid-card group">
+      <article
+        className="asarak-grid-card group"
+        data-tour={tourTarget ? "product-card" : undefined}
+      >
         {live && product.current_price > 0.01 && (
           <button
             type="button"
@@ -208,7 +213,10 @@ export function ProductCard({
   }
 
   return (
-    <article className="ptr-list-item">
+    <article
+      className="ptr-list-item"
+      data-tour={tourTarget ? "product-card" : undefined}
+    >
       <Link className="ptr-list-link" href={href}>
         <div className="ptr-result-identity">
           <ProductImage

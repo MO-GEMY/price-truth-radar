@@ -141,7 +141,7 @@ export function FeedFilters({
   }
 
   return (
-    <div className="min-w-0 max-w-full space-y-2.5">
+    <div className="min-w-0 max-w-full space-y-2.5" data-tour="filters">
       <div className="ptr-toolbar">
         <div
           className="ptr-category-bar"

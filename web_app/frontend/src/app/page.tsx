@@ -538,25 +538,27 @@ export default function HomePage() {
                 current.data.items.length > 0 &&
                 (view === "grid" ? (
                   <div className="asarak-product-grid">
-                    {current.data.items.map((product) => (
+                    {current.data.items.map((product, index) => (
                       <ProductCard
                         key={product.product_sk}
                         product={product}
                         from={from}
                         source={current.source}
                         view="grid"
+                        tourTarget={index === 0}
                       />
                     ))}
                   </div>
                 ) : (
                   <div className="surface ptr-list">
-                    {current.data.items.map((product) => (
+                    {current.data.items.map((product, index) => (
                       <ProductCard
                         key={product.product_sk}
                         product={product}
                         from={from}
                         source={current.source}
                         view="list"
+                        tourTarget={index === 0}
                       />
                     ))}
                   </div>

@@ -1,70 +1,110 @@
 "use client";
 
 /**
- * First-visit interactive onboarding guide (spotlight tour) for the homepage.
+ * Production-grade interactive spotlight onboarding tour for Asarak (أسعارك).
  *
- * Design constraints (see task brief):
- * - Pure client-side: no new dependencies, no API calls.
- * - Hydration-safe: renders nothing until mounted, then follows the same
- *   localStorage-after-mount pattern as lib/i18n.tsx and lib/theme.tsx.
- * - Auto-opens only once, only on the homepage (this component is mounted
- *   only by src/app/page.tsx), and only when `asarak_onboarding_v1_done`
- *   is not set in localStorage. Deep links never mount it.
- * - `/?tour=1` forces it open (navbar replay button). Closing or finishing
- *   a forced tour removes `tour=1` via history.replaceState (through
- *   setBrowseParams) so a refresh does not replay it.
- * - Step 4 targets the nav; on small screens the nav is a fixed bottom tab
- *   bar, and if the nav target is missing/hidden the tour falls back to
- *   the header bar, then to a centered card with a plain backdrop.
+ * Architecture:
+ * - Pure client-side, zero extra npm deps, zero API calls, hydration-safe.
+ * - Full-viewport SVG `<mask>` cutout + animated emerald ring (zero 9999px shadow hacks).
+ * - Sticky-header & mobile bottom-nav aware scrolling + rAF scroll sync +
+ *   ResizeObserver + MutationObserver (for async ProductCard load).
+ * - Desktop/Tablet floating popover with 4-way collision detection & directional caret;
+ *   Mobile (<640px) sleek docked sheet that never covers the spotlighted target.
+ * - Full keyboard navigation (Escape, RTL-aware ArrowLeft/ArrowRight), click-outside
+ *   dismissal, `asarak_onboarding_v1_done` persistence, and `/?tour=1` replay cleanup.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BellRing,
+  Check,
+  Compass,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Tag,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { setBrowseParams, useBrowseParams } from "@/lib/browse-state";
 import { formatNumber } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import type { TranslationKey } from "@/lib/translations";
 
 const STORAGE_KEY = "asarak_onboarding_v1_done";
-const SPOTLIGHT_MAX_HEIGHT = 500;
-const CARD_WIDTH = 360;
+const DESKTOP_CARD_WIDTH = 380;
 const CARD_GAP = 16;
+const VIEWPORT_MARGIN = 14;
 
 interface TourStep {
-  /** CSS selectors tried in order; first visible match wins. Empty = no target (centered card). */
+  id: string;
+  /** CSS selectors tried in order; first visible match wins. Empty = centered hero card. */
   selectors: string[];
-  scrollBlock: ScrollLogicalPosition;
+  icon: LucideIcon;
   title: TranslationKey;
   body: TranslationKey;
+  /** True when target lives inside sticky/fixed chrome (.ptr-mast / .ptr-nav). */
+  isChrome?: boolean;
+  /** Observe `#radar-results` mutations so async ProductCard upgrades the fallback target. */
+  observeFeed?: boolean;
 }
 
-const STEPS: TourStep[] = [
+const STEPS: readonly TourStep[] = [
   {
+    id: "welcome",
     selectors: [],
-    scrollBlock: "center",
+    icon: Sparkles,
     title: "tour.welcome.title",
     body: "tour.welcome.body",
   },
   {
+    id: "search",
     selectors: ['[data-tour="search"]'],
-    scrollBlock: "center",
+    icon: Search,
     title: "tour.search.title",
     body: "tour.search.body",
   },
   {
-    selectors: ['[data-tour="deals"]'],
-    scrollBlock: "start",
-    title: "tour.deals.title",
-    body: "tour.deals.body",
+    id: "filters",
+    selectors: ['[data-tour="filters"]'],
+    icon: SlidersHorizontal,
+    title: "tour.filters.title",
+    body: "tour.filters.body",
   },
   {
-    // Nav first; the sticky header bar is the fallback when the nav links
-    // are collapsed/hidden (e.g. very small screens), and if neither is
-    // measurable the card simply centers over the backdrop.
+    id: "deals",
+    selectors: ['[data-tour="product-card"]', '[data-tour="deals"]'],
+    icon: ShieldCheck,
+    title: "tour.deals.title",
+    body: "tour.deals.body",
+    observeFeed: true,
+  },
+  {
+    id: "nav",
     selectors: ['[data-tour="nav"]', '[data-tour="mast"]'],
-    scrollBlock: "center",
+    icon: Tag,
+    title: "tour.nav.title",
+    body: "tour.nav.body",
+    isChrome: true,
+  },
+  {
+    id: "alerts",
+    selectors: ['[data-tour="tour-replay"]', '[data-tour="mast"]'],
+    icon: BellRing,
     title: "tour.alerts.title",
     body: "tour.alerts.body",
+    isChrome: true,
   },
 ];
 
@@ -74,12 +114,32 @@ interface SpotRect {
   width: number;
   height: number;
   bottom: number;
+  right: number;
+  radius: number;
+  isBottomChrome: boolean;
+  isTopChrome: boolean;
+}
+
+interface ChromeInsets {
+  mastBottom: number;
+  bottomNavHeight: number;
+}
+
+type CaretSide = "top" | "bottom" | "left" | "right" | null;
+
+interface CardPlacement {
+  className: string;
+  style?: CSSProperties;
+  caretSide: CaretSide;
+  caretOffset: number;
 }
 
 function isVisible(el: HTMLElement): boolean {
   if (el.getClientRects().length === 0) return false;
   const style = window.getComputedStyle(el);
-  if (style.display === "none" || style.visibility === "hidden") return false;
+  if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
+    return false;
+  }
   const rect = el.getBoundingClientRect();
   return rect.width > 0 && rect.height > 0;
 }
@@ -92,20 +152,257 @@ function resolveTarget(step: TourStep): HTMLElement | null {
   return null;
 }
 
-function measure(el: HTMLElement): SpotRect | null {
-  const rect = el.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return null;
-  const pad = 8;
-  const top = rect.top - pad;
-  // Tall targets (the results section) are capped so the spotlight frames
-  // their top — heading, filters and first listings — not the whole feed.
-  const height = Math.min(rect.height + pad * 2, SPOTLIGHT_MAX_HEIGHT);
+function getChromeInsets(): ChromeInsets {
+  const mast = document.querySelector(".ptr-mast");
+  const mastBottom =
+    mast instanceof HTMLElement && isVisible(mast)
+      ? Math.ceil(mast.getBoundingClientRect().bottom)
+      : 68;
+
+  const nav = document.querySelector(".ptr-nav");
+  let bottomNavHeight = 0;
+  if (nav instanceof HTMLElement && isVisible(nav)) {
+    const style = window.getComputedStyle(nav);
+    if (style.position === "fixed") {
+      bottomNavHeight = Math.ceil(nav.getBoundingClientRect().height);
+    }
+  }
+  return { mastBottom, bottomNavHeight };
+}
+
+function isFixedOrInMast(el: HTMLElement): boolean {
+  if (el.closest(".ptr-mast")) return true;
+  const pos = window.getComputedStyle(el).position;
+  return pos === "fixed" || pos === "sticky";
+}
+
+function measureSpotlight(
+  el: HTMLElement,
+  step: TourStep,
+  vw: number,
+  vh: number,
+  chrome: ChromeInsets,
+  cardHeight: number,
+): SpotRect | null {
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return null;
+
+  const isMobile = vw < 640;
+  const chromeTarget = Boolean(step.isChrome || isFixedOrInMast(el));
+  const pad = chromeTarget ? 4 : 8;
+  const radius = el.dataset.tour === "tour-replay" ? 11 : chromeTarget ? 12 : 14;
+
+  const left = Math.max(4, r.left - pad);
+  const right = Math.min(vw - 4, r.right + pad);
+  const width = Math.max(24, right - left);
+
+  const isBottomChrome = chromeTarget && r.top > vh - 140;
+  const isTopChrome = chromeTarget && !isBottomChrome;
+
+  let top = r.top - pad;
+  let bottom = r.bottom + pad;
+
+  if (chromeTarget) {
+    top = Math.max(4, top);
+    bottom = Math.min(vh - 4, bottom);
+  } else {
+    const minSafeTop = Math.max(4, chrome.mastBottom + 4);
+    top = Math.max(minSafeTop, top);
+    const maxHeight = isMobile
+      ? Math.max(72, Math.min(340, vh - cardHeight - 28 - top))
+      : Math.max(96, Math.min(420, vh - chrome.mastBottom - 120));
+    bottom = Math.min(bottom, top + maxHeight, vh - 12);
+    if (bottom - top < 44) {
+      bottom = Math.min(vh - 12, top + 44);
+    }
+  }
+
   return {
     top,
-    left: rect.left - pad,
-    width: rect.width + pad * 2,
-    height,
-    bottom: top + height,
+    left,
+    width,
+    height: Math.max(32, bottom - top),
+    bottom: Math.max(top + 32, bottom),
+    right: left + width,
+    radius,
+    isBottomChrome,
+    isTopChrome,
+  };
+}
+
+function scrollTargetIntoSafeZone(
+  el: HTMLElement,
+  step: TourStep,
+  vh: number,
+  vw: number,
+  chrome: ChromeInsets,
+  cardHeight: number,
+): void {
+  if (step.isChrome || isFixedOrInMast(el)) return;
+
+  const rect = el.getBoundingClientRect();
+  const isMobile = vw < 640;
+  const safeTop = chrome.mastBottom + 16;
+  const safeBottom = isMobile ? vh - cardHeight - 28 : vh - 40;
+  const safeHeight = Math.max(120, safeBottom - safeTop);
+
+  // If element is already comfortably inside the safe zone, avoid jarring scroll.
+  if (rect.top >= safeTop && rect.bottom <= safeBottom) return;
+
+  const absTop = rect.top + window.scrollY;
+  const extraOffset =
+    rect.height < safeHeight ? Math.min(28, Math.floor((safeHeight - rect.height) / 3)) : 0;
+  const desiredY = Math.max(0, Math.round(absTop - safeTop - extraOffset));
+
+  if (Math.abs(window.scrollY - desiredY) <= 6) return;
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({
+    top: desiredY,
+    behavior: reducedMotion ? "auto" : "smooth",
+  });
+}
+
+function computePlacement(
+  spot: SpotRect | null,
+  vw: number,
+  vh: number,
+  chrome: ChromeInsets,
+  cardHeight: number,
+  dir: "rtl" | "ltr",
+): CardPlacement {
+  if (!spot) {
+    return {
+      className: "asarak-tour-card asarak-tour-card--centered",
+      caretSide: null,
+      caretOffset: 0,
+    };
+  }
+
+  const isMobile = vw < 640;
+  if (isMobile) {
+    const sheetWidth = vw - 24;
+    const targetCenterX = spot.left + spot.width / 2;
+    const caretOffset = Math.min(
+      Math.max(targetCenterX - 12, 24),
+      Math.max(sheetWidth - 24, 24),
+    );
+
+    if (spot.isBottomChrome) {
+      // Dock directly above the spotlighted mobile bottom tab bar — zero overlap, zero disconnect!
+      const bottomGap = Math.max(vh - spot.top + 14, chrome.bottomNavHeight + 14);
+      const maxBottom = Math.max(16, vh - chrome.mastBottom - cardHeight - 12);
+      return {
+        className: "asarak-tour-card asarak-tour-card--docked",
+        style: { bottom: Math.min(bottomGap, maxBottom) },
+        caretSide: "bottom",
+        caretOffset,
+      };
+    }
+
+    if (spot.isTopChrome) {
+      // Dock directly below the header spotlight (e.g. Step 6 replay button)
+      const top = Math.min(spot.bottom + 14, Math.max(chrome.mastBottom + 10, vh - cardHeight - 16));
+      return {
+        className: "asarak-tour-card asarak-tour-card--docked",
+        style: { top },
+        caretSide: "top",
+        caretOffset,
+      };
+    }
+
+    // Normal page-flow targets: attach directly below the spotlight when it fits
+    // cleanly above the bottom nav; otherwise dock neatly at the bottom of the screen.
+    const directBelowTop = spot.bottom + 14;
+    const maxBottomY = vh - chrome.bottomNavHeight - 10;
+    if (directBelowTop + cardHeight <= maxBottomY) {
+      return {
+        className: "asarak-tour-card asarak-tour-card--docked",
+        style: { top: directBelowTop },
+        caretSide: "top",
+        caretOffset,
+      };
+    }
+
+    return {
+      className: "asarak-tour-card asarak-tour-card--docked asarak-tour-card--bottom",
+      caretSide: "top",
+      caretOffset,
+    };
+  }
+
+  // Tablet (>= 640px) & Desktop (>= 1024px): smart 4-way collision detection
+  const cardWidth = Math.min(DESKTOP_CARD_WIDTH, vw - 32);
+  const safeTop = chrome.mastBottom + 12;
+  const targetCenterX = spot.left + spot.width / 2;
+  const targetCenterY = spot.top + spot.height / 2;
+
+  const clampedLeft = Math.min(
+    Math.max(targetCenterX - cardWidth / 2, VIEWPORT_MARGIN),
+    Math.max(vw - cardWidth - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
+  );
+  const clampedTopForSide = Math.min(
+    Math.max(targetCenterY - cardHeight / 2, safeTop),
+    Math.max(vh - cardHeight - VIEWPORT_MARGIN, safeTop),
+  );
+
+  // 1. Try below target
+  const belowTop = spot.bottom + CARD_GAP;
+  if (belowTop + cardHeight <= vh - VIEWPORT_MARGIN) {
+    return {
+      className: "asarak-tour-card",
+      style: { top: belowTop, left: clampedLeft, width: cardWidth },
+      caretSide: "top",
+      caretOffset: Math.min(Math.max(targetCenterX - clampedLeft, 24), cardWidth - 24),
+    };
+  }
+
+  // 2. Try above target
+  const aboveTop = spot.top - CARD_GAP - cardHeight;
+  if (aboveTop >= safeTop) {
+    return {
+      className: "asarak-tour-card",
+      style: { top: aboveTop, left: clampedLeft, width: cardWidth },
+      caretSide: "bottom",
+      caretOffset: Math.min(Math.max(targetCenterX - clampedLeft, 24), cardWidth - 24),
+    };
+  }
+
+  // 3. Try inline-end / inline-start sides
+  const sideOrder: readonly ("right" | "left")[] =
+    dir === "rtl" ? ["left", "right"] : ["right", "left"];
+
+  for (const side of sideOrder) {
+    if (side === "right" && spot.right + CARD_GAP + cardWidth <= vw - VIEWPORT_MARGIN) {
+      const left = spot.right + CARD_GAP;
+      return {
+        className: "asarak-tour-card",
+        style: { top: clampedTopForSide, left, width: cardWidth },
+        caretSide: "left",
+        caretOffset: Math.min(Math.max(targetCenterY - clampedTopForSide, 24), cardHeight - 24),
+      };
+    }
+    if (side === "left" && spot.left - CARD_GAP - cardWidth >= VIEWPORT_MARGIN) {
+      const left = spot.left - CARD_GAP - cardWidth;
+      return {
+        className: "asarak-tour-card",
+        style: { top: clampedTopForSide, left, width: cardWidth },
+        caretSide: "right",
+        caretOffset: Math.min(Math.max(targetCenterY - clampedTopForSide, 24), cardHeight - 24),
+      };
+    }
+  }
+
+  // 4. Fallback: clamp safely near bottom of viewport
+  const fallbackTop = Math.min(
+    Math.max(vh - cardHeight - VIEWPORT_MARGIN, safeTop),
+    Math.max(vh - cardHeight - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
+  );
+  return {
+    className: "asarak-tour-card",
+    style: { top: fallbackTop, left: clampedLeft, width: cardWidth },
+    caretSide: null,
+    caretOffset: 0,
   };
 }
 
@@ -113,7 +410,7 @@ function markDone(): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, "1");
   } catch {
-    // Storage unavailable (private mode) — the tour just may re-offer next visit.
+    // Private browsing or blocked storage — fail gracefully.
   }
 }
 
@@ -129,28 +426,48 @@ export function OnboardingTour() {
   const { lang, dir, t } = useLanguage();
   const params = useBrowseParams();
   const forced = params.get("tour") === "1";
+  const rawId = useId();
+  const maskId = `asarak-tour-mask-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
   const [open, setOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const [rect, setRect] = useState<SpotRect | null>(null);
-  const [cardHeight, setCardHeight] = useState(240);
+  const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [chrome, setChrome] = useState<ChromeInsets>({ mastBottom: 68, bottomNavHeight: 0 });
+  const [spot, setSpot] = useState<SpotRect | null>(null);
+  const [cardHeight, setCardHeight] = useState(250);
 
   const cardRef = useRef<HTMLDivElement>(null);
+  const cardHeightRef = useRef(250);
   const autoCheckedRef = useRef(false);
+
+  useEffect(() => {
+    cardHeightRef.current = cardHeight;
+  }, [cardHeight]);
 
   const close = useCallback(() => {
     markDone();
     setOpen(false);
     setStepIndex(0);
-    setRect(null);
-    // Polish: a tour opened via /?tour=1 must not replay on refresh.
+    setSpot(null);
     if (new URLSearchParams(window.location.search).get("tour") === "1") {
       setBrowseParams({ tour: undefined }, true);
     }
   }, []);
 
-  /* Opening rules: forced via ?tour=1 (replay), otherwise once for
-     first-time visitors, shortly after mount so the hero has settled. */
+  const goNext = useCallback(() => {
+    setStepIndex((prev) => {
+      if (prev >= STEPS.length - 1) {
+        return prev;
+      }
+      return prev + 1;
+    });
+  }, []);
+
+  const goBack = useCallback(() => {
+    setStepIndex((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  /* Auto-open once on first visit to `/`, or immediately when forced via `/?tour=1`. */
   useEffect(() => {
     if (forced) {
       if (!open) {
@@ -162,115 +479,218 @@ export function OnboardingTour() {
     if (autoCheckedRef.current) return;
     autoCheckedRef.current = true;
     if (isDone()) return;
-    const id = window.setTimeout(() => setOpen(true), 600);
+    const id = window.setTimeout(() => setOpen(true), 650);
     return () => window.clearTimeout(id);
   }, [forced, open]);
 
-  /* Spotlight tracking: scroll the target into view, then keep the
-     spotlight glued to it on scroll / resize while the tour is open. */
+  /* Reactive viewport dimensions (never read window.innerWidth non-reactively during render). */
+  useEffect(() => {
+    if (!open) return;
+    const syncViewport = () => {
+      const w = document.documentElement.clientWidth || window.innerWidth;
+      const h = window.visualViewport?.height ? Math.round(window.visualViewport.height) : window.innerHeight;
+      setViewport((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+      setChrome(getChromeInsets());
+    };
+    syncViewport();
+    window.addEventListener("resize", syncViewport, { passive: true });
+    window.addEventListener("orientationchange", syncViewport, { passive: true });
+    window.visualViewport?.addEventListener("resize", syncViewport);
+    return () => {
+      window.removeEventListener("resize", syncViewport);
+      window.removeEventListener("orientationchange", syncViewport);
+      window.visualViewport?.removeEventListener("resize", syncViewport);
+    };
+  }, [open]);
+
+  /* Track card's exact rendered height via ResizeObserver (avoids drift on language/step changes). */
+  useEffect(() => {
+    if (!open) return;
+    const node = cardRef.current;
+    if (!node) return;
+    const updateHeight = () => {
+      const h = Math.ceil(node.getBoundingClientRect().height);
+      if (h > 0) {
+        cardHeightRef.current = h;
+        setCardHeight((prev) => (prev === h ? prev : h));
+      }
+    };
+    updateHeight();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [open, stepIndex, lang]);
+
+  /* Target tracking: exact offset scroll + rAF smooth-scroll lockstep + ResizeObserver + MutationObserver. */
   useEffect(() => {
     if (!open) return;
     const step = STEPS[stepIndex];
     cardRef.current?.focus({ preventScroll: true });
 
     if (step.selectors.length === 0) {
-      setRect(null);
-      return;
-    }
-    const el = resolveTarget(step);
-    if (!el) {
-      setRect(null);
+      setSpot(null);
       return;
     }
 
     let cancelled = false;
-    const update = () => {
-      if (!cancelled) setRect(measure(el));
+    let activeTarget: HTMLElement | null = null;
+    let rafId = 0;
+    let resizeObs: ResizeObserver | null = null;
+    let mutationObs: MutationObserver | null = null;
+
+    const measureAndSet = () => {
+      if (cancelled) return;
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const vh = window.visualViewport?.height ? Math.round(window.visualViewport.height) : window.innerHeight;
+      const insets = getChromeInsets();
+      setChrome((prev) =>
+        prev.mastBottom === insets.mastBottom && prev.bottomNavHeight === insets.bottomNavHeight
+          ? prev
+          : insets,
+      );
+
+      const resolved = resolveTarget(step);
+      if (resolved !== activeTarget) {
+        resizeObs?.disconnect();
+        activeTarget = resolved;
+        if (resolved && typeof ResizeObserver !== "undefined") {
+          resizeObs = new ResizeObserver(() => measureAndSet());
+          resizeObs.observe(resolved);
+        }
+      }
+
+      if (!activeTarget) {
+        setSpot(null);
+        return;
+      }
+
+      const nextSpot = measureSpotlight(
+        activeTarget,
+        step,
+        vw,
+        vh,
+        insets,
+        cardHeightRef.current,
+      );
+      setSpot(nextSpot);
     };
 
-    el.scrollIntoView({ behavior: "smooth", block: step.scrollBlock });
-    const raf = window.requestAnimationFrame(update);
-    const settle = window.setTimeout(update, 450);
-    const late = window.setTimeout(update, 950);
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
+    const initialTarget = resolveTarget(step);
+    if (initialTarget) {
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const vh = window.visualViewport?.height ? Math.round(window.visualViewport.height) : window.innerHeight;
+      const insets = getChromeInsets();
+      scrollTargetIntoSafeZone(initialTarget, step, vh, vw, insets, cardHeightRef.current);
+    }
+
+    // Track smoothly every animation frame during smooth scroll (~620ms) so the spotlight never lags.
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      measureAndSet();
+      if (!cancelled && now - startedAt < 650) {
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+    rafId = window.requestAnimationFrame(tick);
+
+    const onScrollOrResize = () => {
+      window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(measureAndSet);
+    };
+    window.addEventListener("scroll", onScrollOrResize, { passive: true, capture: true });
+    window.addEventListener("resize", onScrollOrResize, { passive: true });
+
+    if (step.observeFeed && typeof MutationObserver !== "undefined") {
+      const feedRoot = document.getElementById("radar-results");
+      if (feedRoot) {
+        mutationObs = new MutationObserver(() => {
+          const prevEl = activeTarget;
+          const nextEl = resolveTarget(step);
+          if (nextEl && nextEl !== prevEl) {
+            const vw = document.documentElement.clientWidth || window.innerWidth;
+            const vh = window.visualViewport?.height
+              ? Math.round(window.visualViewport.height)
+              : window.innerHeight;
+            scrollTargetIntoSafeZone(nextEl, step, vh, vw, getChromeInsets(), cardHeightRef.current);
+          }
+          measureAndSet();
+        });
+        mutationObs.observe(feedRoot, { childList: true, subtree: true });
+      }
+    }
+
     return () => {
       cancelled = true;
-      window.cancelAnimationFrame(raf);
-      window.clearTimeout(settle);
-      window.clearTimeout(late);
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
+      window.cancelAnimationFrame(rafId);
+      resizeObs?.disconnect();
+      mutationObs?.disconnect();
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
     };
   }, [open, stepIndex]);
 
-  /* Escape closes from anywhere in the tour. */
+  /* Keyboard shortcuts: Escape closes; RTL-aware ArrowLeft / ArrowRight navigate steps. */
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         close();
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        if (dir === "rtl") goBack();
+        else if (stepIndex === STEPS.length - 1) close();
+        else goNext();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        if (dir === "rtl") {
+          if (stepIndex === STEPS.length - 1) close();
+          else goNext();
+        } else {
+          goBack();
+        }
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, close]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, dir, stepIndex, close, goNext, goBack]);
 
-  /* Track the card's real height so desktop placement can sit above the
-     target when there is no room below it. */
-  useEffect(() => {
-    if (!open) return;
-    const node = cardRef.current;
-    if (!node) return;
-    const height = node.offsetHeight;
-    if (height > 0) setCardHeight((prev) => (prev === height ? prev : height));
-  }, [open, stepIndex, rect]);
+  const placement = useMemo(
+    () =>
+      viewport.w > 0 && viewport.h > 0
+        ? computePlacement(spot, viewport.w, viewport.h, chrome, cardHeight, dir)
+        : {
+            className: "asarak-tour-card asarak-tour-card--centered",
+            caretSide: null as CaretSide,
+            caretOffset: 0,
+          },
+    [spot, viewport.w, viewport.h, chrome, cardHeight, dir],
+  );
 
-  if (!open) return null;
+  if (!open || viewport.w === 0) return null;
 
   const step = STEPS[stepIndex];
+  const StepIcon = step.icon;
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === STEPS.length - 1;
+  const progressPct = Math.round(((stepIndex + 1) / STEPS.length) * 100);
+  const NextArrow = dir === "rtl" ? ArrowLeft : ArrowRight;
+  const BackArrow = dir === "rtl" ? ArrowRight : ArrowLeft;
 
-  const next = () => {
+  const handleNext = () => {
     if (isLast) close();
-    else setStepIndex((value) => Math.min(value + 1, STEPS.length - 1));
+    else goNext();
   };
-  const back = () => setStepIndex((value) => Math.max(value - 1, 0));
 
-  /* Card placement. Mobile (<640px) is docked: bottom by default, top when
-     the spotlight target lives at the bottom of the screen (Step 4's fixed
-     bottom tab bar) so the card never covers the highlighted element. */
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const isMobile = viewportWidth < 640;
-  let cardStyle: React.CSSProperties | undefined;
-  let cardClassName = "asarak-tour-card";
-  if (!rect) {
-    cardClassName += " asarak-tour-card--centered";
-  } else if (isMobile) {
-    cardClassName += " asarak-tour-card--docked";
-    const targetNearBottom = rect.top > viewportHeight - 180;
-    cardStyle = targetNearBottom ? { top: 76 } : { bottom: 12 };
-  } else {
-    const left = Math.min(
-      Math.max(rect.left + rect.width / 2 - CARD_WIDTH / 2, 16),
-      Math.max(viewportWidth - CARD_WIDTH - 16, 16),
-    );
-    let top: number;
-    if (rect.bottom + CARD_GAP + cardHeight <= viewportHeight - 16) {
-      top = rect.bottom + CARD_GAP;
-    } else if (rect.top - CARD_GAP - cardHeight >= 16) {
-      top = rect.top - CARD_GAP - cardHeight;
-    } else {
-      top = Math.min(
-        Math.max((viewportHeight - cardHeight) / 2, 16),
-        Math.max(viewportHeight - cardHeight - 16, 16),
-      );
-    }
-    cardStyle = { top, left, width: CARD_WIDTH };
-  }
+  const caretStyle: CSSProperties | undefined =
+    placement.caretSide === "top" || placement.caretSide === "bottom"
+      ? { left: placement.caretOffset }
+      : placement.caretSide === "left" || placement.caretSide === "right"
+        ? { top: placement.caretOffset }
+        : undefined;
 
   return (
     <div
@@ -282,31 +702,72 @@ export function OnboardingTour() {
         }
       }}
     >
-      {rect ? (
+      <svg
+        className="asarak-tour-svg"
+        width={viewport.w}
+        height={viewport.h}
+        viewBox={`0 0 ${viewport.w} ${viewport.h}`}
+        aria-hidden="true"
+      >
+        <defs>
+          <mask id={maskId}>
+            <rect x="0" y="0" width={viewport.w} height={viewport.h} fill="white" />
+            {spot && (
+              <rect
+                x={spot.left}
+                y={spot.top}
+                width={spot.width}
+                height={spot.height}
+                rx={spot.radius}
+                ry={spot.radius}
+                fill="black"
+              />
+            )}
+          </mask>
+        </defs>
+        <rect
+          x="0"
+          y="0"
+          width={viewport.w}
+          height={viewport.h}
+          className="asarak-tour-scrim"
+          mask={`url(#${maskId})`}
+        />
+      </svg>
+
+      {spot && (
         <div
-          className="asarak-tour-spotlight"
+          className="asarak-tour-ring"
           aria-hidden="true"
           style={{
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
+            top: spot.top,
+            left: spot.left,
+            width: spot.width,
+            height: spot.height,
+            borderRadius: spot.radius,
           }}
         />
-      ) : (
-        <div className="asarak-tour-backdrop" aria-hidden="true" />
       )}
 
       <div
         ref={cardRef}
-        className={cardClassName}
-        style={cardStyle}
+        key={step.id}
+        className={placement.className}
+        style={placement.style}
         role="dialog"
         aria-modal="true"
         aria-labelledby="asarak-tour-title"
         aria-describedby="asarak-tour-body"
         tabIndex={-1}
       >
+        {placement.caretSide && (
+          <span
+            className={`asarak-tour-caret asarak-tour-caret--${placement.caretSide}`}
+            style={caretStyle}
+            aria-hidden="true"
+          />
+        )}
+
         <button
           type="button"
           className="asarak-tour-close"
@@ -316,23 +777,35 @@ export function OnboardingTour() {
           <X size={16} aria-hidden="true" />
         </button>
 
-        <p className="asarak-tour-progress" role="status">
-          {t("tour.stepOf", {
-            current: formatNumber(stepIndex + 1, lang),
-            total: formatNumber(STEPS.length, lang),
-          })}
-        </p>
-        <div className="asarak-tour-dots" aria-hidden="true">
-          {STEPS.map((item, index) => (
-            <span
-              key={item.title}
-              className={
-                index === stepIndex
-                  ? "asarak-tour-dot asarak-tour-dot--active"
-                  : "asarak-tour-dot"
-              }
-            />
-          ))}
+        <div className="asarak-tour-head">
+          <span className="asarak-tour-icon-badge" aria-hidden="true">
+            <StepIcon size={18} strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <p className="asarak-tour-progress" role="status">
+              {t("tour.stepOf", {
+                current: formatNumber(stepIndex + 1, lang),
+                total: formatNumber(STEPS.length, lang),
+              })}
+            </p>
+            {isFirst && (
+              <span className="asarak-tour-hero-pill">
+                <Compass size={12} aria-hidden="true" />
+                {t("tour.badge")}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="asarak-tour-bar"
+          role="progressbar"
+          aria-valuenow={progressPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-hidden="true"
+        >
+          <span className="asarak-tour-bar-fill" style={{ width: `${progressPct}%` }} />
         </div>
 
         <h2 id="asarak-tour-title" className="asarak-tour-title">
@@ -344,23 +817,28 @@ export function OnboardingTour() {
 
         <div className="asarak-tour-actions">
           {!isLast && (
-            <button type="button" className="ptr-button" onClick={close}>
+            <button type="button" className="ptr-button asarak-tour-btn-skip" onClick={close}>
               {t("tour.skip")}
             </button>
           )}
           <span className="asarak-tour-actions-spacer" />
           {!isFirst && (
-            <button type="button" className="ptr-button" onClick={back}>
-              {t("tour.back")}
+            <button type="button" className="ptr-button asarak-tour-btn-nav" onClick={goBack}>
+              <BackArrow size={15} aria-hidden="true" />
+              <span>{t("tour.back")}</span>
             </button>
           )}
           <button
             type="button"
-            className="ptr-button ptr-primary"
-            onClick={next}
-            autoFocus
+            className="ptr-button ptr-primary asarak-tour-btn-nav"
+            onClick={handleNext}
           >
-            {t(isFirst ? "tour.start" : isLast ? "tour.finish" : "tour.next")}
+            <span>{t(isFirst ? "tour.start" : isLast ? "tour.finish" : "tour.next")}</span>
+            {isLast ? (
+              <Check size={15} strokeWidth={2.5} aria-hidden="true" />
+            ) : (
+              <NextArrow size={15} aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>

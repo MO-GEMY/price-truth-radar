@@ -20,6 +20,7 @@ export const translations = {
 
     "tour.replay": "Quick Tour",
     "tour.stepOf": "Step {current} of {total}",
+    "tour.badge": "25-second guide",
     "tour.start": "Start Tour",
     "tour.skip": "Skip",
     "tour.back": "Back",
@@ -27,16 +28,22 @@ export const translations = {
     "tour.finish": "Start Exploring",
     "tour.welcome.title": "Welcome to Asarak",
     "tour.welcome.body":
-      "Asarak compares prices across 200+ Egyptian stores and exposes fake vs. real discounts — using tracked daily price history, not the store's own claims. This tour takes about 15 seconds.",
-    "tour.search.title": "Search any product",
+      "Track ~198,000+ products across 200+ Egyptian stores with daily 60-day price history — so you spot real discounts and skip fake strikethrough prices in seconds.",
+    "tour.search.title": "Smart Category-Aware Search",
     "tour.search.body":
-      "Type a product name or paste a store link here to check its real price — or pick a category below to compare the same product across stores.",
-    "tour.deals.title": "Real deals, tracked daily",
+      "Search any product in Arabic or English, or paste a store link to check its real price. When you select a category, search and suggestions adapt automatically to it.",
+    "tour.filters.title": "10 Categories, 66 Subcategories & Filters",
+    "tour.filters.body":
+      "Drill down from main categories into exact subcategories (like Oils & Dairy in Groceries or Phones & Laptops in Electronics) and filter by store or brand.",
+    "tour.deals.title": "Price Truth Verdicts & Comparisons",
     "tour.deals.body":
-      "Every listing here is checked against its tracked 60-day price history and compared across stores side by side, so genuine deals and all-time lows stand out from discounts that only look big.",
-    "tour.alerts.title": "Never miss a price drop",
+      "Every product card shows its real price against its 60-day tracked median — click any item to inspect its full price chart and compare identical offers across stores.",
+    "tour.nav.title": "Verified Coupons & Store Comparisons",
+    "tour.nav.body":
+      "Jump to Compare Stores for side-by-side price gaps, Price Highlights for top deals, and Coupons for tested, verified-only promo codes.",
+    "tour.alerts.title": "Free Telegram Alerts & Replay Anytime",
     "tour.alerts.body":
-      "Open any product to set a free Telegram price-drop alert, and check the Coupons tab for verified-only promo codes — every code is tested before it is published.",
+      "Tap the bell icon on any product to get an instant Telegram alert when its price drops to your target. You can replay this tour anytime from the Quick Tour button right here.",
 
     "ui.skip": "Skip to content",
     "ui.navigation": "Main navigation",
@@ -497,6 +504,7 @@ export const translations = {
 
     "tour.replay": "جولة سريعة",
     "tour.stepOf": "خطوة {current} من {total}",
+    "tour.badge": "دليل سريع في 25 ثانية",
     "tour.start": "ابدأ الجولة",
     "tour.skip": "تخطي",
     "tour.back": "رجوع",
@@ -504,16 +512,22 @@ export const translations = {
     "tour.finish": "ابدأ التصفح",
     "tour.welcome.title": "أهلاً بيك في أسعارك",
     "tour.welcome.body":
-      "أسعارك بيقارن الأسعار عبر أكثر من 200 متجر مصري وبيكشف الخصومات الوهمية من الحقيقية — بناءً على سجل أسعار يومي مرصود، مش كلام المتاجر. الجولة دي هتاخد حوالي 15 ثانية.",
-    "tour.search.title": "ابحث عن أي منتج",
+      "بنتابع أكثر من 198 ألف منتج في +200 متجر مصري بسجل أسعار يومي لآخر 60 يوم — عشان تعرف الخصم الحقيقي من الوهمي وتقارن الأسعار في ثواني.",
+    "tour.search.title": "بحث ذكي حسب الفئة",
     "tour.search.body":
-      "اكتب اسم منتج أو الصق رابط متجر هنا عشان تفحص سعره الحقيقي — أو اختر فئة من تحت عشان تقارن نفس المنتج عبر المتاجر.",
-    "tour.deals.title": "عروض حقيقية، مرصودة يومياً",
+      "اكتب اسم أي منتج بالعربي أو الإنجليزي، أو الصق رابط منتج من أي متجر عشان تفحص سعره الحقيقي. ولما تختار فئة، البحث والاقتراحات بتتكيّف معاها تلقائياً.",
+    "tour.filters.title": "10 فئات و66 قسم فرعي وفلاتر دقيقة",
+    "tour.filters.body":
+      "تقدر تتعمق من أي فئة رئيسية لأقسام فرعية دقيقة (زي الزيوت والألبان في السوبر ماركت أو الموبايلات واللابتوب في الإلكترونيات) وتصفّي بالمتجر أو الماركة.",
+    "tour.deals.title": "حقيقة السعر ومقارنة المتاجر",
     "tour.deals.body":
-      "كل منتج هنا بيتقارن بسجل سعره المرصود لآخر 60 يوم وبيتقارن عبر المتاجر جنب بعض، فالعروض الحقيقية وأقل الأسعار التاريخية بتبان بوضوح من الخصومات اللي شكلها كبير بس.",
-    "tour.alerts.title": "متفوتش أي نزول في السعر",
+      "كل بطاقة منتج بتوضحلك السعر الحقيقي مقارنة بوسيط آخر 60 يوم — اضغط على أي منتج عشان تشوف الرسم البياني الكامل وتقارن نفس المنتج في باقي المتاجر.",
+    "tour.nav.title": "كوبونات مجرّبة ومقارنة المتاجر",
+    "tour.nav.body":
+      "من هنا تقدر تفتح «قارن المتاجر» لأكبر فروق الأسعار، و«أبرز الأسعار» للعروض الحقيقية، وتبويب «الكوبونات» لأكواد خصم مجرّبة ومؤكدة بس.",
+    "tour.alerts.title": "تنبيهات تليجرام مجانية وإعادة الجولة",
     "tour.alerts.body":
-      "افتح أي منتج وفعّل تنبيه تليجرام مجاني لما سعره ينزل، وشوف تبويب الكوبونات لأكواد خصم مُجرَّبة بس — كل كود بنختبره قبل ما ننشره.",
+      "اضغط على علامة الجرس على أي منتج وحدد السعر اللي يناسبك وهنبعتلك تنبيه فوري على تليجرام لما ينزل. وتقدر تعيد الجولة في أي وقت من زر «جولة سريعة» هنا.",
 
     "deals.title": "أبرز الأسعار",
     "deals.subtitle":
