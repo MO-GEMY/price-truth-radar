@@ -1693,7 +1693,7 @@ html[lang="ar"] .asarak-compare-hero h1 {
 
 .asarak-compare-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(max-content, 1.4fr) minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -1701,6 +1701,7 @@ html[lang="ar"] .asarak-compare-hero h1 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
   padding: 14px 14px;
   border-radius: var(--asarak-radius-md);
   background: var(--asarak-surface);
@@ -1709,10 +1710,11 @@ html[lang="ar"] .asarak-compare-hero h1 {
 
 .asarak-compare-stat__value {
   font-family: var(--asarak-font-mono);
-  font-size: clamp(1.1rem, 1.8vw, 1.35rem);
+  font-size: clamp(1rem, 1.45vw, 1.25rem);
   font-weight: 700;
   color: var(--asarak-ink);
-  line-height: 1.15;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .asarak-compare-stat__value--emerald {
@@ -2926,12 +2928,15 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   .ptr-offer > :last-child {
     grid-column: 1 / -1;
   }
-  .asarak-compare-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+ .asarak-compare-stats {
+    grid-template-columns: minmax(0, 1fr) minmax(max-content, 1.35fr) minmax(0, 1fr);
     gap: 8px;
   }
   .asarak-compare-stat {
     padding: 10px 8px;
+  }
+  .asarak-compare-stat__value {
+    font-size: clamp(0.88rem, 3.4vw, 1.05rem);
   }
   .asarak-arena-head {
     grid-template-columns: minmax(0, 1fr);

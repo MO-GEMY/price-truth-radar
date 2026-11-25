@@ -155,7 +155,7 @@ function computeInStockSaving(match: CrossStoreMatch): {
   const low = sorted[0];
   const high = sorted[sorted.length - 1];
   const gap = Math.max(0, high.price - low.price);
-  const pct = low.price > 0 ? (gap / low.price) * 100 : 0;
+const pct = high.price > 0 ? (gap / high.price) * 100 : 0;
   return {
     lowestInStock: low.price,
     highestInStock: high.price,
@@ -583,7 +583,7 @@ export default function ComparePage() {
               <span className="asarak-compare-stat__value asarak-compare-stat__value--emerald">
                 <bdi>
                   {pageStats && pageStats.topSaving > 0
-                    ? formatPrice(pageStats.topSaving, lang)
+                    ? formatPrice(Math.round(pageStats.topSaving), lang)
                     : "—"}
                 </bdi>
               </span>
