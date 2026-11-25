@@ -330,7 +330,7 @@ def _cmd_load_and_transform(args: argparse.Namespace) -> int:
             notified_modes.add(decision.mode)
 
         if not decision.allow_writes:
-            print("HARD_STOP active (> 950 MB) — aborting new writes cleanly.")
+            print(f"HARD_STOP active (> {args.stop_mb:.0f} MB) — aborting new writes cleanly.")
             return 0 if args.soft_exit_on_stop else 42
 
         # Step 2: Load strictly Priority 1 -> Priority 2 -> Priority 3A -> Priority 3B via PostgreSQL COPY

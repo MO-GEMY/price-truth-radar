@@ -153,7 +153,7 @@ try {
             $PipelineScript, "load-and-transform",
             "--artifacts-dir", $StagingDir,
             "--warn-mb", "900",
-            "--stop-mb", "950",
+            "--stop-mb", "970",
             "--soft-exit-on-stop"
         )
         if ($DryRun) {

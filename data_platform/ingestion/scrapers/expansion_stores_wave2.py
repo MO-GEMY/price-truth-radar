@@ -137,6 +137,7 @@ class _SimpleMagentoGraphQLScraper(BaseScraper):
     default_brand: str = ""
     override_brand: bool = False
     search_queries: tuple[tuple[str, str, Category], ...] = ()
+    expand_search_queries: tuple[tuple[str, str, Category], ...] = ()
     min_delay_seconds: float = 1.5
     request_timeout: float = 25.0
     page_size: int = 36
@@ -163,8 +164,22 @@ class _SimpleMagentoGraphQLScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_q_cap = max(20, math.ceil(target_limit / max(1, len(self.search_queries))) + 15)
-        max_pages = 3 if self.mode == "discover" else 1
+        active_queries = (
+            self.search_queries + self.expand_search_queries
+            if (self.mode == "expand" and self.expand_search_queries)
+            else self.search_queries
+        )
+        per_q_cap = (
+            max(200, math.ceil(target_limit / max(1, len(active_queries))) + 50)
+            if self.mode == "expand"
+            else max(20, math.ceil(target_limit / max(1, len(active_queries))) + 15)
+        )
+        if self.mode == "expand":
+            max_pages = min(25, max(8, self.expand_max_pages))
+        elif self.mode == "discover":
+            max_pages = 3
+        else:
+            max_pages = 1
         stock_field = " stock_status" if self.include_stock_status else ""
 
         with ImpersonatedHttpClient(
@@ -175,7 +190,7 @@ class _SimpleMagentoGraphQLScraper(BaseScraper):
             min_delay_seconds=effective_delay,
             jitter_range=(0.25, 0.7),
         ) as client:
-            for query_term, default_sub, cat_name in self.search_queries:
+            for query_term, default_sub, cat_name in active_queries:
                 if len(collected) >= target_limit:
                     break
                 q_count = 0
@@ -378,6 +393,36 @@ class MazayaEgScraper(_SimpleMagentoGraphQLScraper):
         ("mascara", "makeup", "beauty"),
         ("lipstick", "makeup", "beauty"),
     )
+    expand_search_queries: tuple[tuple[str, str, Category], ...] = (
+        ("chanel", "perfumes", "beauty"),
+        ("tom ford", "perfumes", "beauty"),
+        ("paco rabanne", "perfumes", "beauty"),
+        ("carolina herrera", "perfumes", "beauty"),
+        ("burberry", "perfumes", "beauty"),
+        ("bvlgari", "perfumes", "beauty"),
+        ("montblanc", "perfumes", "beauty"),
+        ("dolce", "perfumes", "beauty"),
+        ("prada", "perfumes", "beauty"),
+        ("valentino", "perfumes", "beauty"),
+        ("narciso", "perfumes", "beauty"),
+        ("lacoste", "perfumes", "beauty"),
+        ("jean paul", "perfumes", "beauty"),
+        ("clinique", "skincare", "beauty"),
+        ("estee lauder", "skincare", "beauty"),
+        ("shiseido", "skincare", "beauty"),
+        ("clarins", "skincare", "beauty"),
+        ("vichy", "skincare", "beauty"),
+        ("la roche", "skincare", "beauty"),
+        ("cerave", "skincare", "beauty"),
+        ("eucerin", "skincare", "beauty"),
+        ("foundation", "makeup", "beauty"),
+        ("concealer", "makeup", "beauty"),
+        ("eyeliner", "makeup", "beauty"),
+        ("sunscreen", "skincare", "beauty"),
+        ("cleanser", "skincare", "beauty"),
+        ("shampoo", "haircare", "beauty"),
+        ("lotion", "skincare", "beauty"),
+    )
 
     def _infer_sub(self, title: str, default_sub: str) -> str:
         return _infer_beauty_sub(title, default_sub)
@@ -417,7 +462,12 @@ class ChefaaScraper(BaseScraper):
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(20, math.ceil(target_limit / len(self._CATEGORIES)) + 10)
-        max_pages = 5 if self.mode == "discover" else 2
+        if self.mode == "expand":
+            max_pages = min(60, max(15, self.expand_max_pages))
+        elif self.mode == "discover":
+            max_pages = 5
+        else:
+            max_pages = 2
 
         with ImpersonatedHttpClient(
             impersonate="chrome",
@@ -568,7 +618,12 @@ class SeifPharmaciesScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
         per_cat_cap = max(24, math.ceil(target_limit / len(self._CAT_SLUGS)) + 12)
-        max_pages = 4 if self.mode == "discover" else 2
+        if self.mode == "expand":
+            max_pages = min(45, max(12, self.expand_max_pages))
+        elif self.mode == "discover":
+            max_pages = 4
+        else:
+            max_pages = 2
 
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
@@ -724,6 +779,48 @@ class IkeaEgScraper(BaseScraper):
         ("kitchen", "cookware"),
         ("curtain", "bedding_linens"),
     )
+    _EXPAND_EXTRA_QUERIES: tuple[tuple[str, str], ...] = (
+        ("cabinet", "storage"),
+        ("bookcase", "storage"),
+        ("mirror", "home_decor"),
+        ("pillow", "beds"),
+        ("duvet", "beds"),
+        ("towel", "bedding_linens"),
+        ("dining", "tables"),
+        ("stool", "chairs"),
+        ("armchair", "sofas"),
+        ("drawer", "storage"),
+        ("closet", "storage"),
+        ("bedside", "tables"),
+        ("coffee table", "tables"),
+        ("storage box", "storage"),
+        ("cookware", "cookware"),
+        ("pan", "cookware"),
+        ("pot", "cookware"),
+        ("plate", "cookware"),
+        ("mug", "cookware"),
+        ("glass", "cookware"),
+        ("knife", "cookware"),
+        ("plant", "home_decor"),
+        ("frame", "home_decor"),
+        ("candle", "home_decor"),
+        ("clock", "home_decor"),
+        ("bathroom", "storage"),
+        ("laundry", "storage"),
+        ("kids", "furniture"),
+        ("baby", "furniture"),
+        ("outdoor", "furniture"),
+        ("office", "tables"),
+        ("gaming", "chairs"),
+        ("led", "lighting"),
+        ("cushion", "home_decor"),
+        ("blanket", "beds"),
+        ("organizer", "storage"),
+        ("hanger", "storage"),
+        ("carpet", "rugs"),
+        ("vase", "home_decor"),
+        ("basket", "storage"),
+    )
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
         target_limit = self.get_target_limit() if limit is None else limit
@@ -736,7 +833,16 @@ class IkeaEgScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_q = min(60, max(12, math.ceil(target_limit / len(self._QUERIES)) + 8))
+        active_queries = (
+            self._QUERIES + self._EXPAND_EXTRA_QUERIES
+            if self.mode == "expand"
+            else self._QUERIES
+        )
+        per_q = (
+            120
+            if self.mode == "expand"
+            else min(60, max(12, math.ceil(target_limit / len(active_queries)) + 8))
+        )
 
         with ImpersonatedHttpClient(
             impersonate="chrome",
@@ -746,7 +852,7 @@ class IkeaEgScraper(BaseScraper):
             min_delay_seconds=effective_delay,
             jitter_range=(0.2, 0.5),
         ) as client:
-            for query_term, default_sub in self._QUERIES:
+            for query_term, default_sub in active_queries:
                 if len(collected) >= target_limit:
                     break
                 url = (
@@ -871,7 +977,8 @@ class FacesEgScraper(BaseScraper):
                 if len(collected) >= target_limit:
                     break
                 cat_cnt = 0
-                for start in (0, 60, 120):
+                starts = tuple(range(0, 1800, 60)) if self.mode == "expand" else (0, 60, 120)
+                for start in starts:
                     if len(collected) >= target_limit or cat_cnt >= per_cat_cap:
                         break
                     url = cat_url if start == 0 else f"{cat_url}?start={start}&sz=60"
@@ -978,7 +1085,7 @@ class FacesEgScraper(BaseScraper):
                             cat_cnt += 1
                             added_page += 1
 
-                    if added_page == 0 or self.mode != "discover":
+                    if added_page == 0 or self.mode not in ("discover", "expand"):
                         break
                 self.category_counts[f"beauty/{default_sub}"] = cat_cnt
 
@@ -1016,7 +1123,12 @@ class LcWaikikiEgScraper(BaseScraper):
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_grp = max(25, math.ceil(target_limit / len(self._GROUPS)) + 10)
-        max_pages = 2 if self.mode == "discover" else 1
+        if self.mode == "expand":
+            max_pages = min(40, max(12, self.expand_max_pages))
+        elif self.mode == "discover":
+            max_pages = 2
+        else:
+            max_pages = 1
 
         with ImpersonatedHttpClient(
             impersonate="chrome",
@@ -1145,6 +1257,28 @@ class DefactoEgScraper(BaseScraper):
         ("hoodie", "sweaters"),
         ("shoes", "shoes"),
     )
+    _EXPAND_EXTRA_QUERIES: tuple[tuple[str, str], ...] = (
+        ("coat", "jackets"),
+        ("cardigan", "sweaters"),
+        ("skirt", "dresses"),
+        ("blouse", "shirts"),
+        ("polo", "t_shirts"),
+        ("shorts", "pants"),
+        ("pajama", "apparel"),
+        ("bag", "accessories"),
+        ("sneakers", "shoes"),
+        ("boots", "shoes"),
+        ("kids", "apparel"),
+        ("baby", "apparel"),
+        ("vest", "jackets"),
+        ("tracksuit", "apparel"),
+        ("trousers", "pants"),
+        ("sweatshirt", "sweaters"),
+        ("pullover", "sweaters"),
+        ("blazer", "jackets"),
+        ("denim", "jeans"),
+        ("leggings", "pants"),
+    )
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
         target_limit = self.get_target_limit() if limit is None else limit
@@ -1157,8 +1291,18 @@ class DefactoEgScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_q = max(24, math.ceil(target_limit / len(self._QUERIES)) + 8)
-        max_pages = 3 if self.mode == "discover" else 1
+        active_queries = (
+            self._QUERIES + self._EXPAND_EXTRA_QUERIES
+            if self.mode == "expand"
+            else self._QUERIES
+        )
+        per_q = max(24, math.ceil(target_limit / len(active_queries)) + 12)
+        if self.mode == "expand":
+            max_pages = min(30, max(12, self.expand_max_pages))
+        elif self.mode == "discover":
+            max_pages = 3
+        else:
+            max_pages = 1
 
         with ImpersonatedHttpClient(
             impersonate="chrome",
@@ -1168,7 +1312,7 @@ class DefactoEgScraper(BaseScraper):
             min_delay_seconds=effective_delay,
             jitter_range=(0.25, 0.6),
         ) as client:
-            for query_term, default_sub in self._QUERIES:
+            for query_term, default_sub in active_queries:
                 if len(collected) >= target_limit:
                     break
                 q_cnt = 0
@@ -1319,7 +1463,12 @@ class PetsEgyptScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        max_pages = 3 if self.mode == "discover" else 1
+        if self.mode == "expand":
+            max_pages = min(35, max(12, self.expand_max_pages))
+        elif self.mode == "discover":
+            max_pages = 3
+        else:
+            max_pages = 1
 
         with ImpersonatedHttpClient(
             impersonate="chrome",

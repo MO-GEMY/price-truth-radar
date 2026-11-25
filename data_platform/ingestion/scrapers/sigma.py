@@ -375,7 +375,13 @@ class SigmaScraper(BaseScraper):
         seen_ids: set[str] = set()
 
         # Estimate pages needed with a small buffer in case any item is skipped
-        max_pages = max(1, math.ceil(target_limit / self.per_page) + 4)
+        start_p = max(1, self.start_page + 1) if self.mode == "expand" else 1
+        max_pages_budget = (
+            max(1, self.expand_max_pages or 60)
+            if self.mode == "expand"
+            else max(1, math.ceil(target_limit / self.per_page) + 4)
+        )
+        end_p = start_p + max_pages_budget - 1
         catalog_url = f"{self.base_url}{self.catalog_path}"
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
 
@@ -387,7 +393,7 @@ class SigmaScraper(BaseScraper):
             min_delay_seconds=effective_delay,
             jitter_range=(0.25, 0.8),
         ) as client:
-            for page in range(1, max_pages + 1):
+            for page in range(start_p, end_p + 1):
                 if len(collected) >= target_limit:
                     break
 

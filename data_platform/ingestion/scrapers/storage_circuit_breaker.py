@@ -1,10 +1,10 @@
-"""Automatic Neon storage circuit-breaker (900 MB / 950 MB) with Telegram alerting.
+"""Automatic Neon storage circuit-breaker (900 MB / 970 MB) with Telegram alerting.
 
 Thresholds:
   - `< 900 MB`      : FULL_EXPANSION    (ingest net-new in-stock products P1 -> P2 -> P3 + price updates)
-  - `900 - 950 MB`  : PRICE_UPDATE_ONLY (update prices/stock for already-tracked SKUs + active alerts only;
+  - `900 - 970 MB`  : PRICE_UPDATE_ONLY (update prices/stock for already-tracked SKUs + active alerts only;
                                          skip net-new inserts; send Telegram warning)
-  - `> 950 MB`      : HARD_STOP         (abort new writes cleanly; send critical Telegram alert)
+  - `> 970 MB`      : HARD_STOP         (abort new writes cleanly; send critical Telegram alert)
   - `> 700 MB`      : VACUUM FULL forbidden (`can_run_vacuum_full(size_mb) == False`)
 """
 
@@ -23,7 +23,7 @@ from .base import RawProductSnapshot, compute_product_sk
 logger = logging.getLogger(__name__)
 
 EXPANSION_CEILING_MB = 900.0
-HARD_STOP_CEILING_MB = 950.0
+HARD_STOP_CEILING_MB = 970.0
 VACUUM_FULL_MAX_MB = 700.0
 TELEGRAM_API_BASE = "https://api.telegram.org"
 

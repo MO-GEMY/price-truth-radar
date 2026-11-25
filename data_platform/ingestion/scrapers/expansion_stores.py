@@ -61,10 +61,11 @@ class JumiaScraper(BaseScraper):
     base_url = "https://www.jumia.com.eg"
     default_limit = 300
     discover_limit = 900
+    expand_limit = 15000
     groceries_limit = 200
     fashion_limit = 200
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries", "fashion")
-    min_delay_seconds = 2.0
+    min_delay_seconds = 1.8
     request_timeout = 25.0
 
     _CORE_URLS: tuple[tuple[str, Category, str], ...] = (
@@ -79,6 +80,30 @@ class JumiaScraper(BaseScraper):
         ("furniture", "home_furniture", "https://www.jumia.com.eg/home-office/"),
         ("sports_gear", "sports", "https://www.jumia.com.eg/sporting-goods/"),
         ("baby_care", "baby_kids", "https://www.jumia.com.eg/baby-products/"),
+    )
+    _CORE_EXPAND_EXTRA_URLS: tuple[tuple[str, Category, str], ...] = (
+        ("tablets", "electronics", "https://www.jumia.com.eg/tablets/"),
+        ("monitors", "electronics", "https://www.jumia.com.eg/computer-monitors/"),
+        ("headphones", "electronics", "https://www.jumia.com.eg/headphones/"),
+        ("wearables", "electronics", "https://www.jumia.com.eg/smart-watches/"),
+        ("printers", "electronics", "https://www.jumia.com.eg/printers/"),
+        ("storage", "electronics", "https://www.jumia.com.eg/data-storage/"),
+        ("networking", "electronics", "https://www.jumia.com.eg/networking-products/"),
+        ("cameras", "electronics", "https://www.jumia.com.eg/cameras/"),
+        ("accessories", "electronics", "https://www.jumia.com.eg/mobile-accessories/"),
+        ("refrigerators", "home_appliances", "https://www.jumia.com.eg/refrigerators/"),
+        ("washing_machines", "home_appliances", "https://www.jumia.com.eg/washers-dryers/"),
+        ("air_conditioners", "home_appliances", "https://www.jumia.com.eg/air-conditioning/"),
+        ("small_appliances", "home_appliances", "https://www.jumia.com.eg/small-appliances/"),
+        ("cookers", "home_appliances", "https://www.jumia.com.eg/cooking-appliances/"),
+        ("perfumes", "beauty", "https://www.jumia.com.eg/fragrances/"),
+        ("skincare", "beauty", "https://www.jumia.com.eg/skin-care/"),
+        ("haircare", "beauty", "https://www.jumia.com.eg/hair-care/"),
+        ("makeup", "beauty", "https://www.jumia.com.eg/makeup/"),
+        ("vitamins", "health", "https://www.jumia.com.eg/vitamins-dietary-supplements/"),
+        ("cookware", "home_furniture", "https://www.jumia.com.eg/home-kitchen/"),
+        ("toys", "baby_kids", "https://www.jumia.com.eg/toys-games/"),
+        ("pet_food", "pet_care", "https://www.jumia.com.eg/pet-supplies/"),
     )
     _GROCERIES_URLS: tuple[tuple[str, Category, str], ...] = (
         ("oils_ghee", "groceries", "https://www.jumia.com.eg/groceries/"),
@@ -97,6 +122,8 @@ class JumiaScraper(BaseScraper):
             return self._GROCERIES_URLS
         if self.vertical == "fashion":
             return self._FASHION_URLS
+        if self.mode == "expand":
+            return self._CORE_URLS + self._CORE_EXPAND_EXTRA_URLS
         return self._CORE_URLS
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
@@ -112,7 +139,11 @@ class JumiaScraper(BaseScraper):
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(8, math.ceil(target_limit / max(1, len(urls))))
-        max_pages = 5 if self.mode == "discover" else 2
+        if self.mode == "expand":
+            max_pages = max(12, min(40, self.expand_max_pages or 25))
+            per_cat_cap = max(per_cat_cap, 1000)
+        else:
+            max_pages = 5 if self.mode == "discover" else 2
         blocked = False
 
         with ImpersonatedHttpClient(
@@ -471,7 +502,12 @@ class HomzmartScraper(BaseScraper):
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(8, math.ceil(target_limit / len(self._CATEGORY_URLS)))
-        max_pages = 5 if self.mode == "discover" else 2
+        if self.mode == "expand":
+            max_pages = min(40, max(15, self.expand_max_pages))
+        elif self.mode == "discover":
+            max_pages = 5
+        else:
+            max_pages = 2
 
         with ImpersonatedHttpClient(
             impersonate="chrome",

@@ -245,7 +245,8 @@ class TwoBScraper(BaseScraper):
     base_url = "https://2b.com.eg"
     default_limit = 400
     discover_limit = 1200
-    min_delay_seconds = 2.5
+    expand_limit = 10000
+    min_delay_seconds = 2.0
     request_timeout = 45.0
     page_limit = 48
 
@@ -345,7 +346,11 @@ class TwoBScraper(BaseScraper):
         seen_ids: set[str] = set()
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(5, math.ceil(target_limit / len(TWO_B_CATEGORIES)))
-        max_pages = 8 if self.mode in ("discover", "expand") else 2
+        if self.mode == "expand":
+            max_pages = max(12, min(30, self.expand_max_pages or 20))
+            per_cat_cap = max(per_cat_cap, 1200)
+        else:
+            max_pages = 8 if self.mode == "discover" else 2
         self.category_counts = {}
         failed_categories: list[str] = []
 

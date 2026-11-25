@@ -65,6 +65,101 @@ BTECH_CATEGORIES: list[tuple[str, Category, str]] = [
     ("cookware", "home_furniture", "https://btech.com/en/c/kitchenware"),
 ]
 
+# Deep brand/subcategory/sort SSR URLs used ONLY in `mode="expand"` (keeps daily runs lean)
+BTECH_EXPAND_EXTRA_URLS: list[tuple[str, Category, str]] = [
+    ("refrigerators", "home_appliances", "https://btech.com/en/c/large-home-appliances/refrigerators"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/c/small-home-appliances/air-fryers"),
+    ("smartphones", "electronics", "https://btech.com/en/c/mobiles-tablets/mobile-phones?sort=price_asc"),
+    ("smartphones", "electronics", "https://btech.com/en/c/mobiles-tablets/mobile-phones?sort=price_desc"),
+    ("laptops", "electronics", "https://btech.com/en/c/laptop-pc/laptops?sort=price_asc"),
+    ("laptops", "electronics", "https://btech.com/en/c/laptop-pc/laptops?sort=price_desc"),
+    ("tvs", "home_appliances", "https://btech.com/en/c/tvs-projectors/televisions?sort=price_asc"),
+    ("tvs", "home_appliances", "https://btech.com/en/c/tvs-projectors/televisions?sort=price_desc"),
+    ("air_conditioners", "home_appliances", "https://btech.com/en/c/large-home-appliances/air-conditioners?sort=price_asc"),
+    ("air_conditioners", "home_appliances", "https://btech.com/en/c/large-home-appliances/air-conditioners?sort=price_desc"),
+    ("washing_machines", "home_appliances", "https://btech.com/en/c/large-home-appliances/washing-machines-dryers?sort=price_asc"),
+    ("washing_machines", "home_appliances", "https://btech.com/en/c/large-home-appliances/washing-machines-dryers?sort=price_desc"),
+    ("refrigerators", "home_appliances", "https://btech.com/en/c/large-home-appliances/refrigerators?sort=price_asc"),
+    ("refrigerators", "home_appliances", "https://btech.com/en/c/large-home-appliances/refrigerators?sort=price_desc"),
+    ("cookers", "home_appliances", "https://btech.com/en/c/large-home-appliances/cookers?sort=price_asc"),
+    ("cookers", "home_appliances", "https://btech.com/en/c/large-home-appliances/cookers?sort=price_desc"),
+    ("dishwashers", "home_appliances", "https://btech.com/en/c/large-home-appliances/dishwashers?sort=price_asc"),
+    ("microwaves", "home_appliances", "https://btech.com/en/c/small-home-appliances/microwaves-ovens?sort=price_asc"),
+    ("vacuums", "home_appliances", "https://btech.com/en/c/small-home-appliances/vacuum-cleaners?sort=price_asc"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/c/small-home-appliances/kettles-coffee-makers?sort=price_asc"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/c/small-home-appliances/blenders-mixers?sort=price_asc"),
+    ("headphones", "electronics", "https://btech.com/en/c/audio-recording?sort=price_asc"),
+    ("monitors", "electronics", "https://btech.com/en/c/laptop-pc/monitors?sort=price_asc"),
+    ("tablets", "electronics", "https://btech.com/en/c/mobiles-tablets/tablets?sort=price_asc"),
+    ("wearables", "electronics", "https://btech.com/en/c/wearables?sort=price_asc"),
+    ("gaming", "electronics", "https://btech.com/en/c/gaming-area?sort=price_asc"),
+    # Brand-sharded SSR search pages on B.TECH
+    ("smartphones", "electronics", "https://btech.com/en/s?q=samsung"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=apple"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=iphone"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=xiaomi"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=oppo"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=realme"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=honor"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=infinix"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=vivo"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=huawei"),
+    ("smartphones", "electronics", "https://btech.com/en/s?q=nokia"),
+    ("laptops", "electronics", "https://btech.com/en/s?q=lenovo"),
+    ("laptops", "electronics", "https://btech.com/en/s?q=hp"),
+    ("laptops", "electronics", "https://btech.com/en/s?q=dell"),
+    ("laptops", "electronics", "https://btech.com/en/s?q=asus"),
+    ("laptops", "electronics", "https://btech.com/en/s?q=acer"),
+    ("laptops", "electronics", "https://btech.com/en/s?q=msi"),
+    ("tvs", "home_appliances", "https://btech.com/en/s?q=lg"),
+    ("tvs", "home_appliances", "https://btech.com/en/s?q=sharp"),
+    ("tvs", "home_appliances", "https://btech.com/en/s?q=toshiba"),
+    ("tvs", "home_appliances", "https://btech.com/en/s?q=tornado"),
+    ("tvs", "home_appliances", "https://btech.com/en/s?q=tcl"),
+    ("tvs", "home_appliances", "https://btech.com/en/s?q=haier"),
+    ("tvs", "home_appliances", "https://btech.com/en/s?q=hisense"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=fresh"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=beko"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=zanussi"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=hoover"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=bosch"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=ariston"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=carrier"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=midea"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=unionaire"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=kiriazi"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=white+whale"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=white+point"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=indesit"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=electrolux"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=la+germania"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=elba"),
+    ("large_appliances", "home_appliances", "https://btech.com/en/s?q=olympic"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=philips"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=braun"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=tefal"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=kenwood"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=moulinex"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=delonghi"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=black+decker"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=mienta"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=ninja"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=nespresso"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=air+fryer"),
+    ("kitchen_appliances", "home_appliances", "https://btech.com/en/s?q=coffee+maker"),
+    ("headphones", "electronics", "https://btech.com/en/s?q=sony"),
+    ("headphones", "electronics", "https://btech.com/en/s?q=jbl"),
+    ("headphones", "electronics", "https://btech.com/en/s?q=anker"),
+    ("headphones", "electronics", "https://btech.com/en/s?q=oraimo"),
+    ("headphones", "electronics", "https://btech.com/en/s?q=soundcore"),
+    ("gaming", "electronics", "https://btech.com/en/s?q=playstation"),
+    ("gaming", "electronics", "https://btech.com/en/s?q=logitech"),
+    ("gaming", "electronics", "https://btech.com/en/s?q=hyperx"),
+    ("networking", "electronics", "https://btech.com/en/s?q=tp-link"),
+    ("printers", "electronics", "https://btech.com/en/s?q=canon"),
+    ("printers", "electronics", "https://btech.com/en/s?q=epson"),
+]
+
 _MEDIA_BASE_URL = "https://media.btech.com/catalogs/"
 _RSC_PUSH_RE = re.compile(r'self\.__next_f\.push\(\[1,"(.*?)"\]\)', re.S)
 
@@ -267,8 +362,8 @@ class BTechScraper(BaseScraper):
     base_url = "https://btech.com"
     default_limit = 500
     discover_limit = 1500
-    expand_limit = 2500
-    min_delay_seconds = 2.5
+    expand_limit = 6000
+    min_delay_seconds = 2.0
 
     def _build_record(
         self,
@@ -357,7 +452,12 @@ class BTechScraper(BaseScraper):
         collected: list[RawProductSnapshot] = []
         seen_ids: set[str] = set()
 
-        for default_subcat, cat_name, category_url in BTECH_CATEGORIES:
+        cats = (
+            BTECH_CATEGORIES + BTECH_EXPAND_EXTRA_URLS
+            if self.mode == "expand"
+            else BTECH_CATEGORIES
+        )
+        for default_subcat, cat_name, category_url in cats:
             if len(collected) >= target_limit:
                 break
 

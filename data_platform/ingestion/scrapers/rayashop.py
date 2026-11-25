@@ -178,6 +178,7 @@ class RayaShopScraper(BaseScraper):
     base_url = "https://www.rayashop.com"
     default_limit = 200
     discover_limit = 800
+    expand_limit = 8000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds = 2.0
     request_timeout = 30.0
@@ -317,7 +318,11 @@ class RayaShopScraper(BaseScraper):
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(2, math.ceil(target_limit / len(RAYASHOP_CATEGORIES)))
-        max_pages = 6 if self.mode in ("discover", "expand") else (2 if target_limit > 40 else 1)
+        if self.mode == "expand":
+            max_pages = max(10, min(25, self.expand_max_pages or 18))
+            per_cat_cap = max(per_cat_cap, 900)
+        else:
+            max_pages = 6 if self.mode == "discover" else (2 if target_limit > 40 else 1)
         blocked = False
 
         with ImpersonatedHttpClient(

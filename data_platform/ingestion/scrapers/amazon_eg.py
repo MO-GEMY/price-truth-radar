@@ -94,6 +94,111 @@ AMAZON_EG_DISCOVER_EXTRA_QUERIES: list[tuple[str, Category, str]] = [
     ("bedding", "home_furniture", "memory foam pillow bedding"),
 ]
 
+# Deep sharded brand/subcategory queries used ONLY in `mode="expand"` (keeps daily runs lean)
+AMAZON_EG_EXPAND_EXTRA_QUERIES: list[tuple[str, Category, str]] = [
+    # Wave 1: Electronics, Mobiles, Laptops, Gaming, Audio, Monitors, PC Parts
+    ("smartphones", "electronics", "samsung galaxy a55 a35 a16"),
+    ("smartphones", "electronics", "samsung galaxy s24 s25 ultra"),
+    ("smartphones", "electronics", "oppo reno smartphone"),
+    ("smartphones", "electronics", "realme smartphone"),
+    ("smartphones", "electronics", "honor smartphone"),
+    ("smartphones", "electronics", "infinix tecno smartphone"),
+    ("smartphones", "electronics", "nokia vivo smartphone"),
+    ("laptops", "electronics", "lenovo ideapad thinkpad laptop"),
+    ("laptops", "electronics", "hp pavilion victus laptop"),
+    ("laptops", "electronics", "dell inspiron vostro latitude laptop"),
+    ("laptops", "electronics", "asus vivobook zenbook tuf laptop"),
+    ("laptops", "electronics", "acer aspire nitro laptop"),
+    ("laptops", "electronics", "msi gaming laptop"),
+    ("laptops", "electronics", "apple macbook air pro"),
+    ("tablets", "electronics", "lenovo xiaomi huawei tablet"),
+    ("monitors", "electronics", "samsung lg monitor"),
+    ("monitors", "electronics", "asus msi aoc benq monitor"),
+    ("monitors", "electronics", "dell hp viewsonic monitor"),
+    ("gaming", "electronics", "xbox nintendo switch console"),
+    ("gaming", "electronics", "gaming keyboard mechanical"),
+    ("gaming", "electronics", "gaming mouse logitech razer"),
+    ("gaming", "electronics", "gaming headset hyperx"),
+    ("headphones", "electronics", "apple airpods sony wh wf"),
+    ("headphones", "electronics", "jbl soundcore anker earbuds"),
+    ("headphones", "electronics", "oraimo xiaomi buds earbuds"),
+    ("speakers", "electronics", "jbl bluetooth speaker soundbar"),
+    ("wearables", "electronics", "samsung galaxy watch huawei watch"),
+    ("wearables", "electronics", "xiaomi mi band amazfit smartwatch"),
+    ("storage", "electronics", "kingston crucial western digital ssd"),
+    ("storage", "electronics", "seagate external hard drive"),
+    ("storage", "electronics", "sandisk flash drive memory card"),
+    ("components", "electronics", "nvidia rtx graphics card"),
+    ("components", "electronics", "amd ryzen intel core processor"),
+    ("components", "electronics", "motherboard gigabyte asus msi"),
+    ("components", "electronics", "ddr4 ddr5 desktop ram corsair"),
+    ("components", "electronics", "power supply 80 plus gold psu"),
+    ("components", "electronics", "pc case cpu cooler"),
+    ("networking", "electronics", "mesh wifi router extender"),
+    ("printers", "electronics", "epson canon brother printer"),
+    ("accessories", "electronics", "anker ugreen power bank charger"),
+    ("accessories", "electronics", "baseus joyroom usb c hub cable"),
+    ("cameras", "electronics", "sony nikon gopro dji camera"),
+    # Wave 1: Home Appliances (Egypt's top brands & sub-types)
+    ("tvs", "home_appliances", "samsung lg smart tv"),
+    ("tvs", "home_appliances", "tcl tornado sharp toshiba tv"),
+    ("tvs", "home_appliances", "xiaomi haier hisense smart tv"),
+    ("air_conditioners", "home_appliances", "carrier midea sharp air conditioner"),
+    ("air_conditioners", "home_appliances", "fresh tornado unionaire air conditioner"),
+    ("refrigerators", "home_appliances", "sharp toshiba lg refrigerator"),
+    ("refrigerators", "home_appliances", "beko zanussi fresh kiriazi fridge"),
+    ("freezers", "home_appliances", "deep freezer vertical chest"),
+    ("washing_machines", "home_appliances", "lg samsung bosch washing machine"),
+    ("washing_machines", "home_appliances", "zanussi beko toshiba hoover washer"),
+    ("dishwashers", "home_appliances", "bosch beko lg ariston dishwasher"),
+    ("cookers", "home_appliances", "fresh unionaire zanussi gas cooker"),
+    ("ovens", "home_appliances", "built in oven electric oven"),
+    ("microwaves", "home_appliances", "sharp tornado fresh black decker microwave"),
+    ("water_heaters", "home_appliances", "ariston olympic fresh water heater"),
+    ("vacuums", "home_appliances", "hoover philips bosch tornado vacuum"),
+    ("kitchen_appliances", "home_appliances", "delonghi nespresso coffee machine"),
+    ("kitchen_appliances", "home_appliances", "philips ninja tefal air fryer"),
+    ("kitchen_appliances", "home_appliances", "kenwood braun moulinex blender mixer"),
+    ("kitchen_appliances", "home_appliances", "electric kettle toaster sandwich maker"),
+    ("irons", "home_appliances", "philips tefal braun steam iron"),
+    ("fans", "home_appliances", "tornado fresh ata stand fan"),
+    # Wave 2: Beauty, Skincare, Perfumes, Health, Home/Kitchen, Baby
+    ("perfumes", "beauty", "lattafa armaf rasasi perfume"),
+    ("perfumes", "beauty", "dior chanel versace calvin klein perfume"),
+    ("perfumes", "beauty", "hugo boss giorgio armani ysl perfume"),
+    ("skincare", "beauty", "bioderma vichy eucerin skincare"),
+    ("skincare", "beauty", "garnier neutrogena nivea face wash"),
+    ("skincare", "beauty", "the ordinary cetaphil serum sunscreen"),
+    ("haircare", "beauty", "kerastase pantene tresemme shampoo"),
+    ("makeup", "beauty", "maybelline loreal nyx makeup"),
+    ("personal_care", "beauty", "braun philips trimmer shaver epilator"),
+    ("personal_care", "beauty", "oral b electric toothbrush hair dryer"),
+    ("vitamins", "health", "now foods centrum solgar vitamins"),
+    ("supplements", "health", "creatine protein muscletech dymatize"),
+    ("cookware", "home_furniture", "neoflam zahran luminarc cookware"),
+    ("cookware", "home_furniture", "pyrex korkmaz granite cookware set"),
+    ("baby_care", "baby_kids", "molfix babyjoy chicco avent baby"),
+    ("baby_gear", "baby_kids", "baby stroller car seat"),
+    ("toys", "baby_kids", "barbie hot wheels intex toys"),
+    # Wave 3: Sports & Footwear overlap
+    ("footwear", "fashion", "skechers puma reebok new balance shoes"),
+    ("sports_gear", "sports", "treadmill exercise bike yoga mat"),
+]
+
+AMAZON_EG_GROCERY_EXPAND_QUERIES: list[tuple[str, Category, str]] = [
+    ("oils_ghee", "groceries", "afia slite olive oil"),
+    ("rice_pasta", "groceries", "italiano regina barilla pasta"),
+    ("dairy_cheese", "groceries", "almarai lamar president cheese"),
+    ("tea_coffee", "groceries", "el arosa dilmah ahmad tea"),
+    ("tea_coffee", "groceries", "davidoff jacobs starbucks coffee"),
+    ("canned_sauces", "groceries", "harvest vitrac jam honey"),
+    ("beverages", "groceries", "red bull schweppes mineral water"),
+    ("detergents", "groceries", "downy comfort dettol clorox"),
+    ("snacks", "groceries", "cadbury galaxy lindt nutella chocolate"),
+    ("snacks", "groceries", "lays chipsy doritos biscuits"),
+    ("pet_food", "pet_care", "whiskas friskies purina cat litter"),
+]
+
 # Egyptian Groceries ("سلة البيت المصري") — 7 high-frequency household sub-categories
 AMAZON_EG_GROCERY_QUERIES: list[tuple[str, Category, str]] = [
     ("oils_ghee", "groceries", "crystal sunflower oil"),
@@ -241,11 +346,11 @@ class AmazonEgScraper(BaseScraper):
     base_url = "https://www.amazon.eg"
     default_limit = 500
     discover_limit = 2000
-    expand_limit = 3500
+    expand_limit = 15000
     groceries_limit = 400
     discover_groceries_limit = 1200
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
-    min_delay_seconds = 4.0
+    min_delay_seconds = 3.5
     request_timeout = 30.0
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
@@ -259,8 +364,14 @@ class AmazonEgScraper(BaseScraper):
 
         is_groceries = self.vertical == "groceries"
         if is_groceries:
-            queries = AMAZON_EG_GROCERY_QUERIES
-        elif self.mode in ("discover", "expand"):
+            queries = (
+                AMAZON_EG_GROCERY_QUERIES + AMAZON_EG_GROCERY_EXPAND_QUERIES
+                if self.mode == "expand"
+                else AMAZON_EG_GROCERY_QUERIES
+            )
+        elif self.mode == "expand":
+            queries = AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES + AMAZON_EG_EXPAND_EXTRA_QUERIES
+        elif self.mode == "discover":
             queries = AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES
         else:
             queries = AMAZON_EG_QUERIES
@@ -271,12 +382,15 @@ class AmazonEgScraper(BaseScraper):
             if is_groceries
             else max(3, math.ceil(target_limit / len(queries)))
         )
-        max_pages = (
-            (5 if self.mode in ("discover", "expand") else 2)
-            if is_groceries
-            else (6 if self.mode in ("discover", "expand") else (2 if target_limit <= 120 else 3))
-        )
+        if self.mode == "expand":
+            max_pages = max(5, min(7, self.expand_max_pages or 7))
+            per_query_cap = max(per_query_cap, 280)
+        elif is_groceries:
+            max_pages = 5 if self.mode == "discover" else 2
+        else:
+            max_pages = 6 if self.mode == "discover" else (2 if target_limit <= 120 else 3)
         throttled = False
+        consecutive_throttles = 0
 
         with ImpersonatedHttpClient(
             impersonate="chrome",
@@ -312,14 +426,21 @@ class AmazonEgScraper(BaseScraper):
                     logger.info("[amazon_eg] Fetching query=%r (%s) page %d", query, top_category, page)
                     try:
                         resp = client.get(search_url, check_throttle=True, min_html_bytes=5120)
+                        consecutive_throttles = 0
                     except ThrottledResponseError as exc:
+                        consecutive_throttles += 1
                         logger.warning(
-                            "[amazon_eg] Throttled on query=%r page %d (%s); exiting gracefully with %d snapshots.",
+                            "[amazon_eg] Throttled on query=%r page %d (%s; strike=%d); %d snapshots so far.",
                             query,
                             page,
                             exc,
+                            consecutive_throttles,
                             len(snapshots),
                         )
+                        if self.mode == "expand" and consecutive_throttles < 3:
+                            import time as _time
+                            _time.sleep(10.0 * consecutive_throttles)
+                            break
                         throttled = True
                         break
                     except Exception as exc:

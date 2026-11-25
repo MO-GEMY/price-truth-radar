@@ -179,13 +179,13 @@ class TestStorageCircuitBreaker(unittest.TestCase):
         self.assertTrue(d_ok.allow_writes)
         self.assertFalse(d_ok.should_notify)
 
-        d_warn = evaluate_storage_mode(912.40)
+        d_warn = evaluate_storage_mode(951.20)
         self.assertEqual(d_warn.mode, "PRICE_UPDATE_ONLY")
         self.assertFalse(d_warn.allow_new_inserts)
         self.assertTrue(d_warn.allow_writes)
         self.assertTrue(d_warn.should_notify)
 
-        d_stop = evaluate_storage_mode(951.20)
+        d_stop = evaluate_storage_mode(971.20)
         self.assertEqual(d_stop.mode, "HARD_STOP")
         self.assertFalse(d_stop.allow_new_inserts)
         self.assertFalse(d_stop.allow_writes)
@@ -247,12 +247,12 @@ class TestWorkflowAndDbtHygieneGuards(unittest.TestCase):
         self.assertEqual(env.get("DATABASE_URL_ADMIN"), "")
         self.assertEqual(env.get("DATABASE_URL_READONLY"), "")
 
-        # Verify load-match-dbt runs strictly after scrape-offline with 900/950 circuit breaker
+        # Verify load-match-dbt runs strictly after scrape-offline with 900/970 circuit breaker
         load_job = wf["jobs"]["load-match-dbt"]
         self.assertIn("scrape-offline", load_job["needs"])
         load_cmd = " ".join(str(s.get("run", "")) for s in load_job["steps"])
         self.assertIn("--warn-mb 900", load_cmd)
-        self.assertIn("--stop-mb 950", load_cmd)
+        self.assertIn("--stop-mb 970", load_cmd)
 
     def test_dbt_mart_verdicts_has_45d_oos_hygiene_and_preserves_history(self) -> None:
         sql = (REPO_ROOT / "data_platform" / "warehouse_dbt" / "models" / "marts" / "mart_product_verdicts.sql").read_text(encoding="utf-8")

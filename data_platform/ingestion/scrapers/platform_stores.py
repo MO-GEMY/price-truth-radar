@@ -142,6 +142,7 @@ class ElArabyScraper(MagentoGraphQLBaseScraper):
     store_header = "en"
     default_limit = 200
     discover_limit = 1000
+    expand_limit = 8000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     search_queries: tuple[tuple[str, Category, str], ...] = (
         ("tvs", "home_appliances", "tornado"),
@@ -150,6 +151,33 @@ class ElArabyScraper(MagentoGraphQLBaseScraper):
         ("washing_machines", "home_appliances", "hoover"),
         ("kitchen_appliances", "home_appliances", "kenwood"),
         ("small_appliances", "home_appliances", "braun"),
+    )
+    expand_search_queries: tuple[tuple[str, Category, str], ...] = (
+        ("tvs", "home_appliances", "tornado"),
+        ("air_conditioners", "home_appliances", "sharp"),
+        ("refrigerators", "home_appliances", "toshiba"),
+        ("washing_machines", "home_appliances", "hoover"),
+        ("kitchen_appliances", "home_appliances", "kenwood"),
+        ("small_appliances", "home_appliances", "braun"),
+        ("cookers", "home_appliances", "la germania"),
+        ("watches_jewelry", "fashion", "seiko"),
+        ("kitchen_appliances", "home_appliances", "tiger"),
+        ("tvs", "home_appliances", "sony"),
+        ("refrigerators", "home_appliances", "hitachi"),
+        ("tvs", "home_appliances", "tv"),
+        ("refrigerators", "home_appliances", "refrigerator"),
+        ("freezers", "home_appliances", "freezer"),
+        ("washing_machines", "home_appliances", "washing machine"),
+        ("dishwashers", "home_appliances", "dishwasher"),
+        ("cookers", "home_appliances", "cooker"),
+        ("water_heaters", "home_appliances", "heater"),
+        ("fans", "home_appliances", "fan"),
+        ("vacuums", "home_appliances", "vacuum"),
+        ("microwaves", "home_appliances", "microwave"),
+        ("air_conditioners", "home_appliances", "air conditioner"),
+        ("kitchen_appliances", "home_appliances", "blender"),
+        ("kitchen_appliances", "home_appliances", "kettle"),
+        ("irons", "home_appliances", "iron"),
     )
 
 
@@ -305,15 +333,24 @@ class SSRCardScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
+        urls = (
+            getattr(self, "expand_category_urls", None) or self.category_urls
+            if self.mode == "expand"
+            else self.category_urls
+        )
         per_cat_cap = (
             target_limit
             if target_limit <= 10
-            else max(5, math.ceil(target_limit / max(1, len(self.category_urls))))
+            else max(5, math.ceil(target_limit / max(1, len(urls))))
         )
-        max_pages = 8 if self.mode in ("discover", "expand") else (3 if target_limit > 30 else 1)
+        if self.mode == "expand":
+            max_pages = max(10, min(30, self.expand_max_pages or 20))
+            per_cat_cap = max(per_cat_cap, 600)
+        else:
+            max_pages = 8 if self.mode == "discover" else (3 if target_limit > 30 else 1)
         blocked = False
 
-        for default_sub, cat_name, cat_url in self.category_urls:
+        for default_sub, cat_name, cat_url in urls:
             if len(collected) >= target_limit or blocked:
                 break
             cat_collected = 0
@@ -520,6 +557,20 @@ class ElBadrScraper(SSRCardScraper):
         ("gpus", "electronics", "https://elbadrgroupeg.store/vga"),
         ("cpus", "electronics", "https://elbadrgroupeg.store/processor"),
     )
+    expand_category_urls: tuple[tuple[str, Category, str], ...] = (
+        ("laptops", "electronics", "https://elbadrgroupeg.store/laptop"),
+        ("monitors", "electronics", "https://elbadrgroupeg.store/monitors"),
+        ("gpus", "electronics", "https://elbadrgroupeg.store/vga"),
+        ("cpus", "electronics", "https://elbadrgroupeg.store/processor"),
+        ("motherboards", "electronics", "https://elbadrgroupeg.store/motherboards"),
+        ("memory", "electronics", "https://elbadrgroupeg.store/ram"),
+        ("storage", "electronics", "https://elbadrgroupeg.store/storage"),
+        ("power_supplies", "electronics", "https://elbadrgroupeg.store/power-supply"),
+        ("cases", "electronics", "https://elbadrgroupeg.store/cases"),
+        ("cooling", "electronics", "https://elbadrgroupeg.store/cooling"),
+        ("peripherals", "electronics", "https://elbadrgroupeg.store/accessories"),
+        ("networking", "electronics", "https://elbadrgroupeg.store/network"),
+    )
 
 
 class CompuScienceScraper(SSRCardScraper):
@@ -580,6 +631,18 @@ class EgyptLaptopScraper(SSRCardScraper):
         ("laptops", "electronics", "https://egyptlaptop.com/laptops/laptops-and-notebooks"),
         ("laptops", "electronics", "https://egyptlaptop.com/laptops/gaming-laptops"),
         ("monitors", "electronics", "https://egyptlaptop.com/monitors"),
+    )
+    expand_category_urls: tuple[tuple[str, Category, str], ...] = (
+        ("laptops", "electronics", "https://egyptlaptop.com/laptops/laptops-and-notebooks"),
+        ("laptops", "electronics", "https://egyptlaptop.com/laptops/gaming-laptops"),
+        ("monitors", "electronics", "https://egyptlaptop.com/monitors"),
+        ("desktops", "electronics", "https://egyptlaptop.com/desktops"),
+        ("components", "electronics", "https://egyptlaptop.com/pc-components"),
+        ("storage", "electronics", "https://egyptlaptop.com/storage-devices"),
+        ("printers", "electronics", "https://egyptlaptop.com/printers-and-scanners"),
+        ("networking", "electronics", "https://egyptlaptop.com/networking"),
+        ("accessories", "electronics", "https://egyptlaptop.com/accessories"),
+        ("tablets", "electronics", "https://egyptlaptop.com/tablets"),
     )
 
 

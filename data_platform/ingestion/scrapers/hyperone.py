@@ -64,6 +64,35 @@ HYPERONE_GROCERY_QUERIES: list[tuple[str, str]] = [
     ("pet_food", "cat food"),
 ]
 
+HYPERONE_EXPAND_EXTRA_QUERIES: list[tuple[str, str]] = [
+    ("oils_ghee", "sunflower oil"),
+    ("oils_ghee", "olive oil"),
+    ("oils_ghee", "butter"),
+    ("rice_pasta", "macaroni"),
+    ("rice_pasta", "flour"),
+    ("rice_pasta", "sugar"),
+    ("dairy_cheese", "yogurt"),
+    ("dairy_cheese", "cream"),
+    ("dairy_cheese", "labneh"),
+    ("tea_coffee", "coffee"),
+    ("tea_coffee", "green tea"),
+    ("canned_sauces", "ketchup"),
+    ("canned_sauces", "mayonnaise"),
+    ("canned_sauces", "jam"),
+    ("canned_sauces", "beans"),
+    ("beverages", "water"),
+    ("beverages", "cola"),
+    ("detergents", "dettol"),
+    ("detergents", "downy"),
+    ("detergents", "clorox"),
+    ("detergents", "soap"),
+    ("detergents", "toothpaste"),
+    ("snacks", "chips"),
+    ("snacks", "nuts"),
+    ("baby_care", "baby milk"),
+    ("baby_care", "wipes"),
+]
+
 _HYPERONE_GQL_QUERY = """
 query SearchProducts($search: String!, $pageSize: Int!, $currentPage: Int!) {
   products(search: $search, pageSize: $pageSize, currentPage: $currentPage) {
@@ -151,6 +180,7 @@ class HyperOneScraper(BaseScraper):
     default_limit = 350
     groceries_limit = 350
     discover_groceries_limit = 1000
+    expand_limit = 8000
     supported_verticals: tuple[ScrapeVertical, ...] = ("groceries",)
     min_delay_seconds = 2.0
     request_timeout = 30.0
@@ -245,9 +275,18 @@ class HyperOneScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
 
+        queries = (
+            HYPERONE_GROCERY_QUERIES + HYPERONE_EXPAND_EXTRA_QUERIES
+            if self.mode == "expand"
+            else HYPERONE_GROCERY_QUERIES
+        )
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_query_cap = max(2, math.ceil(target_limit / len(HYPERONE_GROCERY_QUERIES)))
-        max_pages = 8 if self.mode in ("discover", "expand") else (2 if target_limit <= 100 else 3)
+        per_query_cap = max(2, math.ceil(target_limit / len(queries)))
+        if self.mode == "expand":
+            max_pages = max(10, min(25, self.expand_max_pages or 15))
+            per_query_cap = max(per_query_cap, 360)
+        else:
+            max_pages = 8 if self.mode == "discover" else (2 if target_limit <= 100 else 3)
         blocked = False
 
         with ImpersonatedHttpClient(
@@ -259,7 +298,7 @@ class HyperOneScraper(BaseScraper):
             jitter_range=(0.3, 1.0),
             headers={"Accept": "application/json, text/plain, */*"},
         ) as client:
-            for default_sub, query in HYPERONE_GROCERY_QUERIES:
+            for default_sub, query in queries:
                 if len(snapshots) >= target_limit or blocked:
                     break
                 query_collected = 0

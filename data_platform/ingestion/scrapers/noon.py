@@ -151,6 +151,53 @@ NOON_GROCERY_SEEDS: list[tuple[str, Category, str]] = [
     ("detergents", "groceries", "https://www.noon.com/egypt-en/search/?q=fairy"),
 ]
 
+# Deep sharded Noon Egypt categories & brand searches (ONLY active in `mode="expand"`)
+NOON_EXPAND_EXTRA_SEEDS: list[tuple[str, Category, str]] = [
+    ("smartphones", "electronics", "https://www.noon.com/egypt-en/search/?q=samsung+galaxy+smartphone"),
+    ("smartphones", "electronics", "https://www.noon.com/egypt-en/search/?q=apple+iphone"),
+    ("smartphones", "electronics", "https://www.noon.com/egypt-en/search/?q=xiaomi+redmi"),
+    ("smartphones", "electronics", "https://www.noon.com/egypt-en/search/?q=oppo+realme+honor"),
+    ("laptops", "electronics", "https://www.noon.com/egypt-en/search/?q=lenovo+hp+dell+laptop"),
+    ("laptops", "electronics", "https://www.noon.com/egypt-en/search/?q=asus+acer+msi+gaming+laptop"),
+    ("monitors", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/computers-and-accessories/monitors/"),
+    ("printers", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/computers-and-accessories/printers-and-accessories/"),
+    ("storage", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/computers-and-accessories/data-storage/"),
+    ("networking", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/computers-and-accessories/networking-products/"),
+    ("wearables", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/wearable-technology/"),
+    ("cameras", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/camera-and-photo-16150/"),
+    ("speakers", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/portable-audio-and-video/speakers-16146/"),
+    ("accessories", "electronics", "https://www.noon.com/egypt-en/electronics-and-mobiles/mobiles-and-accessories/accessories-16176/"),
+    ("refrigerators", "home_appliances", "https://www.noon.com/egypt-en/search/?q=refrigerator+no+frost"),
+    ("washing_machines", "home_appliances", "https://www.noon.com/egypt-en/search/?q=washing+machine+automatic"),
+    ("air_conditioners", "home_appliances", "https://www.noon.com/egypt-en/search/?q=air+conditioner+split"),
+    ("kitchen_appliances", "home_appliances", "https://www.noon.com/egypt-en/home-and-kitchen/home-appliances-31235/small-appliances/"),
+    ("kitchen_appliances", "home_appliances", "https://www.noon.com/egypt-en/search/?q=air+fryer"),
+    ("kitchen_appliances", "home_appliances", "https://www.noon.com/egypt-en/search/?q=coffee+espresso+machine"),
+    ("vacuums", "home_appliances", "https://www.noon.com/egypt-en/search/?q=vacuum+cleaner"),
+    ("microwaves", "home_appliances", "https://www.noon.com/egypt-en/search/?q=microwave+oven"),
+    ("water_heaters", "home_appliances", "https://www.noon.com/egypt-en/search/?q=water+heater"),
+    ("perfumes", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/fragrance/"),
+    ("skincare", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/skin-care/"),
+    ("makeup", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/makeup-16230/"),
+    ("haircare", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/hair-care/"),
+    ("personal_care", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/personal-care/"),
+    ("vitamins", "health", "https://www.noon.com/egypt-en/search/?q=vitamins+supplements"),
+    ("sports_nutrition", "health", "https://www.noon.com/egypt-en/search/?q=whey+protein+creatine"),
+    ("cookware", "home_furniture", "https://www.noon.com/egypt-en/home-and-kitchen/kitchen-and-dining/cookware/"),
+    ("bedding_linens", "home_furniture", "https://www.noon.com/egypt-en/home-and-kitchen/bedding/"),
+    ("pet_food", "pet_care", "https://www.noon.com/egypt-en/pet-supplies/"),
+]
+
+NOON_GROCERY_EXPAND_SEEDS: list[tuple[str, Category, str]] = [
+    ("oils_ghee", "groceries", "https://www.noon.com/egypt-en/search/?q=olive+oil"),
+    ("dairy_cheese", "groceries", "https://www.noon.com/egypt-en/search/?q=cheese"),
+    ("tea_coffee", "groceries", "https://www.noon.com/egypt-en/search/?q=coffee"),
+    ("canned_sauces", "groceries", "https://www.noon.com/egypt-en/search/?q=honey+jam"),
+    ("snacks", "groceries", "https://www.noon.com/egypt-en/search/?q=chocolate+biscuits"),
+    ("detergents", "groceries", "https://www.noon.com/egypt-en/search/?q=dettol+downy"),
+    ("baby_care", "baby_kids", "https://www.noon.com/egypt-en/search/?q=pampers+diapers"),
+]
+
 _NOON_SKU_RE = re.compile(r"/([A-Za-z0-9_-]{4,32})/p(?:/|$|\?)")
 _PRICE_NUM_RE = re.compile(r"(?<!\d)(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d{2,7}(?:\.\d{1,2})?)(?!\s*%)")
 
@@ -467,11 +514,11 @@ class NoonScraper(BaseScraper):
     base_url = "https://www.noon.com"
     default_limit = 500
     discover_limit = 2000
-    expand_limit = 3500
+    expand_limit = 20000
     groceries_limit = 400
     discover_groceries_limit = 1200
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
-    min_delay_seconds = 3.0
+    min_delay_seconds = 2.5
     request_timeout = 30.0
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
@@ -484,19 +531,33 @@ class NoonScraper(BaseScraper):
         today = now.date()
 
         is_groceries = self.vertical == "groceries"
-        seeds = NOON_GROCERY_SEEDS if is_groceries else NOON_CATEGORIES
+        if is_groceries:
+            seeds = (
+                NOON_GROCERY_SEEDS + NOON_GROCERY_EXPAND_SEEDS
+                if self.mode == "expand"
+                else NOON_GROCERY_SEEDS
+            )
+        else:
+            seeds = (
+                NOON_CATEGORIES + NOON_EXPAND_EXTRA_SEEDS
+                if self.mode == "expand"
+                else NOON_CATEGORIES
+            )
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = (
             max(2, math.ceil(target_limit / len(seeds)))
             if is_groceries
             else max(5, math.ceil(target_limit / len(seeds)))
         )
-        max_pages = (
-            (6 if self.mode in ("discover", "expand") else 3)
-            if is_groceries
-            else (12 if self.mode in ("discover", "expand") else 5)
-        )
+        if self.mode == "expand":
+            max_pages = max(12, min(35, self.expand_max_pages or 25))
+            per_cat_cap = max(per_cat_cap, 900)
+        elif is_groceries:
+            max_pages = 6 if self.mode == "discover" else 3
+        else:
+            max_pages = 12 if self.mode == "discover" else 5
         throttled = False
+        consecutive_throttles = 0
 
         with ImpersonatedHttpClient(
             impersonate="chrome",
@@ -523,14 +584,21 @@ class NoonScraper(BaseScraper):
                     logger.info("[noon] Fetching %s (%s) page %d", default_sub, top_category, page)
                     try:
                         resp = client.get(page_url, check_throttle=True, min_html_bytes=5120)
+                        consecutive_throttles = 0
                     except ThrottledResponseError as exc:
+                        consecutive_throttles += 1
                         logger.warning(
-                            "[noon] Throttled on %s page %d (%s); stopping gracefully with %d snapshots.",
+                            "[noon] Throttled on %s page %d (%s; strike=%d); %d snapshots so far.",
                             default_sub,
                             page,
                             exc,
+                            consecutive_throttles,
                             len(snapshots),
                         )
+                        if self.mode == "expand" and consecutive_throttles < 3:
+                            import time as _time
+                            _time.sleep(8.0 * consecutive_throttles)
+                            break
                         throttled = True
                         break
                     except Exception as exc:

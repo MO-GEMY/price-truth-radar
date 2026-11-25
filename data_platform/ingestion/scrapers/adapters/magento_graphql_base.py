@@ -581,7 +581,11 @@ class MagentoGraphQLBaseScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        queries = self.search_queries or ((self.category, self.category, "a"),)
+        queries = (
+            getattr(self, "expand_search_queries", None)
+            or self.search_queries
+            or ((self.category, self.category, "a"),)
+        )
 
         start_q = 0
         start_p = self.start_page

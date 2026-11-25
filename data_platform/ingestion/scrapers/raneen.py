@@ -46,6 +46,17 @@ RANEEN_CATEGORIES: tuple[tuple[str, Category, str], ...] = (
     ("small_appliances", "home_appliances", "https://www.raneen.com/en/deals/daily-deals"),
 )
 
+RANEEN_EXPAND_EXTRA_CATEGORIES: tuple[tuple[str, Category, str], ...] = (
+    ("refrigerators", "home_appliances", "https://www.raneen.com/en/appliances/large-appliances"),
+    ("small_appliances", "home_appliances", "https://www.raneen.com/en/appliances/small-appliances"),
+    ("air_conditioners", "home_appliances", "https://www.raneen.com/en/appliances/heating-cooling"),
+    ("cookware", "home_furniture", "https://www.raneen.com/en/kitchen/cookware"),
+    ("home_decor", "home_furniture", "https://www.raneen.com/en/home-decor"),
+    ("lighting", "home_furniture", "https://www.raneen.com/en/lighting"),
+    ("baby_care", "baby_kids", "https://www.raneen.com/en/baby-toys"),
+    ("sports_gear", "sports", "https://www.raneen.com/en/sports-fitness"),
+)
+
 _EGP_PRICE_RE = re.compile(r"EGP\s*(\d[\d,]*(?:\.\d{1,2})?)", re.I)
 
 
@@ -57,9 +68,9 @@ class RaneenScraper(BaseScraper):
     base_url = "https://www.raneen.com"
     default_limit = 400
     discover_limit = 1500
-    expand_limit = 2500
+    expand_limit = 12000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
-    min_delay_seconds = 1.5
+    min_delay_seconds = 1.2
     request_timeout = 30.0
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
@@ -73,11 +84,20 @@ class RaneenScraper(BaseScraper):
         seen_ids: set[str] = set()
         self.category_counts = {}
 
+        cats = (
+            RANEEN_CATEGORIES + RANEEN_EXPAND_EXTRA_CATEGORIES
+            if self.mode == "expand"
+            else RANEEN_CATEGORIES
+        )
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_cat_cap = max(2, math.ceil(target_limit / len(RANEEN_CATEGORIES)))
-        max_pages = 8 if self.mode in ("discover", "expand") else (3 if target_limit > 40 else 1)
+        per_cat_cap = max(2, math.ceil(target_limit / len(cats)))
+        if self.mode == "expand":
+            max_pages = max(12, min(40, self.expand_max_pages or 25))
+            per_cat_cap = max(per_cat_cap, 1200)
+        else:
+            max_pages = 8 if self.mode == "discover" else (3 if target_limit > 40 else 1)
 
-        for default_sub, cat_name, cat_url in RANEEN_CATEGORIES:
+        for default_sub, cat_name, cat_url in cats:
             if len(collected) >= target_limit:
                 break
             cat_collected = 0
