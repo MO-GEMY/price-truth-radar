@@ -154,19 +154,22 @@ export function PriceChart({
 
   return (
     <div className="min-w-0 max-w-full space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="ptr-controls ptr-muted text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
+        <div className="ptr-controls ptr-muted text-xs min-w-0">
           {active.map((entry) => (
-            <span key={entry.key} className="inline-flex items-center gap-2">
+            <span
+              key={entry.key}
+              className="inline-flex items-center gap-2 min-w-0 break-words whitespace-normal"
+            >
               <span
-                className="w-5 border-t-2"
+                className="w-5 shrink-0 border-t-2"
                 style={{
                   borderColor: entry.color,
                   borderTopStyle: "dash" in entry ? "dashed" : "solid",
                 }}
                 aria-hidden="true"
               />
-              {entry.label}
+              <span>{entry.label}</span>
             </span>
           ))}
         </div>
@@ -247,6 +250,8 @@ export function PriceChart({
                   wrapperStyle={{
                     maxWidth: "calc(100vw - 48px)",
                     whiteSpace: "normal",
+                    overflowWrap: "break-word",
+                    wordBreak: "normal",
                     zIndex: 10,
                   }}
                   contentStyle={{
@@ -254,6 +259,8 @@ export function PriceChart({
                     border: `1px solid ${tooltipBorder}`,
                     borderRadius: 10,
                     color: tooltipText,
+                    direction: lang === "ar" ? "rtl" : "ltr",
+                    textAlign: lang === "ar" ? "right" : "left",
                     boxShadow: "0 8px 24px rgba(11, 25, 46, 0.16)",
                   }}
                   labelStyle={{ color: tickColor, fontWeight: 600 }}

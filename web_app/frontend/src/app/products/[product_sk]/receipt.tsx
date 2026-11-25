@@ -542,8 +542,8 @@ export function ProductReceipt({
         </aside>
 
         <section className="surface ptr-section ptr-receipt">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <h2 className="flex items-center gap-2 !mb-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 min-w-0">
+            <h2 className="flex items-center gap-2 !mb-0 min-w-0 break-words whitespace-normal">
               <AsarakEmblem variant="auto" size={24} />
               <span>{t("ui.receipt")}</span>
             </h2>
@@ -600,22 +600,22 @@ export function ProductReceipt({
                 </dd>
               </div>
             ) : (
-              <div>
+              <div className="ptr-receipt-row--prose">
                 <dt>{t("detail.history")}</dt>
-                <dd className="text-sm ptr-muted">
+                <dd className="text-sm ptr-muted break-words whitespace-normal">
                   {t("maturity.earlyCard", { days: trackedDaysLabel })}
                 </dd>
               </div>
             )}
             {marketBenchmark && (
-              <div>
+              <div className="ptr-receipt-row--prose">
                 <dt>
                   {t("market.liveBenchmarkLabel", {
                     count: formatNumber(marketBenchmark.stores_count, lang),
                   })}
                 </dt>
-                <dd>
-                  <a href="#alternatives" className="ptr-link">
+                <dd className="break-words whitespace-normal">
+                  <a href="#alternatives" className="ptr-link font-semibold break-words whitespace-normal">
                     <bdi>
                       {marketBenchmark.status === "CHEAPEST_IN_MARKET"
                         ? t("market.cheapestBadge")
@@ -641,21 +641,25 @@ export function ProductReceipt({
             )}
           </dl>
 
-          {takeaway && <p className="ptr-notice">{takeaway}</p>}
+          {takeaway && (
+            <p className="ptr-notice min-w-0 break-words whitespace-normal">
+              {takeaway}
+            </p>
+          )}
 
           {(median !== null ||
             product.discount_verdict === "RECENT_DROP" ||
             product.discount_verdict === "RECENT_HIKE") && (
-            <details>
+            <details className="min-w-0">
               <summary className="ptr-link">{t("detail.whatMeans")}</summary>
-              <p className="ptr-muted text-sm mt-2">
+              <p className="ptr-muted text-sm mt-2 min-w-0 break-words whitespace-normal">
                 {t(`explain.${normalizeVerdict(product.discount_verdict)}`)}
               </p>
             </details>
           )}
 
           {!sufficientHistory && (
-            <p className="text-sm ptr-muted">
+            <p className="text-sm ptr-muted min-w-0 break-words whitespace-normal">
               {t("maturity.earlyCard", { days: trackedDaysLabel })}
             </p>
           )}
