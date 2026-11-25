@@ -520,7 +520,26 @@ _GENERIC_MODEL_CODE_RE = re.compile(r"\b([a-z]{1,4}[-]?\d{2,5}[a-z0-9-]{0,6})\b"
 # first character (M1SEFT-12CRN8F-Q8, KHEFT12N, 7MD68A, 50C350RP) — the strict
 # regex above requires 2+ digits immediately after the letters and misses these.
 _LOOSE_MODEL_CODE_RE = re.compile(r"\b([a-z]{0,6}[-]?\d{1,6}[a-z0-9-]{0,18})\b", re.I)
-_SCREEN_INCH_RE = re.compile(r"\b(\d{2}(?:\.\d)?)\s*(?:\"|-?\s*inch)\b", re.I)
+_SCREEN_INCH_RE = re.compile(r"\b(\d{2,3}(?:\.\d)?)\s*(?:\"|''|-?\s*inch(?:es)?\b|بوص[ةه])", re.I)
+
+# Non-model spec / rating / chipset-less tokens that MUST NOT be treated as product model codes
+_NON_MODEL_SPEC_CODE_RE = re.compile(
+    r"^(?:"
+    r"\d+(?:inch|in|ml|mls|l|ltr|g|gm|gms|kg|kgs|w|watt|watts|kw|hz|khz|mhz|ghz|mm|cm|ft|v|mah|mp|fps|dpi|ms|rpm|bar|gb|tb|mb|hp|btu|"
+    r"serv|servs|serving|servings|tab|tabs|tablet|tablets|cap|caps|capsule|capsules|softgel|softgels|"
+    r"door|doors|mbps|gbps|mode|modes|stage|stages|pcs|pc|pack|pk|ct)|"
+    r"(?:ac|ax|be)\d{3,5}|"
+    r"cl\d{2}|"
+    r"\d+x\d+(?:x\d+)?|"
+    r"ddr[2345]|gddr[567]x?|lpddr[45]x?|pcie\d|sata\d|usb\d|hdmi\d|dp\d|hdr\d+|ip\d{2}|spf\d+|"
+    r"wifi[4567]e?|bt[45]|cat[5678]e?|[23456789]in1|1[02]in1"
+    r")$",
+    re.I,
+)
+_CHIPSET_CODE_RE = re.compile(r"^[abhxz]\d{3}m?e?$", re.I)
+_PSU_CONTEXT_RE = re.compile(r"\b(?:power\s+supply|psu|80\s*\+|80\s+plus|modular|bronze|gold|platinum|titanium)\b", re.I)
+_PC_BUILD_CONTEXT_RE = re.compile(r"\b(?:desktop\s+pc|gaming\s+pc|pc\s+build|workstation\s+pc|prebuilt|تجميعة|تجميعه)\b", re.I)
+_ROMAN_GEN_RE = re.compile(r"(?<!sata\s)(?<!pcie\s)(?<!usb\s)(?<!hdmi\s)\b(ii|iii|iv)\b", re.I)
 
 # ---------------------------------------------------------------------------
 # Store taxonomies disagree constantly (the same Logitech mouse is `gaming` at
@@ -633,18 +652,18 @@ def _family_of(sub_category: str) -> str:
 
 
 def _tv_monitor_size(title: str, codes_norm: list[str]) -> Optional[int]:
-    """Screen size in inches: explicit `NN Inch` token, else digits embedded at
-    the start of a model code (`50C350RP`, `65NU830B6LA`)."""
+    """Screen size in inches: explicit `NN Inch` / `NNN"` token, else digits embedded at
+    the start of a model code (`50C350RP`, `65NU830B6LA`, `100QN80H`)."""
     m = _SCREEN_INCH_RE.search(title)
     if m:
         size = int(float(m.group(1)))
-        if 15 <= size <= 110:
+        if 15 <= size <= 115:
             return size
     for code in codes_norm:
-        m = re.match(r"(\d{2})([a-z]{2,})", code)
+        m = re.match(r"(\d{2,3})([a-z]{2,})", code)
         if m:
             size = int(m.group(1))
-            if 15 <= size <= 110:
+            if 15 <= size <= 115:
                 return size
     return None
 
@@ -764,13 +783,20 @@ def _extract_ram_storage(record: RawProductSnapshot) -> tuple[Optional[int], Opt
 
     if gb_vals:
         uniq_sorted = sorted(set(gb_vals))
+        title_low = (record.product_title or "").lower()
+        is_ram_only = bool(
+            re.search(r"\b(?:ddr[2345]|udimm|sodimm|so-dimm|desktop\s+memory|laptop\s+memory|memory\s+kit|dimm)\b", title_low)
+        ) and not bool(re.search(r"\b(?:ssd|nvme|hdd|laptop|notebook|iphone|galaxy|redmi|poco|smartphone|tablet|ipad)\b", title_low))
         if len(uniq_sorted) >= 2:
             if ram_gb is None and uniq_sorted[0] <= 64:
                 ram_gb = uniq_sorted[0]
             if storage_gb is None and uniq_sorted[-1] >= 32:
                 storage_gb = uniq_sorted[-1]
         elif len(uniq_sorted) == 1:
-            if storage_gb is None and uniq_sorted[0] >= 32:
+            if is_ram_only:
+                if ram_gb is None:
+                    ram_gb = uniq_sorted[0]
+            elif storage_gb is None and uniq_sorted[0] >= 32:
                 storage_gb = uniq_sorted[0]
             elif ram_gb is None and uniq_sorted[0] <= 32:
                 ram_gb = uniq_sorted[0]
@@ -912,8 +938,8 @@ def _collect_model_codes(cleaned_title: str, min_len: int, loose: bool = False) 
                 continue
             if not (any(c.isalpha() for c in norm) and any(c.isdigit() for c in norm)):
                 continue
-            if re.fullmatch(r"\d+(?:inch|in|ml|g|kg|w|hz|mm|cm)", norm):
-                continue  # size/unit artifact ("55-inch" -> "55inch"), not a model code
+            if _NON_MODEL_SPEC_CODE_RE.fullmatch(norm) or _NON_MODEL_SPEC_CODE_RE.fullmatch(raw.lower()):
+                continue  # spec/rating/dimension artifact ("55inch", "ac1200", "300mbps", "cl30", "80x55", "2door")
             seen_spans.add(span)
             if norm not in codes_norm:
                 codes_norm.append(norm)
@@ -926,27 +952,47 @@ def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> 
     """Model-code based fingerprint for monitors, TVs, headphones, storage,
     peripherals, printers — with store-taxonomy families and strict guards."""
     title = _strip_marketplace_noise(record.product_title)
-    # Remove specs/units that look like alphanumeric codes (e.g. 240hz, 512gb, 1tb, 1ms, 60w, usb3)
+    if _PC_BUILD_CONTEXT_RE.search(title):
+        return None
+    # Remove specs/units that look like alphanumeric codes (e.g. 240hz, 512gb, 1tb, 1ms, 60w, usb3, ac1200, cl30)
     cleaned = re.sub(
-        r"\b\d+(?:\.\d+)?[\s\-]*(?:gb|tb|mb|mhz|ghz|hz|ms|mm|cm|inch|w|v|mah|dpi|fps|bit|gen\d?|usb\d?)\b",
+        r"\b\d+(?:\.\d+)?[\s\-]*(?:gb|tb|mb|mhz|ghz|hz|ms|mm|cm|inch|w|watt|watts|v|mah|dpi|fps|bit|gen\d?|usb\d?|mbps|gbps|mode|modes|door|doors)\b",
         " ",
         title,
         flags=re.I,
     )
     cleaned = re.sub(
         r"\b(?:ddr[345]|pcie\d?|sata\d?|nvme|fhd|qhd|uhd|4k|8k|rgb|argb|pwm|atx|matx|ips|va|oled|qled|"
-        r"hdr\d+\+?|ip\d{2}|wifi\d[a-z]?|bt\d(?:\.\d)?|hdmi\d(?:\.\d)?|usb\d(?:\.\d)?|dp\d(?:\.\d)?|pd\d+|qc\d)\b",
+        r"hdr\d+\+?|ip\d{2}|wifi\d[a-z]?|bt\d(?:\.\d)?|hdmi\d(?:\.\d)?|usb\d(?:\.\d)?|dp\d(?:\.\d)?|pd\d+|qc\d|"
+        r"(?:ac|ax|be)\d{3,5}|cl\d{2}|\d+x\d+(?:x\d+)?)\b",
         " ",
         cleaned,
         flags=re.I,
     )
 
     codes_norm, first_raw = _collect_model_codes(cleaned, min_len=4)
+    family = _family_of(record.sub_category)
     if not codes_norm:
+        # Deterministic PSU fallback for series+wattage models (`GX II Gold 850W`, `MWE Bronze 650W`)
+        if family == "psu" or _PSU_CONTEXT_RE.search(title):
+            wm = _WATTS_RE.search(title)
+            if wm:
+                psu_series_m = re.search(
+                    r"\b(gx|mwe|v\s*sfx|xg|rm|hx|ax|cx|cv|tx|vs|mag|mpg|meg|rog\s+thor|rog\s+strix|tuf|prime|ud|p\d{3}|core\s+reactor|hydro|focus|vertex|supernova|toughpower|smart\s+bx|smart\s+bm|pure\s+power|straight\s+power|dark\s+power)\b",
+                    title,
+                    re.I,
+                )
+                if psu_series_m:
+                    psu_parts = [brand, "psu", normalize_snake_slug(psu_series_m.group(1), max_len=24)]
+                    if rm := _ROMAN_GEN_RE.search(title):
+                        psu_parts.append(rm.group(1).lower())
+                    if eff_m := re.search(r"\b(bronze|silver|gold|platinum|titanium)\b", title, re.I):
+                        psu_parts.append(eff_m.group(1).lower())
+                    psu_parts.append(f"{wm.group(1)}w")
+                    return normalize_snake_slug("_".join(psu_parts), max_len=160)
         return None
 
     primary = codes_norm[0]
-    family = _family_of(record.sub_category)
 
     # NOTE: the store-specific `sub_category` slug is deliberately NOT part of
     # the key — stores file identical products under different taxonomies
@@ -963,27 +1009,40 @@ def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> 
         if variant and len(variant) <= 24:
             parts.append(variant)
 
-    # Motherboard chipset sub-model guard: `A520M K V2` != `A520M S2H` != `A520M DS3H`
-    if family == "motherboard" or re.search(r"\b(?:motherboard|mainboard|am[45]|lga\s*1[127]\d{2}|m-?atx|micro[\s-]?atx)\b", title, re.I) or re.fullmatch(r"[abhxz]\d{3}m?", primary):
-        if first_raw:
-            idx_mb = record.product_title.lower().find(first_raw.lower())
-            if idx_mb != -1:
-                mb_tail = record.product_title[idx_mb + len(first_raw):]
-                mb_sub_tokens: list[str] = []
-                for tok in re.split(r"[^A-Za-z0-9]+", mb_tail):
-                    low_t = tok.lower()
-                    if not low_t:
-                        continue
-                    if low_t in {"ddr4", "ddr5", "am4", "am5", "motherboard", "socket", "micro", "atx", "matx", "rev", "amd", "intel", "black", "white", "gaming"}:
-                        break
-                    if low_t in {"k", "h", "a", "m", "e", "f", "s2h", "ds3h", "ud", "pro", "plus", "prime", "tuf", "mortar", "tomahawk", "bazooka", "eagle", "aorus", "hdv", "pro4", "steel", "legend", "elite", "wifi", "ax", "ac", "ii", "v2"}:
-                        if low_t not in parts and low_t not in mb_sub_tokens:
-                            mb_sub_tokens.append(low_t)
-                    if len(mb_sub_tokens) >= 2:
-                        break
-                parts.extend(mb_sub_tokens)
+    # Motherboard chipset sub-model guard: NEVER emit a bare chipset key like `gigabyte_b850` or `msi_x870e`!
+    # Collect series/trim/suffix tokens across the board title (MPG/MEG/Carbon/Godlike/AORUS/Stealth/D3HP/S2H/A/P/WiFi).
+    is_mobo_like = (
+        family == "motherboard"
+        or bool(re.search(r"\b(?:motherboard|mainboard|am[45]|lga\s*1[127]\d{2}|m-?atx|micro[\s-]?atx)\b", title, re.I))
+        or bool(_CHIPSET_CODE_RE.fullmatch(primary))
+    )
+    if is_mobo_like and _CHIPSET_CODE_RE.fullmatch(primary):
+        mb_series_words = {
+            "aorus", "stealth", "eagle", "elite", "d3hp", "ds3h", "s2h", "ud",
+            "rog", "tuf", "strix", "prime", "proart", "mpg", "meg", "mag",
+            "carbon", "godlike", "tomahawk", "mortar", "bazooka", "edge", "ice",
+            "steel", "legend", "pro4", "hdv", "pro", "plus", "wifi", "ax", "ac",
+            "ii", "iii", "v2", "ddr4", "ddr5",
+        }
+        mb_tokens_all = [t.lower() for t in re.split(r"[^A-Za-z0-9]+", record.product_title) if t]
+        mb_sub_tokens: list[str] = []
+        # 1. Include single-letter board trim immediately following the chipset (e.g. `A520M K`, `B650M P`, `B650M A`, `B850 A`)
+        for pos, tok in enumerate(mb_tokens_all):
+            if _normalize_model_code(tok) == primary and pos + 1 < len(mb_tokens_all):
+                nxt = mb_tokens_all[pos + 1]
+                if nxt in {"k", "h", "p", "a", "m", "e", "f", "x"} and nxt not in mb_sub_tokens:
+                    mb_sub_tokens.append(nxt)
+                break
+        # 2. Include all series/trim tokens across title
+        for tok in mb_tokens_all:
+            if tok in mb_series_words and tok not in parts and tok not in mb_sub_tokens:
+                mb_sub_tokens.append(tok)
+        if not mb_sub_tokens:
+            # Bare chipset with zero disambiguating board trim -> refuse to emit a risky key!
+            return None
+        parts.extend(sorted(mb_sub_tokens)[:4])
 
-    # Strict size guard for screens (a 50-inch TV is never a 55-inch TV).
+    # Strict size guard for screens (a 50-inch TV is never a 55-inch TV; 85" != 100").
     # Applied only when a size is actually present — titles without one are
     # matched on brand + model code alone.
     if family in _SIZE_EMBEDDED_FAMILIES:
@@ -992,10 +1051,30 @@ def _electronics_generic_fingerprint(record: RawProductSnapshot, brand: str) -> 
             parts = [brand, family, _strip_leading_size(primary, size)]
             parts.append(f"{size}in")
 
-    # Storage capacity stays a strict guard for storage devices.
-    _, storage_gb = _extract_ram_storage(record)
-    if family == "storage" and storage_gb is not None:
-        parts.append(f"{storage_gb}gb")
+    # Monitor secondary sub-model suffix guard (e.g. `274QPF E20` != `274QPF X30MV`)
+    if family == "monitor" and len(codes_norm) >= 2:
+        sec = codes_norm[1]
+        if sec != primary and not _NON_MODEL_SPEC_CODE_RE.fullmatch(sec):
+            parts.append(sec)
+
+    # PSU wattage + generation guard (e.g. `GX II 850W` != `GX III 1250W`)
+    if family == "psu" or _PSU_CONTEXT_RE.search(title):
+        if wm := _WATTS_RE.search(title):
+            parts.append(f"{wm.group(1)}w")
+        if rm := _ROMAN_GEN_RE.search(title):
+            if rm.group(1).lower() not in parts:
+                parts.append(rm.group(1).lower())
+
+    # Storage capacity & RAM speed stay strict guards for storage/memory devices.
+    ram_gb, storage_gb = _extract_ram_storage(record)
+    if family == "storage":
+        if storage_gb is not None:
+            parts.append(f"{storage_gb}gb")
+        elif ram_gb is not None:
+            parts.append(f"{ram_gb}gb")
+        if mhz_m := re.search(r"\b(\d{4})\s*mhz\b|\bddr[345][\s\-]+(\d{4})\b", title, re.I):
+            mhz_val = mhz_m.group(1) or mhz_m.group(2)
+            parts.append(f"{mhz_val}mhz")
 
     return normalize_snake_slug("_".join(parts), max_len=160)
 
@@ -1005,13 +1084,13 @@ def _appliance_fingerprint(record: RawProductSnapshot, brand: str) -> Optional[s
     cookers) with strict capacity/HP/BTU/screen-size variant guards."""
     title = _strip_marketplace_noise(record.product_title)
     cleaned = re.sub(
-        r"\b\d+(?:\.\d+)?[\s\-]*(?:hp|btu|kg|kgs|liter|liters|litre|litres|l|w|watt|watts|cm|mm|inch|hz|bar|ml|rpm|v|kw)\b",
+        r"\b\d+(?:\.\d+)?[\s\-]*(?:hp|btu|kg|kgs|liter|liters|litre|litres|l|w|watt|watts|cm|mm|inch|hz|bar|ml|rpm|v|kw|door|doors)\b",
         " ",
         title,
         flags=re.I,
     )
     cleaned = re.sub(
-        r"\b(?:4k|8k|fhd|uhd|qled|oled|led|hdr\d+\+?|ip\d{2}|wifi\d?[a-z]?|wi-fi|smart|inverter|digital|frost|nofrost|bt\d(?:\.\d)?)\b",
+        r"\b(?:4k|8k|fhd|uhd|qled|oled|led|hdr\d+\+?|ip\d{2}|wifi\d?[a-z]?|wi-fi|smart|inverter|digital|frost|nofrost|defrost|bt\d(?:\.\d)?|\d+x\d+(?:x\d+)?)\b",
         " ",
         cleaned,
         flags=re.I,

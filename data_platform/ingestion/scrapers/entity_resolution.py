@@ -42,6 +42,7 @@ from .matcher_verticals import (
     _is_bundle_or_promo,
     effective_category,
     extract_footwear_features,
+    extract_hb_form,
     extract_health_beauty_features,
     is_accessory_listing,
     is_collapsed_multiprice_variant,
@@ -141,6 +142,7 @@ _SINGLE_BRAND_STORE_MAP: dict[str, str] = {
     "taki_eg": "taki",
     "bed_janssen": "janssen",
     "janssen_stores": "janssen",
+    "mffco": "mffco",
     "town_team": "town_team",
     "mobaco": "mobaco",
     "concrete": "concrete",
@@ -156,7 +158,7 @@ _SINGLE_BRAND_STORE_MAP: dict[str, str] = {
 _TIER_MODIFIERS: frozenset[str] = frozenset(
     {
         "pro", "max", "plus", "ultra", "mini", "lite", "fe", "se", "air", "neo",
-        "ti", "super", "xt", "fold", "flip", "slim", "hero", "lcd", "td", "anc",
+        "ti", "super", "xt", "xtx", "fold", "flip", "slim", "hero", "lcd", "td", "anc",
         "prime", "note", "edge", "gt", "xl", "xxl",
     }
 )
@@ -169,6 +171,7 @@ _TECH_EXTRA_TIERS: frozenset[str] = frozenset({"x"})
 _NON_BRAND_WORDS: frozenset[str] = frozenset(
     {
         "memory", "foam", "gel", "cotton", "silk", "wool", "linen", "velvet", "leather",
+        "pocket", "spring", "orthopedic", "medical", "latex", "quilt", "duvet", "bed", "cushion",
         "wood", "wooden", "metal", "steel", "stainless", "glass", "ceramic", "granite",
         "marble", "plastic", "silicone", "bamboo", "fabric", "microfiber", "polyester",
         "pillow", "pillows", "mattress", "blanket", "towel", "sheet", "sheets", "curtain",
@@ -261,11 +264,15 @@ _GENERIC_SPEC_CODE_RE = re.compile(
     r"\d+(?:\.\d+)?(?:gb|tb|mb|kb|ml|mls|milliliters?|millilitres?|l|ltr|ltrs|liters?|litres?|"
     r"kg|kgs|kilos?|kilograms?|g|gm|gms|grams?|mg|mcg|iu|oz|ounces?|lb|lbs|pounds?|"
     r"hp|btu|w|watt|watts|kw|v|volts?|hz|khz|mhz|ghz|mah|wh|mp|mm|cm|m|ft|feet|in|inch|inches|"
-    r"p|k|g|fps|dpi|ms|db|bar|rpm|deg|h|hr|hrs|d|yr|yrs|y|pcs|pc|pieces?|pk|ct|s|x|b)$|"
+    r"p|k|g|fps|dpi|ms|db|bar|rpm|deg|h|hr|hrs|d|yr|yrs|y|pcs|pc|pieces?|pk|ct|s|x|b|"
+    r"serv|servs|serving|servings|tab|tabs|tablet|tablets|cap|caps|capsule|capsules|softgel|softgels|scoop|scoops|"
+    r"door|doors|mbps|gbps|mode|modes|stage|stages|blade|blades|burner|burners|speed|speeds|port|ports|pin|pins|fan|fans)$|"
     r"(?:20[12]\d|19\d\d)$|"
     r"(?:ddr[2345]|lpddr[345]x?|gddr[567]x?|pcie\d|sata\d|usb[234]|hdmi\d|dp\d|"
     r"wifi[4567]e?|bt[45]|ip\d{2}k?|hdr\d+|spf\d+|uv[ab]\d*|pa\+*|"
-    r"gen\d+|typec|usbc|2in1|3in1|4in1|5in1|6in1|7in1|8in1|10in1|12in1|"
+    r"gen\d+|typec|usbc|2in1|3in1|4in1|5in1|6in1|7in1|8in1|10in1|12in1|trimode|dualmode|"
+    r"(?:ac|ax|be)\d{3,5}|cl\d{2}|"
+    r"[abhxz]\d{3}m?e?|"
     r"cat[5678]e?|pd\d+|qc\d+|r\d{2,3}a?|no\d+|pack\d+|set\d+|size\d+|"
     r"b1|b2|b3|b5|b6|b9|b12|d2|d3|k1|k2|c500|c1000|omega3|coq10|h2o|"
     r"eu\d{2}|uk\d{1,2}|us\d{1,2}|a4|a5|a3|m[1-5]|i[3579]|r[3579]|"
@@ -339,24 +346,28 @@ _GROCERY_DISTINGUISHERS: frozenset[str] = frozenset(
     {
         # Flavors / juices / dairy / snacks
         "mango", "guava", "orange", "apple", "pineapple", "peach", "strawberry", "banana",
-        "cocktail", "grape", "lemon", "lime", "berry", "cherry", "pomegranate", "tomato",
+        "cocktail", "grape", "lemon", "lime", "berry", "cherry", "pomegranate", "tomato", "carrot",
         "chocolate", "vanilla", "caramel", "hazelnut", "coffee", "mocha", "cinnamon",
         "honey", "coconut", "almond", "pistachio", "peanut", "mint", "ginger", "hibiscus",
-        "plain", "original", "classic", "regular", "natural", "unsalted", "salted",
+        "plain", "original", "classic", "classics", "pure", "regular", "natural", "unsalted", "salted",
         "spicy", "chili", "chilli", "hot", "pepper", "garlic", "onion", "cheese", "cheddar",
-        "feta", "mozzarella", "gouda", "roumi", "istambouli", "baramili", "olive", "olives",
-        "full", "skimmed", "skim", "lowfat", "lactose", "zero", "diet", "sugarfree",
+        "feta", "mozzarella", "gouda", "parmesan", "parmigiano", "grana", "padano", "reggiano",
+        "edam", "brie", "emmental", "halloumi", "kashkaval", "ricotta", "mascarpone", "roquefort",
+        "roumi", "istambouli", "baramili", "olive", "olives",
+        "quinoa", "oat", "oats", "soy", "soya", "wholewheat", "chickpea", "buckwheat", "rye", "glutenfree",
+        "full", "skimmed", "skim", "lowfat", "halfcream", "fullcream", "lactose", "zero", "diet", "sugarfree",
         # Detergent / home scents
         "lavender", "jasmine", "rose", "floral", "ocean", "fresh", "breeze", "oud", "musk",
         "black", "white", "color", "colors", "gel", "powder", "liquid", "pods", "capsules",
-        "automatic", "top", "front", "handwash", "manual",
+        "automatic", "top", "front", "handwash", "manual", "power",
         # Pasta shapes / rice / tuna cuts / oils
         "penne", "spaghetti", "fusilli", "macaroni", "rings", "big", "small", "elbow",
         "vermicelli", "beyti", "orzo", "lasagna", "fettuccine", "farfalle", "shells",
         "basmati", "egyptian", "white", "brown", "golden", "jasmine",
         "shredded", "chunk", "chunks", "solid", "flakes", "smoked", "sunflower", "corn",
         "canola", "vegetable", "ghee", "butter", "margarine", "green", "red", "decaf",
-        "medium", "dark", "light", "roast", "turkish", "espresso", "instant", "cardamom",
+        "medium", "dark", "light", "roast", "turkish", "brazilian", "colombian", "ethiopian",
+        "french", "arabic", "espresso", "instant", "cardamom",
         "whipping", "cooking", "heavy", "sour", "table", "double", "condensed",
         "evaporated", "unsweetened", "sweetened", "greek", "labneh", "sparkling", "still",
     }
@@ -367,21 +378,107 @@ _GROCERY_EXCLUSIVE_PAIRS: tuple[tuple[frozenset[str], frozenset[str]], ...] = (
     (frozenset({"whipping"}), frozenset({"cooking"})),
     (frozenset({"powder"}), frozenset({"gel", "liquid"})),
     (frozenset({"sparkling"}), frozenset({"still"})),
-    (frozenset({"skimmed", "skim"}), frozenset({"full"})),
+    (frozenset({"skimmed", "skim"}), frozenset({"full", "fullcream"})),
+    (frozenset({"halfcream"}), frozenset({"fullcream", "skimmed", "skim"})),
     (frozenset({"unsalted"}), frozenset({"salted"})),
     (frozenset({"shredded"}), frozenset({"chunk", "chunks", "solid"})),
+    (frozenset({"classic", "classics"}), frozenset({"pure"})),
+    (frozenset({"sunflower"}), frozenset({"corn", "olive", "canola"})),
+    (frozenset({"corn"}), frozenset({"olive", "canola"})),
 )
+
+# Distinct grocery taxonomy sets: if both sides specify a variety (or one specifies a distinct base), never merge!
+_CHEESE_VARIETIES: frozenset[str] = frozenset({
+    "gouda", "parmesan", "parmigiano", "grana", "padano", "reggiano", "cheddar",
+    "feta", "mozzarella", "edam", "brie", "emmental", "halloumi", "kashkaval",
+    "roumi", "istambouli", "baramili", "ricotta", "mascarpone", "roquefort",
+})
+_GRAIN_PLANT_BASES: frozenset[str] = frozenset({
+    "quinoa", "almond", "oat", "oats", "soy", "soya", "coconut", "chickpea", "buckwheat", "rye",
+})
+_SUGAR_FREE_TOKENS: frozenset[str] = frozenset({"zero", "diet", "sugarfree", "unsweetened"})
+_COFFEE_ORIGIN_TOKENS: frozenset[str] = frozenset({"brazilian", "colombian", "ethiopian", "french", "arabic"})
 
 # Regexes for hard spec extraction
 _DIM_RE = re.compile(r"\b(\d{2,3})\s*[x*×]\s*(\d{2,3})(?:\s*[x*×]\s*(\d{2,3}))?\b", re.I)
+_SINGLE_CM_RE = re.compile(r"(?:^|[^0-9])(\d{2,3})\s*(?:cm|سم)(?=$|[^a-z0-9\u0621-\u064a])", re.I)
 _NET_5G_RE = re.compile(r"\b5g\b", re.I)
 _NET_4G_RE = re.compile(r"\b(?:4g|lte)\b", re.I)
-_SCREEN_INCH_RE = re.compile(r"\b(\d{2}(?:\.\d)?)\s*(?:\"|''|-?\s*inch(?:es)?)\b", re.I)
+_SCREEN_INCH_RE = re.compile(r"\b(\d{2,3}(?:\.\d)?)\s*(?:\"|''|-?\s*inch(?:es)?\b|بوص[ةه])", re.I)
 _HP_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*(?:hp|horsepower|h\.p\.)\b", re.I)
 _BTU_RE = re.compile(r"\b(\d{4,6})\s*btu\b", re.I)
 _WASHER_KG_RE = re.compile(r"\b(\d{1,2}(?:\.\d)?)\s*kg\b", re.I)
 _COOKER_CM_RE = re.compile(r"\b(50|55|60|80|90|100)\s*cm\b", re.I)
 _COOKER_BURNERS_RE = re.compile(r"\b([3456])\s*(?:gas\s+)?burners?\b", re.I)
+_WATTAGE_RE = re.compile(r"\b(\d{2,4})\s*(?:w|watt|watts)\b", re.I)
+_REFRESH_HZ_RE = re.compile(r"\b(\d{2,3})\s*hz\b", re.I)
+_RAM_MHZ_RE = re.compile(r"\b(\d{4})\s*mhz\b|\bddr[345][\s\-]+(\d{4})\b", re.I)
+_DDR_GEN_RE = re.compile(r"\b(ddr[345])\b", re.I)
+_BATTERY_MAH_RE = re.compile(r"\b(\d{3,5})\s*mah\b", re.I)
+_APPLIANCE_LITERS_RE = re.compile(r"\b(\d{1,4}(?:\.\d+)?)\s*(?:l|ltr|ltrs|liter|liters|litre|litres)\b", re.I)
+_PSU_EFFICIENCY_RE = re.compile(r"\b(?:80\s*(?:\+|plus)\s*)?(bronze|silver|gold|platinum|titanium)\b", re.I)
+_CHIPSET_TOKEN_RE = re.compile(r"\b([abhxz]\d{3}m?e?)\b", re.I)
+_ROMAN_GEN_RE = re.compile(r"(?<!sata\s)(?<!pcie\s)(?<!usb\s)(?<!hdmi\s)\b(ii|iii|iv)\b", re.I)
+_VERSION_GEN_RE = re.compile(r"\b(?:v([2-9])|gen\s*([2-9])|mark\s*(ii|iii|iv|\d)|mk\s*([2-9]))\b", re.I)
+_DECIMAL_VER_RE = re.compile(r"\b([1-9]\.[0-9])\b")
+_SUFFIX_S_TIER_RE = re.compile(r"\b\d+\s+s\b(?!\s*(?:gb|tb|w|v|hz|cm|mm|inch|pack|pcs|mode|sec|second))", re.I)
+_BOARD_TRIM_WORDS: frozenset[str] = frozenset({
+    "aorus", "stealth", "eagle", "elite", "d3hp", "ds3h", "s2h", "ud",
+    "rog", "tuf", "strix", "prime", "proart", "mpg", "meg", "mag",
+    "carbon", "godlike", "tomahawk", "mortar", "bazooka", "edge", "ice",
+    "steel", "legend", "pro4", "hdv", "wifi", "ax", "ac",
+})
+_BOARD_SINGLE_SUFFIXES: frozenset[str] = frozenset({"k", "h", "p", "a", "m", "e", "f", "x"})
+
+# Explicit device-type classifiers (ordered from most specific to broader)
+_DEVICE_TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("pc_build", re.compile(r"\b(?:desktop\s+pc|gaming\s+pc|pc\s+build|workstation\s+pc|prebuilt|تجميعة|تجميعه)\b", re.I)),
+    ("laptop", re.compile(r"\b(?:laptop|notebook|macbook|thinkpad|ideapad|vivobook|zenbook|chromebook|legion\s+\d|loq\s+\d|pavilion|elitebook|probook|inspiron|latitude|vostro|victus|omen\s+\d|aspire\s+\d|nitro\s+[v5]|predator\s+helios|matebook|magicbook)\b", re.I)),
+    ("smartphone", re.compile(r"\b(?:smartphone|mobile\s+phone|iphone|galaxy\s+[asmz]\d|redmi\s+note|poco\s+[xfmc]\d)\b", re.I)),
+    ("tablet", re.compile(r"\b(?:tablet|ipad|galaxy\s+tab)\b", re.I)),
+    ("mousepad", re.compile(r"\b(?:mouse\s*pad|desk\s*mat|gaming\s*mat)\b", re.I)),
+    ("mouse", re.compile(r"\b(?:gaming\s+mouse|wireless\s+mouse|wired\s+mouse|optical\s+mouse|bluetooth\s+mouse|mouse)\b|ماوس", re.I)),
+    ("keyboard", re.compile(r"\b(?:keyboard|mechanical\s+keyboard|gaming\s+keyboard)\b|كيبورد", re.I)),
+    ("headset", re.compile(r"\b(?:headset|headphone|headphones|earphone|earphones|earbuds|airpods|tws)\b|سماعة|سماعه", re.I)),
+    ("microphone", re.compile(r"\b(?:microphone|quadcast|solocast|condenser\s+mic)\b|مايكروفون", re.I)),
+    ("webcam", re.compile(r"\b(?:webcam|web\s*cam)\b", re.I)),
+    ("speaker", re.compile(r"\b(?:speaker|soundbar|subwoofer)\b", re.I)),
+    ("monitor", re.compile(r"\b(?:gaming\s+monitor|ips\s+monitor|curved\s+monitor|led\s+monitor|monitor)\b", re.I)),
+    ("tv", re.compile(r"\b(?:smart\s+tv|led\s+tv|qled\s+tv|oled\s+tv|uhd\s+tv|4k\s+tv|television|google\s+tv)\b|تلفزيون", re.I)),
+    ("extender", re.compile(r"\b(?:wifi\s+extender|range\s+extender|mesh\s+wifi\s+extender|mesh\s+extender|repeater|extender)\b", re.I)),
+    ("router", re.compile(r"\b(?:router|modem|access\s+point)\b|راوتر", re.I)),
+    ("motherboard", re.compile(r"\b(?:motherboard|mainboard)\b|ماذربورد", re.I)),
+    ("psu", re.compile(r"\b(?:power\s+supply|psu|80\s*(?:\+|plus)\s*(?:bronze|silver|gold|platinum|titanium)|full\s+modular)\b|باور\s*سبلاي", re.I)),
+    ("gpu", re.compile(r"\b(?:graphics\s+card|video\s+card|vga\s+card)\b|كارت\s*شاش[ةه]", re.I)),
+    ("ram", re.compile(r"\b(?:udimm|sodimm|so-dimm|desktop\s+memory|laptop\s+memory|ram\s+kit|memory\s+kit|dimm)\b|رامات", re.I)),
+    ("ssd", re.compile(r"\b(?:solid\s+state\s+drive|internal\s+ssd|external\s+ssd|nvme\s+ssd|sata\s+ssd|ssd)\b", re.I)),
+    ("pc_case", re.compile(r"\b(?:mid[\s-]?tower|full[\s-]?tower|pc\s+case|gaming\s+case|atx\s+case|chassis)\b", re.I)),
+    ("cooler", re.compile(r"\b(?:cpu\s+cooler|liquid\s+cooler|aio\s+cooler|water\s+cooler|air\s+cooler|case\s+fan)\b", re.I)),
+    ("printer", re.compile(r"\b(?:printer|laserjet|deskjet|inkjet|scanner)\b|طابعة|طابعه", re.I)),
+    ("watch", re.compile(r"\b(?:smartwatch|smart\s+watch|fitness\s+band)\b", re.I)),
+    ("dishwasher", re.compile(r"\b(?:dishwasher|dish\s+washer)\b|غسالة\s*اطباق", re.I)),
+    ("washer", re.compile(r"\b(?:washing\s+machine|washer)\b|غسالة|غساله", re.I)),
+    ("refrigerator", re.compile(r"\b(?:refrigerator|fridge|deep\s+freezer|freezer)\b|ثلاجة|تلاجة|فريزر", re.I)),
+    ("ac", re.compile(r"\b(?:air\s+conditioner|split\s+ac)\b|تكييف", re.I)),
+    ("cooker", re.compile(r"\b(?:gas\s+cooker|electric\s+cooker|cooker|built[\s-]?in\s+(?:oven|hob)|hob|oven)\b|بوتاجاز|فرن", re.I)),
+    ("microwave", re.compile(r"\b(?:microwave)\b|ميكروويف", re.I)),
+    ("heater", re.compile(r"\b(?:water\s+heater|gas\s+heater|fan\s+heater|electric\s+heater|heater)\b|سخان|دفاية", re.I)),
+    ("vacuum", re.compile(r"\b(?:vacuum\s+cleaner|vacuum)\b|مكنسة|مكنسه", re.I)),
+    ("air_fryer", re.compile(r"\b(?:air\s+fryer|aero\s+fry|fryer)\b|قلاية|قلايه", re.I)),
+    ("blender", re.compile(r"\b(?:blender|hand\s+blender|food\s+processor|stand\s+mixer|mixer)\b|خلاط|كبة", re.I)),
+    ("kettle", re.compile(r"\b(?:kettle)\b|غلاية|غلايه", re.I)),
+    ("fan", re.compile(r"\b(?:stand\s+fan|ceiling\s+fan|wall\s+fan|box\s+fan|desk\s+fan|pedestal\s+fan)\b|مروحة|مروحه", re.I)),
+)
+
+# Generic non-model sport/fashion descriptors that alone CANNOT justify a Pass 3 match
+_GENERIC_FASHION_SPORTS_TOKENS: frozenset[str] = frozenset({
+    "cross", "training", "trainer", "trainers", "running", "walking", "lifestyle", "casual",
+    "basic", "classic", "sport", "sports", "active", "comfort", "fitness", "outdoor", "indoor",
+    "shoes", "shoe", "sneakers", "sneaker", "boots", "boot", "sandals", "sandal", "slippers",
+    "slides", "jersey", "shirt", "tshirt", "tee", "polo", "pants", "shorts", "jacket", "hoodie",
+    "sweatshirt", "leggings", "joggers", "sweatpants", "swimsuit", "bag", "backpack", "socks",
+    "cap", "hat", "pencil", "case", "zipper", "two", "full", "zip", "cotton", "set",
+})
 _SLASH_RAM_STORAGE_RE = re.compile(r"\b(\d{1,2})\s*(?:gb)?\s*[+/]\s*(32|64|128|256|512|1024)\s*gb\b", re.I)
 _SLASH_STORAGE_RAM_RE = re.compile(r"\b(32|64|128|256|512|1024)\s*(?:gb)?\s*[+/]\s*(\d{1,2})\s*gb?\b", re.I)
 _CAP_GB_TB_RE = re.compile(
@@ -437,12 +534,14 @@ def _normalize_code_str(raw: str) -> str:
 def _extract_high_entropy_model_codes(canon_text: str, raw_title: str) -> tuple[str, ...]:
     """Extract high-entropy alphanumeric manufacturer model codes (letters + digits, len >= 4).
 
-    Strictly filters out generic specs (`256gb`, `5g`, `4k`, `120hz`, `1080p`, `220v`, `2024..2026`, etc.).
+    Strictly filters out generic specs (`256gb`, `5g`, `4k`, `120hz`, `30serv`, `60caps`,
+    `2door`, `300mbps`, `ac1200`, `cl30`, `3mode`, standalone motherboard chipsets `b850m`, etc.).
     """
-    # Strip unit expressions first so `55-inch`, `256-gb`, `120-hz` never mimic codes
+    # Strip unit/serving/rating expressions first so `55-inch`, `30-serv`, `2-door`, `3-mode` never mimic codes
     cleaned = re.sub(
         r"\b\d+(?:\.\d+)?[\s\-]*(?:gb|tb|mb|ml|l|ltr|kg|kgs|g|gm|gms|mg|mcg|iu|oz|lb|lbs|"
-        r"hp|btu|w|watt|watts|kw|v|hz|khz|mhz|ghz|mah|wh|mp|mm|cm|ft|inch|inches|fps|dpi|ms|bar|rpm)\b",
+        r"hp|btu|w|watt|watts|kw|v|hz|khz|mhz|ghz|mah|wh|mp|mm|cm|ft|inch|inches|fps|dpi|ms|bar|rpm|"
+        r"serv(?:ings?)?|tabs?|tablets?|caps?|capsules?|softgels?|scoops?|doors?|mbps|gbps|modes?|stages?)\b",
         " ",
         f"{canon_text} {raw_title}",
         flags=re.I,
@@ -461,8 +560,8 @@ def _extract_high_entropy_model_codes(canon_text: str, raw_title: str) -> tuple[
             continue
         if _GENERIC_SPEC_CODE_RE.fullmatch(norm):
             continue
-        # Reject pure spec combinations like `16gb512gb` or `8gb256gb` or `128gb5g`
-        if re.fullmatch(r"(?:\d+(?:gb|tb|mb|ml|kg|w|hz|mp|mah|cm|mm|v|hp|in))+", norm):
+        # Reject pure spec combinations like `16gb512gb` or `8gb256gb` or `128gb5g` or `30serv90tabs`
+        if re.fullmatch(r"(?:\d+(?:gb|tb|mb|ml|kg|w|hz|mp|mah|cm|mm|v|hp|in|serv|tabs|caps|door|mode|mbps))+", norm):
             continue
         # Reject Apple regional MPNs on iPhones (e.g. MYEC3ZDA / MFYN4AFA) which differ by region
         if re.fullmatch(r"m[a-z]{2,3}\d[a-z0-9]{2,4}[a-z]?", norm) and "iphone" in canon_text:
@@ -497,13 +596,19 @@ def _extract_ram_storage(record: RawProductSnapshot, canon_text: str) -> tuple[O
             gb_vals.append(gb)
     if gb_vals:
         uniq = sorted(set(gb_vals))
+        is_ram_only = bool(
+            re.search(r"\b(?:ddr[2345]|udimm|sodimm|so-dimm|desktop\s+memory|laptop\s+memory|memory\s+kit|dimm)\b", canon_text)
+        ) and not bool(re.search(r"\b(?:ssd|nvme|hdd|laptop|notebook|iphone|galaxy|redmi|poco|smartphone|tablet|ipad)\b", canon_text))
         if len(uniq) >= 2:
             if ram_gb is None and uniq[0] <= 64:
                 ram_gb = uniq[0]
             if storage_gb is None and uniq[-1] >= 32:
                 storage_gb = uniq[-1]
         elif len(uniq) == 1:
-            if storage_gb is None and uniq[0] >= 32:
+            if is_ram_only:
+                if ram_gb is None:
+                    ram_gb = uniq[0]
+            elif storage_gb is None and uniq[0] >= 32:
                 storage_gb = uniq[0]
             elif ram_gb is None and uniq[0] <= 32:
                 ram_gb = uniq[0]
@@ -522,15 +627,34 @@ class HardSpecs:
     cpu: Optional[str] = None
     gpu: Optional[str] = None
     dimensions: Optional[str] = None
+    cm_values: frozenset[int] = frozenset()
     burners: Optional[int] = None
     width_cm: Optional[int] = None
     washer_kg: Optional[str] = None
     washer_load: Optional[str] = None  # "top" | "front" | None
     perfume_conc: Optional[str] = None
     hb_form: Optional[str] = None
+    hb_time: Optional[str] = None  # "day" | "night" | None
     gender: Optional[str] = None  # "men" | "women" | "kids" | None
     grocery_distinguishers: frozenset[str] = frozenset()
     discriminative_numbers: frozenset[str] = frozenset()
+    # Systemic precision fields (Phase 2)
+    device_type: Optional[str] = None
+    wattage_w: Optional[int] = None
+    psu_efficiency: Optional[str] = None
+    refresh_hz: Optional[int] = None
+    ram_mhz: Optional[int] = None
+    ddr_gen: Optional[str] = None
+    battery_mah: Optional[int] = None
+    appliance_liters: Optional[float] = None
+    frost_type: Optional[str] = None  # "nofrost" | "defrost" | None
+    generation_tag: Optional[str] = None  # "ii", "iii", "v2", "2.0", etc.
+    chipset: Optional[str] = None
+    form_factor: Optional[str] = None  # "atx" | "matx" | "itx" | "eatx" | None
+    board_trims: frozenset[str] = frozenset()
+    sub_code_suffixes: frozenset[str] = frozenset()  # e.g. `e20`, `x30mv` after shared model code
+    size_tier: Optional[str] = None  # "small" | "medium" | "large" | None (toys/furniture)
+    pet_clumping: Optional[str] = None  # "clumping" | "non_clumping" | None
 
 
 @dataclass
@@ -561,8 +685,22 @@ def _extract_hard_specs(
     model_codes: tuple[str, ...],
 ) -> HardSpecs:
     low = canon_text.lower()
+    raw_t = record.product_title or ""
+    raw_low = raw_t.lower()
     raw_tokens = re.findall(r"[a-z0-9]+", low)
     token_set = set(raw_tokens)
+
+    # Device type classifier (tech & appliances — reads title, not noisy store sub_category)
+    device_type: Optional[str] = None
+    if coarse_domain == "tech_appliances":
+        dt_haystack = low if low == raw_low else f"{low} {raw_low}"
+        for dtype, pat in _DEVICE_TYPE_PATTERNS:
+            if pat.search(dt_haystack):
+                device_type = dtype
+                break
+        # If sub_category is explicitly laptops/notebooks and title had an internal SSD/RAM spec, treat as laptop
+        if device_type in ("ssd", "ram", None) and (record.sub_category or "").strip().lower() in ("laptops", "notebooks"):
+            device_type = "laptop"
 
     # Storage & RAM (tech)
     ram_gb: Optional[int] = None
@@ -573,20 +711,24 @@ def _extract_hard_specs(
         if brand == "apple" and "iphone" in token_set:
             ram_gb = None
 
-    # Screen size in inches (explicit `NN inch` or leading 2 digits of TV model code like `50c350rp`)
+    # Screen size in inches (explicit `NN"`, `NNN-inch`, Arabic `بوصة`, or leading 2-3 digits of TV model code)
     screen_inch: Optional[int] = None
     if coarse_domain == "tech_appliances":
-        if m := _SCREEN_INCH_RE.search(low):
+        m = _SCREEN_INCH_RE.search(low) or _SCREEN_INCH_RE.search(raw_low)
+        if m:
             sz = int(float(m.group(1)))
-            if 10 <= sz <= 110:
+            if 10 <= sz <= 115:
                 screen_inch = sz
         if screen_inch is None and (
-            record.sub_category in ("tvs", "smart_tvs", "monitors") or "tv" in token_set or "monitor" in token_set
+            device_type in ("tv", "monitor")
+            or record.sub_category in ("tvs", "smart_tvs", "monitors")
+            or "tv" in token_set
+            or "monitor" in token_set
         ):
             for code in model_codes:
-                if m := re.match(r"^(\d{2})([a-z]{2,})", code):
+                if m := re.match(r"^(\d{2,3})([a-z]{2,})", code):
                     sz = int(m.group(1))
-                    if 19 <= sz <= 110:
+                    if 19 <= sz <= 115:
                         screen_inch = sz
                         break
 
@@ -598,10 +740,113 @@ def _extract_hard_specs(
         elif m := _BTU_RE.search(low):
             hp = f"{int(m.group(1))}btu"
 
-    # Package weight / volume / count / pack / dosage (skip regex work when title has no digits/fractions & attrs empty)
+    # Hardware / Electronics / Appliance numeric & architecture specs
+    wattage_w: Optional[int] = None
+    psu_efficiency: Optional[str] = None
+    refresh_hz: Optional[int] = None
+    ram_mhz: Optional[int] = None
+    ddr_gen: Optional[str] = None
+    battery_mah: Optional[int] = None
+    appliance_liters: Optional[float] = None
+    frost_type: Optional[str] = None
+    generation_tag: Optional[str] = None
+    chipset: Optional[str] = None
+    form_factor: Optional[str] = None
+    board_trims: frozenset[str] = frozenset()
+    sub_code_suffixes: frozenset[str] = frozenset()
+
+    if coarse_domain == "tech_appliances":
+        if wm := _WATTAGE_RE.search(low):
+            w_val = int(wm.group(1))
+            if 10 <= w_val <= 6000:
+                wattage_w = w_val
+        if device_type == "psu" or "power supply" in low or "psu" in token_set or "80+" in raw_low or "80 plus" in low:
+            if pm := _PSU_EFFICIENCY_RE.search(low):
+                psu_efficiency = pm.group(1).lower()
+        if hm := _REFRESH_HZ_RE.search(low):
+            hz_val = int(hm.group(1))
+            if 60 <= hz_val <= 540:
+                refresh_hz = hz_val
+        if mm := _RAM_MHZ_RE.search(low):
+            mhz_val = int(mm.group(1) or mm.group(2))
+            if 1333 <= mhz_val <= 9600:
+                ram_mhz = mhz_val
+        if dm := _DDR_GEN_RE.search(low):
+            ddr_gen = dm.group(1).lower()
+        if bm := _BATTERY_MAH_RE.search(low):
+            mah_val = int(bm.group(1))
+            if 500 <= mah_val <= 100000:
+                battery_mah = mah_val
+        if device_type in ("refrigerator", "heater", "microwave", "cooker", "air_fryer") or "liter" in low or "litre" in low:
+            if lm := _APPLIANCE_LITERS_RE.search(low):
+                lit_val = float(lm.group(1))
+                if 1.0 <= lit_val <= 1500.0:
+                    appliance_liters = lit_val
+        if "no frost" in low or "nofrost" in low or "نو فروست" in raw_low:
+            frost_type = "nofrost"
+        elif "defrost" in low or "دي فروست" in raw_low:
+            frost_type = "defrost"
+
+        # Motherboard chipset, form factor & series/trim tokens (only for motherboards, NOT PC builds)
+        if device_type != "pc_build":
+            if chm := _CHIPSET_TOKEN_RE.search(low):
+                cand_ch = chm.group(1).lower()
+                # Confirm motherboard/PC context (or known chipset family number >= 300)
+                ch_digits = int(re.sub(r"\D", "", cand_ch))
+                if device_type == "motherboard" or ch_digits >= 400 or any(
+                    k in token_set for k in ("am4", "am5", "lga1700", "lga1851", "lga1200", "ddr4", "ddr5", "atx", "matx", "socket")
+                ):
+                    chipset = cand_ch
+                    if cand_ch.endswith("m"):
+                        form_factor = "matx"
+            if re.search(r"\b(?:e-?atx|extended\s+atx)\b", low):
+                form_factor = "eatx"
+            elif re.search(r"\b(?:m-?atx|micro[\s-]?atx)\b", low):
+                form_factor = "matx"
+            elif re.search(r"\b(?:mini[\s-]?itx|itx)\b", low):
+                form_factor = "itx"
+            elif re.search(r"\batx\b", low) and form_factor is None:
+                form_factor = "atx"
+
+            if chipset is not None or device_type == "motherboard":
+                trims: set[str] = {t for t in token_set if t in _BOARD_TRIM_WORDS}
+                if chipset is not None:
+                    for pos, tok in enumerate(raw_tokens):
+                        if tok == chipset and pos + 1 < len(raw_tokens):
+                            nxt = raw_tokens[pos + 1]
+                            if nxt in _BOARD_SINGLE_SUFFIXES:
+                                trims.add(f"sfx_{nxt}")
+                            break
+                board_trims = frozenset(trims)
+
+        # Capture immediate 3-6 char alphanumeric sub-model suffix after a model code (e.g. `274QPF E20` vs `274QPF X30MV`)
+        if model_codes:
+            sub_sfx: set[str] = set()
+            mc_set = set(model_codes)
+            for pos, tok in enumerate(raw_tokens):
+                if _normalize_code_str(tok) in mc_set and pos + 1 < len(raw_tokens):
+                    nxt = raw_tokens[pos + 1]
+                    if (
+                        3 <= len(nxt) <= 7
+                        and any(c.isalpha() for c in nxt)
+                        and any(c.isdigit() for c in nxt)
+                        and not _GENERIC_SPEC_CODE_RE.fullmatch(nxt)
+                    ):
+                        sub_sfx.add(_normalize_code_str(nxt))
+            sub_code_suffixes = frozenset(sub_sfx)
+
+    # Generation / Revision tag (Roman II/III/IV, v2/v3, Gen 4/5, decimal 2.0/3.0 on PSUs/electronics/footwear)
+    if rm := _ROMAN_GEN_RE.search(low):
+        generation_tag = rm.group(1).lower()
+    elif vm := _VERSION_GEN_RE.search(low):
+        g = next(x for x in vm.groups() if x is not None).lower()
+        generation_tag = f"v{g}"
+    elif coarse_domain == "fashion_sports" and (dm := _DECIMAL_VER_RE.search(low)):
+        generation_tag = dm.group(1)
+
+    # Package weight / volume / count / pack / dosage
     attrs = record.attributes_json or {}
     vlabel = attrs.get("variant_label") if isinstance(attrs.get("variant_label"), str) else None
-    raw_t = record.product_title or ""
     if (
         coarse_domain in ("groceries_pet", "health_beauty", "baby_kids")
         or any(ch.isdigit() for ch in raw_t)
@@ -618,14 +863,17 @@ def _extract_hard_specs(
     # Strip phrase contexts where `air` or `pro` is a noun/component, NOT a model tier
     tier_text = re.sub(
         r"\b(?:air\s+(?:conditioner|conditioners|conditioning|fryer|cooler|cleaner|purifier|humidifier|flow|vent|circulator)|"
-        r"pro\s+(?:pump|grade|motor|filter|blade|series|tech|care|finish|edition|version)|"
+        r"pro\s+(?:pump|grade|motor|filter|blade|series|tech|care|finish|edition|version|inverter)|"
         r"max\s+(?:power|speed|load|capacity|flow|temp))\b",
         " ",
         low,
     )
     tier_tokens = set(re.findall(r"[a-z0-9]+", tier_text))
     tier_pool = _TIER_MODIFIERS | (_TECH_EXTRA_TIERS if coarse_domain == "tech_appliances" else frozenset())
-    tiers = frozenset(t for t in tier_tokens if t in tier_pool)
+    tiers_set = {t for t in tier_tokens if t in tier_pool}
+    if coarse_domain == "tech_appliances" and _SUFFIX_S_TIER_RE.search(low):
+        tiers_set.add("suffix_s")
+    tiers = frozenset(tiers_set)
 
     # Network generation (`4g` vs `5g`)
     network_gen: Optional[str] = None
@@ -645,12 +893,26 @@ def _extract_hard_specs(
         if gm := _GPU_RE.search(low):
             gpu = normalize_snake_slug(gm.group(1), max_len=16)
 
-    # Dimensions (furniture / rugs / mattresses)
+    # Dimensions & single-width cm (furniture / rugs / mattresses)
     dimensions: Optional[str] = None
+    cm_values: frozenset[int] = frozenset()
     if coarse_domain in ("home_furniture", "baby_kids"):
         if dm := _DIM_RE.search(low):
             nums = [int(g) for g in dm.groups() if g is not None]
             dimensions = "x".join(str(x) for x in sorted(nums))
+        cm_found = {int(x) for x in _SINGLE_CM_RE.findall(f"{low} {raw_low}") if 40 <= int(x) <= 320}
+        if cm_found:
+            cm_values = frozenset(cm_found)
+
+    # Size tier for toys / baby / furniture (e.g. Lego Medium vs Large Creative Brick Box)
+    size_tier: Optional[str] = None
+    if coarse_domain in ("baby_kids", "home_furniture"):
+        if "large" in token_set:
+            size_tier = "large"
+        elif "medium" in token_set:
+            size_tier = "medium"
+        elif "small" in token_set:
+            size_tier = "small"
 
     # Cookers & Washers
     burners: Optional[int] = None
@@ -670,40 +932,72 @@ def _extract_hard_specs(
             elif "front" in token_set:
                 washer_load = "front"
 
-    # Health & Beauty concentration & form
+    # Health & Beauty concentration, form & day/night
     perfume_conc: Optional[str] = None
     hb_form: Optional[str] = None
+    hb_time: Optional[str] = None
     if coarse_domain == "health_beauty":
         for conc_name, pat in _PERFUME_CONC_PATTERNS:
             if pat.search(low):
                 perfume_conc = conc_name
                 break
-        if fm := _HEALTH_FORM_RE.search(low):
-            hb_form = fm.group(1).lower().rstrip("s")
+        hb_form = extract_hb_form(low)
+        if re.search(r"\b(?:night|overnight|pm)\b|ليلي", f"{low} {raw_low}", re.I):
+            hb_time = "night"
+        elif re.search(r"\b(?:day|daytime)\b|نهاري", f"{low} {raw_low}", re.I):
+            hb_time = "day"
 
-    # Gender (fashion / sports / footwear)
+    # Gender (fashion / sports / footwear — includes `variant_label` and shorthand `2 W RUNNING SHOES`!)
     gender: Optional[str] = None
     if coarse_domain == "fashion_sports":
-        if _KIDS_RE.search(low):
+        gender_text = f"{low} {normalize_arabic_text(vlabel or '')}"
+        if _KIDS_RE.search(gender_text):
             gender = "kids"
         else:
-            has_w = bool(_WOMEN_RE.search(low)) or record.store_name.lower() in _WOMEN_ONLY_STORES
-            has_m = bool(_MEN_RE.search(low))
+            has_w = (
+                bool(_WOMEN_RE.search(gender_text))
+                or bool(re.search(r"(?:\b\d+\s+w\b|\bw\s+(?:running|training|walking|lifestyle|shoes?|sneakers?)\b)", gender_text))
+                or record.store_name.lower() in _WOMEN_ONLY_STORES
+            )
+            has_m = (
+                bool(_MEN_RE.search(gender_text))
+                or bool(re.search(r"(?:\b\d+\s+m\b|\bm\s+(?:running|training|walking|lifestyle|shoes?|sneakers?)\b)", gender_text))
+            )
             if has_w and not has_m:
                 gender = "women"
             elif has_m and not has_w:
                 gender = "men"
 
-    # Grocery flavor/scent/shape/cut distinguishers
+    # Grocery flavor/scent/shape/cut distinguishers (normalize compound sugar-free / half-cream / whole-wheat)
     grocery_dist: frozenset[str] = frozenset()
     if eff_cat == "groceries":
-        grocery_dist = frozenset(t for t in token_set if t in _GROCERY_DISTINGUISHERS)
+        g_norm = re.sub(r"\b(?:sugar|suger)[\s\-]?free\b|\bzero\s+sugar\b|\bno\s+(?:added\s+)?sugar\b", " sugarfree ", low)
+        g_norm = re.sub(r"\bgluten[\s\-]?free\b", " glutenfree ", g_norm)
+        g_norm = re.sub(r"\bwhole[\s\-]?wheat\b", " wholewheat ", g_norm)
+        g_norm = re.sub(r"\bhalf[\s\-]?cream\b|\bsemi[\s\-]?skimmed\b", " halfcream ", g_norm)
+        g_norm = re.sub(r"\bfull[\s\-]?cream\b", " fullcream ", g_norm)
+        g_toks = set(re.findall(r"[a-z0-9]+", g_norm))
+        grocery_dist = frozenset(t for t in g_toks if t in _GROCERY_DISTINGUISHERS)
 
-    # Discriminative model/version numbers (exclude capacities/years/units)
+    # Pet Care clumping vs non-clumping
+    pet_clumping: Optional[str] = None
+    if eff_cat == "pet_care":
+        if re.search(r"\bnon[\s\-]?clumping\b", low):
+            pet_clumping = "non_clumping"
+        elif re.search(r"\bclumping\b", low):
+            pet_clumping = "clumping"
+
+    # Discriminative model/version numbers (exclude capacities/years/units/PSU standards)
+    # Note: only strip bare `w` (Watts) in `tech_appliances`, NEVER in `fashion_sports` where `2 W` = Version 2 Women!
     disc_nums: set[str] = set()
+    unit_suffixes = (
+        r"gb|tb|mb|ml|l|ltr|kg|kgs|g|gm|gms|mg|mcg|iu|oz|lb|lbs|"
+        r"hp|btu|w|watt|watts|kw|v|hz|khz|mhz|ghz|mah|wh|mp|mm|cm|ft|inch|inches|fps|dpi|ms|bar|rpm|pcs|caps|tabs|serv|servings"
+        if coarse_domain == "tech_appliances"
+        else r"gb|tb|mb|ml|l|ltr|kg|kgs|g|gm|gms|mg|mcg|iu|oz|lb|lbs|mm|cm|ft|inch|inches|pcs|caps|tabs|serv|servings"
+    )
     cleaned_no_units = re.sub(
-        r"\b\d+(?:\.\d+)?[\s\-]*(?:gb|tb|mb|ml|l|ltr|kg|kgs|g|gm|gms|mg|mcg|iu|oz|lb|lbs|"
-        r"hp|btu|w|watt|watts|kw|v|hz|khz|mhz|ghz|mah|wh|mp|mm|cm|ft|inch|inches|fps|dpi|ms|bar|rpm|pcs|caps|tabs)\b",
+        rf"\b(?:\d+(?:\.\d+)?[\s\-]*(?:{unit_suffixes})|atx\s*3(?:\.[01])?|pcie\s*[45](?:\.[01])?|80\s*(?:\+|plus))\b",
         " ",
         low,
         flags=re.I,
@@ -714,7 +1008,7 @@ def _extract_hard_specs(
                 continue
             if _GENERIC_SPEC_CODE_RE.fullmatch(tok):
                 continue
-            if tok.isdigit() and int(tok) in {ram_gb, storage_gb, screen_inch}:
+            if tok.isdigit() and int(tok) in {ram_gb, storage_gb, screen_inch, wattage_w, refresh_hz, ram_mhz, battery_mah}:
                 continue
             disc_nums.add(_normalize_code_str(tok) if any(c.isalpha() for c in tok) else tok)
 
@@ -729,16 +1023,47 @@ def _extract_hard_specs(
         cpu=cpu,
         gpu=gpu,
         dimensions=dimensions,
+        cm_values=cm_values,
         burners=burners,
         width_cm=width_cm,
         washer_kg=washer_kg,
         washer_load=washer_load,
         perfume_conc=perfume_conc,
         hb_form=hb_form,
+        hb_time=hb_time,
         gender=gender,
         grocery_distinguishers=grocery_dist,
         discriminative_numbers=frozenset(disc_nums),
+        device_type=device_type,
+        wattage_w=wattage_w,
+        psu_efficiency=psu_efficiency,
+        refresh_hz=refresh_hz,
+        ram_mhz=ram_mhz,
+        ddr_gen=ddr_gen,
+        battery_mah=battery_mah,
+        appliance_liters=appliance_liters,
+        frost_type=frost_type,
+        generation_tag=generation_tag,
+        chipset=chipset,
+        form_factor=form_factor,
+        board_trims=board_trims,
+        sub_code_suffixes=sub_code_suffixes,
+        size_tier=size_tier,
+        pet_clumping=pet_clumping,
     )
+
+
+def _model_codes_compatible(codes_a: tuple[str, ...], codes_b: tuple[str, ...]) -> bool:
+    """Return True if two non-empty model-code lists share an exact or prefix-aligned code."""
+    for ca in codes_a:
+        for cb in codes_b:
+            if ca == cb:
+                return True
+            # Allow regional suffix prefix match (e.g. `ls27bg402e` vs `ls27bg402emxue`, `hfs50b20` vs `hfs50b20gr`)
+            shorter, longer = (ca, cb) if len(ca) <= len(cb) else (cb, ca)
+            if len(shorter) >= 5 and longer.startswith(shorter):
+                return True
+    return False
 
 
 def specs_conflict(
@@ -763,10 +1088,24 @@ def specs_conflict(
 
     sa, sb = a.specs, b.specs
 
-    # 4. Storage (GB/TB) & RAM conflict
+    # 3b. Cross-device-type isolation (mouse != headset, extender != router, pc_build != motherboard, etc.)
+    if not exact_ean and sa.device_type is not None and sb.device_type is not None and sa.device_type != sb.device_type:
+        return True
+
+    # 4. Storage (GB/TB) & RAM conflict (including single-GB RAM-vs-Storage classification safety!)
     if sa.storage_gb is not None and sb.storage_gb is not None and sa.storage_gb != sb.storage_gb:
         return True
     if sa.ram_gb is not None and sb.ram_gb is not None and sa.ram_gb != sb.ram_gb:
+        return True
+    if (
+        sa.ram_gb is not None and sa.storage_gb is None
+        and sb.storage_gb is not None and sb.ram_gb is None
+        and sa.ram_gb != sb.storage_gb
+    ) or (
+        sb.ram_gb is not None and sb.storage_gb is None
+        and sa.storage_gb is not None and sa.ram_gb is None
+        and sb.ram_gb != sa.storage_gb
+    ):
         return True
     # In Pass 3 on smartphones/tablets/laptops/storage, don't merge sized vs sizeless storage
     if strict_pass3 and a.coarse_domain == "tech_appliances":
@@ -785,7 +1124,7 @@ def specs_conflict(
     if sa.hp is not None and sb.hp is not None and sa.hp != sb.hp:
         return True
 
-    # 7. Washer kg / load type & Cooker burners / width conflict
+    # 7. Washer kg / load type, Cooker burners / width, Fridge liters & frost type conflict
     if sa.washer_kg is not None and sb.washer_kg is not None and sa.washer_kg != sb.washer_kg:
         return True
     if sa.washer_load is not None and sb.washer_load is not None and sa.washer_load != sb.washer_load:
@@ -794,6 +1133,71 @@ def specs_conflict(
         return True
     if sa.width_cm is not None and sb.width_cm is not None and sa.width_cm != sb.width_cm:
         return True
+    if sa.frost_type is not None and sb.frost_type is not None and sa.frost_type != sb.frost_type:
+        return True
+    if sa.appliance_liters is not None and sb.appliance_liters is not None:
+        lo_l, hi_l = min(sa.appliance_liters, sb.appliance_liters), max(sa.appliance_liters, sb.appliance_liters)
+        if lo_l > 0 and (hi_l / lo_l) > 1.15:
+            return True
+
+    # 7b. Hardware electrical / speed / architecture specs (PSU wattage & 80+, Hz, RAM MHz, DDR gen, mAh)
+    if not exact_ean:
+        if sa.wattage_w is not None and sb.wattage_w is not None and sa.wattage_w != sb.wattage_w:
+            is_psu_or_pwr = (
+                sa.device_type in ("psu",)
+                or sb.device_type in ("psu",)
+                or "power supply" in a.canon_text.lower()
+                or "power supply" in b.canon_text.lower()
+                or sa.psu_efficiency is not None
+                or sb.psu_efficiency is not None
+            )
+            lo_w, hi_w = min(sa.wattage_w, sb.wattage_w), max(sa.wattage_w, sb.wattage_w)
+            if is_psu_or_pwr or (lo_w > 0 and (hi_w / lo_w) > 1.35):
+                return True
+        if sa.psu_efficiency is not None and sb.psu_efficiency is not None and sa.psu_efficiency != sb.psu_efficiency:
+            return True
+        if sa.refresh_hz is not None and sb.refresh_hz is not None and sa.refresh_hz != sb.refresh_hz:
+            return True
+        if sa.ram_mhz is not None and sb.ram_mhz is not None and sa.ram_mhz != sb.ram_mhz:
+            return True
+        if sa.ddr_gen is not None and sb.ddr_gen is not None and sa.ddr_gen != sb.ddr_gen:
+            return True
+        if sa.battery_mah is not None and sb.battery_mah is not None and sa.battery_mah != sb.battery_mah:
+            return True
+
+    # 7c. Generation / Revision tag conflict (`GX II` != `GX III`, `v2` != `v3`, `2.0` != `3.0`)
+    if not exact_ean:
+        if sa.generation_tag is not None and sb.generation_tag is not None and sa.generation_tag != sb.generation_tag:
+            return True
+        if (sa.generation_tag in ("ii", "iii", "iv")) != (sb.generation_tag in ("ii", "iii", "iv")):
+            if a.coarse_domain == "tech_appliances":
+                return True
+
+    # 7d. Motherboard chipset, form factor & series/trim conflict (`B850M D3HP` != `B850 A Stealth`, `MPG Carbon` != `MEG Godlike`, `B650M P` != `B650M A WiFi`)
+    if not exact_ean:
+        if sa.chipset is not None and sb.chipset is not None and sa.chipset != sb.chipset:
+            return True
+        if sa.form_factor is not None and sb.form_factor is not None and sa.form_factor != sb.form_factor:
+            return True
+        if sa.chipset is not None or sb.chipset is not None or sa.device_type == "motherboard" or sb.device_type == "motherboard":
+            if ("wifi" in sa.board_trims) != ("wifi" in sb.board_trims):
+                return True
+            sfx_a = {t for t in sa.board_trims if t.startswith("sfx_")}
+            sfx_b = {t for t in sb.board_trims if t.startswith("sfx_")}
+            if sfx_a and sfx_b and sfx_a != sfx_b:
+                return True
+            line_a = sa.board_trims - {"wifi"} - sfx_a
+            line_b = sb.board_trims - {"wifi"} - sfx_b
+            # If one board specifies a distinct series/trim not on the other (e.g. `d3hp` vs `stealth`, `carbon` vs `godlike`, `a520m k` vs `a520m s2h`)
+            if (line_a and line_b and line_a != line_b) or (bool(line_a) != bool(line_b) and (sfx_a != sfx_b or not (sfx_a & sfx_b))):
+                return True
+
+    # 7e. Conflicting manufacturer model codes or sub-model suffixes across ALL non-EAN passes!
+    if not exact_ean:
+        if a.model_codes and b.model_codes and not _model_codes_compatible(a.model_codes, b.model_codes):
+            return True
+        if sa.sub_code_suffixes and sb.sub_code_suffixes and not (sa.sub_code_suffixes & sb.sub_code_suffixes):
+            return True
 
     # 8. Laptop CPU / GPU conflict (never merge integrated-GPU laptop with dedicated-GPU variant)
     if sa.cpu is not None and sb.cpu is not None and sa.cpu != sb.cpu:
@@ -803,7 +1207,7 @@ def specs_conflict(
     if (sa.cpu is not None or sb.cpu is not None) and ((sa.gpu is None) != (sb.gpu is None)):
         return True
 
-    # 9. Model Tier Modifiers (`pro`, `max`, `plus`, `ultra`, `mini`, `lite`, `fe`, `se`, `air`, `neo`, `ti`, `super`, ...)
+    # 9. Model Tier Modifiers (`pro`, `max`, `plus`, `ultra`, `mini`, `lite`, `fe`, `se`, `air`, `neo`, `ti`, `super`, `suffix_s`, ...)
     if not exact_ean:
         if sa.tiers != sb.tiers:
             return True
@@ -824,16 +1228,26 @@ def specs_conflict(
             if not (sa.unit_spec.has_package_size() and sb.unit_spec.has_package_size()):
                 return True
 
-    # 11. Dimensions conflict (rugs, mattresses, furniture)
+    # 11. Dimensions, single-width cm & size tier conflict (rugs, mattresses, furniture, toys)
     if sa.dimensions is not None and sb.dimensions is not None and sa.dimensions != sb.dimensions:
+        return True
+    if sa.cm_values and sb.cm_values and not (sa.cm_values & sb.cm_values):
+        return True
+    if sa.size_tier is not None and sb.size_tier is not None and sa.size_tier != sb.size_tier:
         return True
     if strict_pass3 and a.coarse_domain == "home_furniture" and ((sa.dimensions is None) != (sb.dimensions is None)):
         return True
 
-    # 12. Beauty/Health concentration & product form conflict
+    # 12. Beauty/Health concentration, product form & day/night conflict
     if sa.perfume_conc is not None and sb.perfume_conc is not None and sa.perfume_conc != sb.perfume_conc:
         return True
     if sa.hb_form is not None and sb.hb_form is not None and sa.hb_form != sb.hb_form:
+        return True
+    if sa.hb_time is not None and sb.hb_time is not None and sa.hb_time != sb.hb_time:
+        return True
+
+    # 12b. Pet Care clumping vs non-clumping conflict
+    if sa.pet_clumping is not None and sb.pet_clumping is not None and sa.pet_clumping != sb.pet_clumping:
         return True
 
     # 13. Fashion/Footwear gender/age conflict
@@ -842,30 +1256,43 @@ def specs_conflict(
     if (sa.gender == "kids") != (sb.gender == "kids"):
         return True
 
-    # 14. Grocery flavor/scent/shape/cut conflict:
-    #     - Mutually exclusive pairs (whipping vs cooking cream, powder vs gel, etc.) blocked across ALL passes.
-    #     - Full distinguisher set equality enforced strictly in Pass 3 TF-IDF.
+    # 14. Grocery flavor/scent/shape/cut/variety/sugar-free conflict across ALL non-EAN passes
     if (a.eff_cat == "groceries" or b.eff_cat == "groceries") and not exact_ean:
+        da, db = sa.grocery_distinguishers, sb.grocery_distinguishers
         for side_x, side_y in _GROCERY_EXCLUSIVE_PAIRS:
-            if (sa.grocery_distinguishers & side_x and sb.grocery_distinguishers & side_y) or (
-                sa.grocery_distinguishers & side_y and sb.grocery_distinguishers & side_x
-            ):
+            if (da & side_x and db & side_y) or (da & side_y and db & side_x):
                 return True
-        if strict_pass3 and sa.grocery_distinguishers != sb.grocery_distinguishers:
+        # Sugar-free / Zero / Diet must match on both sides
+        if bool(da & _SUGAR_FREE_TOKENS) != bool(db & _SUGAR_FREE_TOKENS):
+            return True
+        # Distinct cheese varieties (Gouda != Parmesan != Grana Padano != Parmigiano Reggiano)
+        ca, cb = da & _CHEESE_VARIETIES, db & _CHEESE_VARIETIES
+        if ca and cb and not (ca & cb):
+            return True
+        # Distinct grain / plant-milk bases (Quinoa != Almond != Half-Cream Milk)
+        ga, gb = da & _GRAIN_PLANT_BASES, db & _GRAIN_PLANT_BASES
+        if ga != gb:
+            return True
+        # Distinct coffee origins (Brazilian != Turkish+Cardamom)
+        coa, cob = da & _COFFEE_ORIGIN_TOKENS, db & _COFFEE_ORIGIN_TOKENS
+        if coa != cob:
+            return True
+        # Multi-flavor additions like "Orange & Carrot" vs plain "Orange"
+        if ("carrot" in da) != ("carrot" in db):
+            return True
+        if strict_pass3 and da != db:
             return True
 
     # 15. Pass-3 extra precision guards
     if strict_pass3:
         # Conflicting high-entropy model codes -> NEVER merge via TF-IDF!
-        if a.model_codes and b.model_codes and not (set(a.model_codes) & set(b.model_codes)):
+        if a.model_codes and b.model_codes and not _model_codes_compatible(a.model_codes, b.model_codes):
             return True
         # One-sided model code on big appliances/TVs (`55M70H` vs generic `Samsung 55-inch Mini LED 4K TV`)
         if (a.has_big_appliance_tv_cue or b.has_big_appliance_tv_cue) and (bool(a.model_codes) != bool(b.model_codes)):
             return True
         # Conflicting discriminative version/series numbers (`iPhone 15` vs `16`, `Pegasus 40` vs `41`, `SPF 30` vs `50`)
         if sa.discriminative_numbers != sb.discriminative_numbers:
-            # If BOTH have discriminative numbers and they differ -> reject!
-            # Also reject if one has a discriminative number on a phone/shoe/appliance and the other doesn't.
             if sa.discriminative_numbers and sb.discriminative_numbers:
                 return True
             if a.coarse_domain in ("tech_appliances", "fashion_sports"):
@@ -888,6 +1315,7 @@ class ClusterState:
     origin_pass: str  # "pass1_id" | "pass2_det" | "pass2_code" | "pass3_tfidf"
     preferred_key: Optional[str] = None
     centroid: Optional[dict[str, float]] = None
+    max_allowed_ratio: float = 2.5
 
 
 class GuardedUnionFind:
@@ -907,6 +1335,7 @@ class GuardedUnionFind:
                 max_price=price,
                 brand=p.brand,
                 origin_pass="",
+                max_allowed_ratio=99.0,
             )
 
     def find(self, x: int) -> int:
@@ -957,10 +1386,11 @@ class GuardedUnionFind:
         if len(cu.members) + len(cv.members) > max_cluster_size:
             return False
 
-        # Cluster-level price sanity guard (prevents transitive price drift!)
+        # Cluster-level price sanity guard (prevents transitive price drift & never widens a tighter cluster cap!)
         new_min = min(cu.min_price, cv.min_price)
         new_max = max(cu.max_price, cv.max_price)
-        if new_min <= 0.0 or (new_max / new_min) > price_ratio_cap:
+        effective_pair_cap = min(price_ratio_cap, cu.max_allowed_ratio, cv.max_allowed_ratio)
+        if new_min <= 0.0 or (new_max / new_min) > effective_pair_cap:
             return False
 
         # Cluster-level brand consistency
@@ -994,6 +1424,7 @@ class GuardedUnionFind:
         cu.stores.update(cv.stores)
         cu.min_price = new_min
         cu.max_price = new_max
+        cu.max_allowed_ratio = effective_pair_cap
         if cu.brand == "unknown" and cv.brand != "unknown":
             cu.brand = cv.brand
         if not cu.origin_pass:
@@ -1349,8 +1780,18 @@ def run_entity_resolution(
     if _log_progress:
         print(f"  [ER Pass 0b] Profiled {len(profiles):,} SKUs ({brands_inferred:,} brands inferred) in {_t.perf_counter() - _t0:.1f}s", flush=True)
     effective_cap = max_price_ratio
-    strict_cap = min(max_price_ratio, 2.2) if max_price_ratio <= 2.5 else max_price_ratio
-    p3_cap = min(max_price_ratio, tfidf_max_price_ratio) if max_price_ratio <= 2.5 else max_price_ratio
+    # Confidence-tiered price ratio caps (Precision >> Recall):
+    # - Pass 1 (EAN-13): up to `effective_cap` (2.5x); MPN up to 2.2x
+    # - Pass 2a (deterministic keys): <= 2.0x for Electronics/Appliances/Groceries, <= 2.1x Health/Beauty/Footwear, <= 1.60x sizeless `hbl_*`
+    # - Pass 2b (model code without EAN/MPN): <= 2.0x
+    # - Pass 3 (TF-IDF): <= 1.75x (and <= 1.60x in tech_appliances & groceries_pet)
+    mpn_cap = min(max_price_ratio, 2.2) if max_price_ratio <= 2.5 else max_price_ratio
+    det_tech_groc_cap = min(max_price_ratio, 2.0) if max_price_ratio <= 2.5 else max_price_ratio
+    det_other_cap = min(max_price_ratio, 2.1) if max_price_ratio <= 2.5 else max_price_ratio
+    hbl_cap = min(max_price_ratio, 1.60) if max_price_ratio <= 2.5 else max_price_ratio
+    p2_code_cap = min(max_price_ratio, 2.0) if max_price_ratio <= 2.5 else max_price_ratio
+    p3_cap = min(max_price_ratio, tfidf_max_price_ratio, 1.75) if max_price_ratio <= 2.5 else max_price_ratio
+    p3_strict_cap = min(p3_cap, 1.60) if max_price_ratio <= 2.5 else max_price_ratio
 
     # ------------------------------------------------------------------
     # PASS 1: Exact Identifier Graph (EAN-13 / GTIN-14 / MPN)
@@ -1391,7 +1832,7 @@ def run_entity_resolution(
             uf.try_union(
                 anchor,
                 other,
-                price_ratio_cap=effective_cap,
+                price_ratio_cap=mpn_cap,
                 origin_pass="pass1_id",
                 preferred_key=pref,
             )
@@ -1437,12 +1878,17 @@ def run_entity_resolution(
                 det_stage_buckets[0][ck].append(p.idx)
 
     for stage_idx, det_buckets in enumerate(det_stage_buckets):
-        stage_cap = (1.65 if max_price_ratio <= 2.5 else max_price_ratio) if stage_idx == 2 else strict_cap
         for key, idxs in sorted(det_buckets.items()):
             if len(idxs) < 2 or len({profiles[i].record.store_name for i in idxs}) < 2:
                 continue
-            # Use full strict_cap for grocery type & footwear neutral keys, tighter 1.65x for sizeless HB (`hbl_*`)
-            key_cap = stage_cap if key.startswith("hbl_") else strict_cap
+            if key.startswith("grocery_gtin_"):
+                key_cap = effective_cap
+            elif key.startswith("hbl_"):
+                key_cap = hbl_cap
+            elif key.startswith(("hb_", "fw_")):
+                key_cap = det_other_cap
+            else:
+                key_cap = det_tech_groc_cap
             idxs_sorted = sorted(idxs, key=lambda i: (float(profiles[i].record.current_price), i))
             for i_pos in range(len(idxs_sorted)):
                 for j_pos in range(i_pos + 1, min(len(idxs_sorted), i_pos + 12)):
@@ -1455,6 +1901,7 @@ def run_entity_resolution(
                         price_ratio_cap=key_cap,
                         origin_pass="pass2_det",
                         preferred_key=key,
+                        exact_ean=key.startswith("grocery_gtin_"),
                     )
 
     # ------------------------------------------------------------------
@@ -1505,7 +1952,7 @@ def run_entity_resolution(
                 uf.try_union(
                     u_i,
                     v_i,
-                    price_ratio_cap=effective_cap,
+                    price_ratio_cap=p2_code_cap,
                     origin_pass="pass2_code",
                     preferred_key=pref,
                 )
@@ -1542,12 +1989,13 @@ def run_entity_resolution(
         if len({profiles[i].record.store_name for i in block_idxs}) < 2:
             continue
 
-        # Domain-specific threshold (higher precision bar for short-title domains)
+        # Domain-specific threshold & price cap (Precision >> Recall)
         dom_threshold = (
-            max(tfidf_threshold, 0.84)
+            max(tfidf_threshold, 0.85)
             if domain in ("groceries_pet", "fashion_sports", "home_furniture", "baby_kids")
-            else tfidf_threshold
+            else max(tfidf_threshold, 0.80)
         )
+        dom_p3_cap = p3_strict_cap if domain in ("tech_appliances", "groceries_pet") else p3_cap
 
         # Compute block document frequency
         block_df: Counter[str] = Counter()
@@ -1623,8 +2071,18 @@ def run_entity_resolution(
                 price_j = float(p_j.record.current_price or 0.0)
                 if price_j <= 0.0:
                     continue
-                if (max(price_i, price_j) / min(price_i, price_j)) > p3_cap:
+                ratio_ij = max(price_i, price_j) / min(price_i, price_j)
+                if ratio_ij > dom_p3_cap:
                     continue
+                # Pet care: block sized vs sizeless litter/food when price gap > 1.35x (e.g. 5L vs 10L)
+                if p_i.eff_cat == "pet_care" or p_j.eff_cat == "pet_care":
+                    if (p_i.specs.unit_spec.has_package_size() != p_j.specs.unit_spec.has_package_size()) and ratio_ij > 1.35:
+                        continue
+                # Fashion/Sports: require at least 1 genuine non-generic model/line token in shared tokens
+                if domain == "fashion_sports":
+                    shared_non_generic = (set(p_i.core_tokens) & set(p_j.core_tokens)) - _GENERIC_FASHION_SPORTS_TOKENS
+                    if not shared_non_generic:
+                        continue
                 if specs_conflict(p_i, p_j, strict_pass3=True):
                     continue
                 candidate_edges.append((sim, idx, jdx))
@@ -1635,7 +2093,7 @@ def run_entity_resolution(
             uf.try_union(
                 u_i,
                 v_i,
-                price_ratio_cap=p3_cap,
+                price_ratio_cap=dom_p3_cap,
                 origin_pass="pass3_tfidf",
                 strict_pass3=True,
                 vectors=all_vectors,

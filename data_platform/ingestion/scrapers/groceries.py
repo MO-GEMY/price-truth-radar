@@ -834,18 +834,28 @@ _GROCERY_TYPE_EN: frozenset[str] = frozenset(
 _FLAVOR_WORDS: frozenset[str] = frozenset(
     {
         "lavender", "vanilla", "mint", "apple", "guava", "mango", "orange", "grape",
-        "strawberry", "banana", "pineapple", "berries", "peach", "pear", "lemon",
+        "strawberry", "banana", "pineapple", "berries", "peach", "pear", "lemon", "carrot",
+        "pomegranate", "cranberry", "apricot", "kiwi", "watermelon", "lime", "ginger",
         "flowers", "floral", "breeze", "tropical", "rose", "jasmine", "regular",
-        "sesame", "chocolate", "plain", "lavendar",
+        "sesame", "chocolate", "plain", "lavendar", "classic", "zero", "diet", "sugarfree",
         "chili", "spicy", "tomato", "cocktail", "vermicelli", "rings", "penne",
         "fusilli", "spaghetti", "macaroni", "elbow", "rigate", "spirali",
         "farfalle", "shredded", "chunks", "chunk", "flakes", "beyti", "skimmed",
-        "lactose", "fat", "express", "smoked", "pickle", "olive",
+        "halfcream", "fullcream", "lactose", "fat", "express", "smoked", "pickle", "olive",
         "bukhoor", "downy", "light", "medium", "dark", "green", "black",
         "charcoal", "snowy", "crystal_clean", "vegan", "white", "yellow",
         "hazelnut", "caramel", "cinnamon", "cardamom", "spiced", "gold",
-        "decaf", "espresso", "french",
-        "sunflower", "corn", "canola", "olive", "mixed", "vegetable",
+        "decaf", "espresso", "french", "brazilian", "colombian", "ethiopian",
+        "sunflower", "corn", "canola", "mixed", "vegetable",
+        # Cheese varieties
+        "gouda", "parmesan", "parmigiano", "grana", "padano", "reggiano", "cheddar",
+        "feta", "mozzarella", "edam", "brie", "emmental", "halloumi", "kashkaval",
+        "roumi", "istambouli", "baramili", "ricotta", "mascarpone", "roquefort",
+        # Flour / grain / plant-milk bases
+        "quinoa", "almond", "oat", "soy", "coconut", "wholewheat", "chickpea",
+        "buckwheat", "rye", "semolina", "glutenfree",
+        # Detergent sub-lines
+        "power", "clean", "color", "pods", "gel", "powder",
     }
 )
 
@@ -856,6 +866,12 @@ _EN_FLAVOR_SYNONYMS: dict[str, str] = {
     "mahaweg": "spiced",
     "mehaweg": "spiced",
     "sada": "plain",
+    "classics": "classic",
+    "skim": "skimmed",
+    "oats": "oat",
+    "soya": "soy",
+    "chunks": "chunk",
+    "colors": "color",
 }
 
 _AR_FLAVOR_TO_EN: dict[str, str] = {
@@ -900,9 +916,27 @@ _AR_FLAVOR_TO_EN: dict[str, str] = {
     "ذرة": "corn",
     "ذره": "corn",
     "زيتون": "olive",
-    "تركي": "turkish",
     "فرنساوي": "french",
     "اسبريسو": "espresso",
+    "برازيلي": "brazilian",
+    "كولومبي": "colombian",
+    "شيدر": "cheddar",
+    "جودا": "gouda",
+    "بارميزان": "parmesan",
+    "فيتا": "feta",
+    "موتزاريلا": "mozzarella",
+    "موزاريلا": "mozzarella",
+    "رومي": "roumi",
+    "اسطنبولي": "istambouli",
+    "براميلي": "baramili",
+    "حلوم": "halloumi",
+    "كينوا": "quinoa",
+    "لوز": "almond",
+    "شوفان": "oat",
+    "صويا": "soy",
+    "كلاسيك": "classic",
+    "زيرو": "zero",
+    "دايت": "diet",
 }
 
 
@@ -948,12 +982,25 @@ def compute_grocery_type_key(record: RawProductSnapshot) -> Optional[str]:
     size_sig = "_".join(size_parts)
 
     text = record.product_title.translate(_ARABIC_DIGITS_MAP)
+    # Reject multi-item "+" bundles (e.g. "Sunflower Oil 700ml + Corn Oil 700ml")
+    # so bundle combos never collapse onto a single-item SKU!
+    if re.search(
+        r"\+\s*(?:[^+]{0,40}\d+(?:\.\d+)?\s*(?:ml|l|ltr|g|gm|gms|kg|pcs?|pieces?)|"
+        r"free|gift|corn\s+oil|sunflower\s+oil|olive\s+oil|rice|pasta|sugar|sauce|mix)\b",
+        text,
+        re.I,
+    ):
+        return None
+
     text = _MULTIPACK_UNIT_RE.sub(" ", text)
     text = _SINGLE_UNIT_RE.sub(" ", text)
     text = _PACK_COUNT_RE.sub(" ", text)
-    # Drop promo bundle tails ("+ Knorr Mix 70G") — bundles are store-specific
-    # promos, and their freebie contents must not influence the key.
-    text = re.sub(r"\s*\+.*$", " ", text)
+    # Normalize compound variant phrases before tokenizing
+    text = re.sub(r"\b(?:sugar|suger)[\s\-]?free\b|\bzero\s+sugar\b|\bno\s+(?:added\s+)?sugar\b", " sugarfree ", text, flags=re.I)
+    text = re.sub(r"\bgluten[\s\-]?free\b", " glutenfree ", text, flags=re.I)
+    text = re.sub(r"\bwhole[\s\-]?wheat\b", " wholewheat ", text, flags=re.I)
+    text = re.sub(r"\bhalf[\s\-]?cream\b|\bsemi[\s\-]?skimmed\b", " halfcream ", text, flags=re.I)
+    text = re.sub(r"\bfull[\s\-]?cream\b", " fullcream ", text, flags=re.I)
 
     # 1. Bilingual type noun (first Arabic match wins, then English tokens).
     type_noun: Optional[str] = None
@@ -985,9 +1032,14 @@ def compute_grocery_type_key(record: RawProductSnapshot) -> Optional[str]:
     if not type_noun:
         return None
 
+    # For juices, distinguish "Pure" (100% juice) from "Classic" (nectar) explicitly
+    if type_noun == "juice" and (re.search(r"\bpure\b", low) or "بيور" in low):
+        if "pure" not in flavors:
+            flavors.append("pure")
+
     # Order-insensitive: "shredded express" and "express shredded" are the same
     # product described differently across stores.
-    flavor_slug = f"_fl_{('_'.join(sorted(flavors[:2])))}" if flavors else ""
+    flavor_slug = f"_fl_{('_'.join(sorted(flavors[:3])))}" if flavors else ""
     return normalize_snake_slug(
         f"groc_type_{brand_slug}_{type_noun}{flavor_slug}_{size_sig}",
         max_len=160,

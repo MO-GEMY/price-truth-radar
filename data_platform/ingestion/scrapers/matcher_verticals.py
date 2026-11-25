@@ -246,15 +246,27 @@ _BUNDLE_SIGNAL_RE = re.compile(
     r"(?:"
     r"\b(?:bundle|routine|combo|kit|set\s+of|duo|trio|promo\s*pack|value\s*pack|gift\s*set|"
     r"buy\s*\d+\s*get\s*\d+|1\s*\+\s*1|2\s*\+\s*1|\+\s*free|free\s+gift|with\s+free|"
-    r"collection|box\s+set|travel\s+set|starter\s+kit)\b|"
+    r"collection|box\s+set|travel\s+set|starter\s+kit|starter\s+set)\b|"
+    r"\(\s*offer\s*\)|"
     r"(?:باقه|مجموعه|روتين|عرض\s*خاص|عرض\s*التوفير|مجانا|هديه|طقم|\d\s*\+\s*\d)"
+    r")",
+    re.I,
+)
+
+# Multi-item "+" bundle signals (e.g. "Sunflower Oil 700ml + Corn Oil 700ml", "(Plate + Spoon + Fork)")
+# Deliberately excludes "Black + Decker", "8+256GB", "AHA + BHA", "SPF 50+", "HDR10+"
+_MULTI_ITEM_PLUS_BUNDLE_RE = re.compile(
+    r"(?:"
+    r"\d+(?:\.\d+)?\s*(?:ml|mls|l|ltr|g|gm|gms|kg|pcs?|pieces?)\s*\+\s*[^+]{2,50}?\d+(?:\.\d+)?\s*(?:ml|mls|l|ltr|g|gm|gms|kg|pcs?|pieces?)|"
+    r"\+\s*(?:free|gift|bonus|corn\s+oil|sunflower\s+oil|olive\s+oil|rice|pasta|sugar|sauce|mix|spoon|fork|plate|bowl|cup|mug|shaker|bag|case|mouse|keyboard|headset|charger)\b|"
+    r"\(\s*[a-z]{3,}\s*\+\s*[a-z]{3,}\s*\+\s*[a-z]{3,}\s*\)"
     r")",
     re.I,
 )
 
 
 def _is_bundle_or_promo(norm_text: str) -> bool:
-    if _BUNDLE_SIGNAL_RE.search(norm_text):
+    if _BUNDLE_SIGNAL_RE.search(norm_text) or _MULTI_ITEM_PLUS_BUNDLE_RE.search(norm_text):
         return True
     # Only flag " + " when joining two separate products (e.g. "Shampoo + Conditioner",
     # "Whey + Creatine", "Cleanser + Serum"), NOT active ingredient pairs like
@@ -262,6 +274,7 @@ def _is_bundle_or_promo(norm_text: str) -> bool:
     if re.search(
         r"\b(?:shampoo|conditioner|serum|cleanser|cream|lotion|wash|toner|whey|protein|creatine|gainer|perfume|splash|mist)\b\s*\+\s*\b(?:shampoo|conditioner|serum|cleanser|cream|lotion|wash|toner|whey|protein|creatine|gainer|perfume|splash|mist|free|gift)\b",
         norm_text,
+        re.I,
     ):
         return True
     return False
@@ -729,11 +742,32 @@ _SUPPLEMENT_CONTEXT_RE = re.compile(
     re.I,
 )
 
-# Product form tokens that MUST remain distinct in Health (bar != powder != liquid != gummies)
+# Product form tokens that MUST remain distinct in Health/Beauty.
+# Priority tiers ensure specific wash/texture forms (`foam` in "Ampoule Foam",
+# `cream`/`gel` in "Sunscreen Cream" vs "Sunscreen Gel") win over broader nouns.
+_HEALTH_FORM_PRIORITY_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"\b(foam|cleanser|wash|shampoo|conditioner|scrub|mask|toner|soap|oil|balm|stick|"
+        r"powder|liquid|drops|syrup|gummies|gummy|bar|bars|shot|shots|effervescent|chewable|"
+        r"lozenges|spray|mist|splash)\b",
+        re.I,
+    ),
+    re.compile(r"\b(gel|cream|lotion|fluid|serum|ampoule)\b", re.I),
+    re.compile(r"\b(sunscreen|deodorant)\b", re.I),
+)
+
 _HEALTH_FORM_RE = re.compile(
-    r"\b(powder|liquid|drops|syrup|gummies|gummy|bar|bars|shot|shots|effervescent|chewable|lozenges|spray|gel|cream|lotion|serum|shampoo|conditioner|oil|soap|cleanser|wash|toner|scrub|mask|sunscreen|deodorant|mist|splash)\b",
+    r"\b(foam|powder|liquid|drops|syrup|gummies|gummy|bar|bars|shot|shots|effervescent|chewable|lozenges|spray|gel|cream|lotion|fluid|serum|ampoule|balm|stick|shampoo|conditioner|oil|soap|cleanser|wash|toner|scrub|mask|sunscreen|deodorant|mist|splash)\b",
     re.I,
 )
+
+
+def extract_hb_form(text: str) -> Optional[str]:
+    """Extract canonical product form with texture/delivery priority."""
+    for pat in _HEALTH_FORM_PRIORITY_PATTERNS:
+        if m := pat.search(text):
+            return m.group(1).lower().rstrip("s")
+    return None
 
 # Perfume concentration markers that MUST remain distinct (EDP != EDT != Parfum != Mist)
 _PERFUME_CONC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -863,9 +897,7 @@ def extract_health_beauty_features(
             perfume_conc = conc_name
             break
 
-    form_tag = ""
-    if fm := _HEALTH_FORM_RE.search(translated):
-        form_tag = fm.group(1).lower()
+    form_tag = extract_hb_form(translated) or ""
 
     gender_tag: Optional[str] = None
     if re.search(r"\b(?:for\s+women|women'?s?|pour\s+femme|femme|her|ladies)\b", translated):
@@ -875,7 +907,7 @@ def extract_health_beauty_features(
 
     brand_words = set(brand.split("_"))
     cleaned = re.sub(
-        r"\b\d+(?:\.\d+)?\s*(?:ml|mls|l|liter|litre|g|gm|gms|grams?|kg|kgs|lb|lbs|oz|mg|mcg|iu|caps?|capsules?|vegcaps?|softgels?|tabs?|tablets?|serv\.?|servings?|scoops?|pcs?|pieces?|sachets?|bags?)\b",
+        r"\b\d+(?:\.\d+)?\s*(?:ml|mls|l|liter|litre|g|gm|gms|grams?|kg|kgs|lb|lbs|oz|mg|mcg|iu|caps?|capsules?|vegcaps?|softgels?|tabs?|tablets?|serv\.?|servings?|scoops?|pcs?|pieces?|sachets?|bags?|مل|مللي|جم|جرام|كجم|كيلو|لتر|قرص|اقراص|كبسوله|كبسولات)\b",
         " ",
         translated,
     )
@@ -888,7 +920,7 @@ def extract_health_beauty_features(
     for tok in raw_tokens:
         if tok in brand_words or tok in active_stopwords:
             continue
-        if tok in ("men", "women", "homme", "femme", "pour", "eau", "parfum", "toilette", "edp", "edt", "edc"):
+        if tok in ("men", "women", "homme", "femme", "pour", "eau", "de", "parfum", "toilette", "edp", "edt", "edc"):
             continue
         if len(tok) == 1 and tok not in ("c", "d", "e", "a", "b", "k"):
             continue
@@ -1190,7 +1222,7 @@ def extract_footwear_features(
     neutral_model_key: Optional[str] = None
     has_strong_single = len(tokens) == 1 and bool(re.fullmatch(r"(?:[a-z]{0,3}\d{3,4}[a-z]?|\d{3,4}[a-z]?)", tokens[0]))
     if len(tokens) >= 2 or has_strong_single:
-        core = tokens[:4]
+        core = tokens[:6]
         exact_model_key = normalize_snake_slug(
             f"fw_mod_{brand}_{gender}_{ftype}_{'_'.join(core)}",
             max_len=140,
