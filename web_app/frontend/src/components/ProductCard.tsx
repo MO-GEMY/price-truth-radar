@@ -15,7 +15,12 @@ import {
   formatUnitPrice,
 } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
-import { hasSufficientPriceHistory } from "@/lib/verdicts";
+import {
+  formatTrackedDays,
+  getHistoryMaturity,
+  getTrackedDaysCount,
+  getVerifiedMedian,
+} from "@/lib/verdicts";
 import { PriceAlertModal } from "./PriceAlertModal";
 import { ProductImage } from "./ProductImage";
 import { StoreBadge } from "./StoreBadge";
@@ -45,15 +50,64 @@ export function ProductCard({
       ? formatSubCategory(product.sub_category, lang)
       : null;
   const delta = product.real_discount_pct;
-  const sufficientHistory = hasSufficientPriceHistory(product);
+  const trackedDays = getTrackedDaysCount(product);
+  const historyMaturity = getHistoryMaturity(product);
+  const sufficientHistory = historyMaturity !== "EARLY";
+  const verifiedMedian = getVerifiedMedian(product);
+  const trackedDaysLabel = formatTrackedDays(trackedDays, lang);
+  const marketBenchmark = product.market_benchmark ?? null;
   const evidence =
-    !sufficientHistory || product.rolling_60d_median <= 0
-      ? null
-      : Math.abs(delta) < 0.05
+    sufficientHistory && verifiedMedian !== null
+      ? Math.abs(delta) < 0.05
         ? t("ui.same")
-        : t(delta > 0 ? "ui.below" : "ui.above", {
-            pct: formatPctPlain(Math.abs(delta), lang),
-          });
+        : historyMaturity === "MATURE"
+          ? t(delta > 0 ? "ui.below" : "ui.above", {
+              pct: formatPctPlain(Math.abs(delta), lang),
+            })
+          : t(delta > 0 ? "maturity.belowWindow" : "maturity.aboveWindow", {
+              pct: formatPctPlain(Math.abs(delta), lang),
+              days: formatNumber(trackedDays, lang),
+            })
+      : marketBenchmark &&
+          marketBenchmark.status === "CHEAPEST_IN_MARKET" &&
+          (marketBenchmark.savings_vs_next_cheapest_egp ?? 0) >= 1
+        ? t("market.cheaperBy", {
+            amount: formatPrice(
+              marketBenchmark.savings_vs_next_cheapest_egp ?? 0,
+              lang,
+            ),
+            count: formatNumber(marketBenchmark.stores_count, lang),
+          })
+        : !sufficientHistory && product.claimed_discount_pct > 0
+          ? t("maturity.claimedUnverified")
+          : null;
+
+  const badgeNode = sufficientHistory ? (
+    <VerdictBadge verdict={product.discount_verdict} size="sm" />
+  ) : marketBenchmark?.status === "CHEAPEST_IN_MARKET" ? (
+    <span className="ptr-badge ptr-badge-good">
+      {t("market.cheapestBadge")}
+    </span>
+  ) : marketBenchmark?.status === "TIED_CHEAPEST" ? (
+    <span className="ptr-badge ptr-badge-good">
+      {t("market.tiedCheapestBadge")}
+    </span>
+  ) : marketBenchmark?.status === "ABOVE_MARKET" ? (
+    <span className="ptr-badge ptr-badge-amber">
+      <bdi>
+        {t("market.aboveBadge", {
+          amount: formatPrice(marketBenchmark.price_diff_vs_cheapest_egp, lang),
+        })}
+      </bdi>
+    </span>
+  ) : product.discount_verdict === "RECENT_DROP" ||
+    product.discount_verdict === "RECENT_HIKE" ? (
+    <VerdictBadge verdict={product.discount_verdict} size="sm" />
+  ) : (
+    <span className="ptr-badge">
+      {t("maturity.earlyBadge", { days: trackedDaysLabel })}
+    </span>
+  );
   const variantCount = Math.max(1, product.variant_count ?? 1);
   const hasMultipleVariants = Boolean(
     product.has_multiple_variants || variantCount > 1,
@@ -138,11 +192,7 @@ export function ProductCard({
             )}
 
             <div className="space-y-1">
-              {sufficientHistory ? (
-                <VerdictBadge verdict={product.discount_verdict} size="sm" />
-              ) : (
-                <span className="ptr-badge">{t("detail.baselineBadge")}</span>
-              )}
+              {badgeNode}
               {evidence && <p className="ptr-muted text-xs">{evidence}</p>}
             </div>
 
@@ -294,11 +344,7 @@ export function ProductCard({
           )}
         </div>
         <div className="ptr-result-evidence">
-          {sufficientHistory ? (
-            <VerdictBadge verdict={product.discount_verdict} size="sm" />
-          ) : (
-            <span className="ptr-badge">{t("detail.baselineBadge")}</span>
-          )}
+          {badgeNode}
           {evidence && <p className="ptr-muted text-xs">{evidence}</p>}
         </div>
         <span className="ptr-result-action">

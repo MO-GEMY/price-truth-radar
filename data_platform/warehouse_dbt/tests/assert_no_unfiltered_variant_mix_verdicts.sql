@@ -35,11 +35,11 @@ WHERE
     (
         v.min_historical_price > 0
         AND (v.max_historical_price / v.min_historical_price) >= 1.8
-        AND v.discount_verdict <> 'NORMAL_PRICE'
+        AND v.discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')
     )
     OR (
         vc.product_sk IS NOT NULL
-        AND v.discount_verdict <> 'NORMAL_PRICE'
+        AND v.discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')
     )
     OR v.variant_count < 1
     OR v.has_multiple_variants <> (v.variant_count > 1)

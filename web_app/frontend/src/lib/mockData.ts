@@ -812,6 +812,10 @@ function buildProduct(spec: ProductSpec, dates: string[]): {
     has_multiple_variants: variantCount > 1,
     min_variant_price: round2(minVarPrice),
     max_variant_price: round2(maxVarPrice),
+    first_seen_date: dates[0],
+    tracked_days_count: days,
+    history_maturity: days < 7 ? "EARLY" : days < 60 ? "GROWING" : "MATURE",
+    verified_historical_median: days >= 7 ? rollingMedian : null,
   };
 
   return { product, history };

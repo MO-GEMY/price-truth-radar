@@ -268,9 +268,10 @@ _GENERIC_SPEC_CODE_RE = re.compile(
     r"serv|servs|serving|servings|tab|tabs|tablet|tablets|cap|caps|capsule|capsules|softgel|softgels|scoop|scoops|"
     r"door|doors|mbps|gbps|mode|modes|stage|stages|blade|blades|burner|burners|speed|speeds|port|ports|pin|pins|fan|fans)$|"
     r"(?:20[12]\d|19\d\d)$|"
-    r"(?:ddr[2345]|lpddr[345]x?|gddr[567]x?|pcie\d|sata\d|usb[234]|hdmi\d|dp\d|"
+    r"(?:ddr[2345]|lpddr[345]x?|gddr[567]x?|pcie\d(?:\.\d)?|sata\d|usb\d(?:\.\d)?|hdmi\d(?:\.\d)?|dp\d(?:\.\d)?|"
     r"wifi[4567]e?|bt[45]|ip\d{2}k?|hdr\d+|spf\d+|uv[ab]\d*|pa\+*|"
-    r"gen\d+|typec|usbc|2in1|3in1|4in1|5in1|6in1|7in1|8in1|10in1|12in1|trimode|dualmode|"
+    r"gen\d+|typec|usbc|(?:[2-9]|1[0-9])in1|trimode|dualmode|"
+    r"atx\d+(?:\.\d+)?|sfx\d*|lga\d{4}|am[45]|rj\d{2}|"
     r"(?:ac|ax|be)\d{3,5}|cl\d{2}|"
     r"[abhxz]\d{3}m?e?|"
     r"cat[5678]e?|pd\d+|qc\d+|r\d{2,3}a?|no\d+|pack\d+|set\d+|size\d+|"
@@ -278,7 +279,7 @@ _GENERIC_SPEC_CODE_RE = re.compile(
     r"eu\d{2}|uk\d{1,2}|us\d{1,2}|a4|a5|a3|m[1-5]|i[3579]|r[3579]|"
     r"(?:core)?i[3579]\d{4,5}[a-z]{0,2}|(?:ryzen)?r?[3579]\d{4}[a-z]{0,2}|"
     r"ultra[3579]\d{3}[a-z]{0,2}|n[1-9]\d{2,3}|"
-    r"(?:rtx|gtx|rx|mx|arc)\d{3,4}[a-z]{0,2}|"
+    r"(?:rtx|gtx|rx|mx|arc)\d{3,4}[a-z]{0,2}|[tp][12]000|"
     r"fhd\d*|qhd\d*|uhd\d*|oled\d*|qled\d*|led\d*|lcd\d*|ips\d*|va\d*|"
     r"\d+x\d+(?:x\d+)?)$"
     r")",
@@ -456,15 +457,17 @@ _DEVICE_TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("cooler", re.compile(r"\b(?:cpu\s+cooler|liquid\s+cooler|aio\s+cooler|water\s+cooler|air\s+cooler|case\s+fan)\b", re.I)),
     ("printer", re.compile(r"\b(?:printer|laserjet|deskjet|inkjet|scanner)\b|طابعة|طابعه", re.I)),
     ("watch", re.compile(r"\b(?:smartwatch|smart\s+watch|fitness\s+band)\b", re.I)),
-    ("dishwasher", re.compile(r"\b(?:dishwasher|dish\s+washer)\b|غسالة\s*اطباق", re.I)),
+    ("dishwasher", re.compile(r"\b(?:dishwashers?|dish\s+washers?)\b|غسال[ةه]\s*(?:لل)?اطباق|غسال[ةه]\s*(?:لل)?صحون", re.I)),
+    ("clothes_dryer", re.compile(r"\b(?:clothes\s+dryer|tumble\s+dryer|condenser\s+dryer|heat\s+pump\s+dryer|laundry\s+dryer)\b|مجفف\s*ملابس", re.I)),
     ("washer", re.compile(r"\b(?:washing\s+machine|washer)\b|غسالة|غساله", re.I)),
-    ("refrigerator", re.compile(r"\b(?:refrigerator|fridge|deep\s+freezer|freezer)\b|ثلاجة|تلاجة|فريزر", re.I)),
+    ("deep_freezer", re.compile(r"\b(?:deep\s+freezer|chest\s+freezer|upright\s+freezer)\b|ديب\s*فريزر", re.I)),
+    ("refrigerator", re.compile(r"\b(?:refrigerator|fridge)\b|ثلاجة|تلاجة", re.I)),
     ("ac", re.compile(r"\b(?:air\s+conditioner|split\s+ac)\b|تكييف", re.I)),
-    ("cooker", re.compile(r"\b(?:gas\s+cooker|electric\s+cooker|cooker|built[\s-]?in\s+(?:oven|hob)|hob|oven)\b|بوتاجاز|فرن", re.I)),
+    ("air_fryer", re.compile(r"\b(?:air\s+fryers?|aero\s+fry|multifry(?:er)?|multi[\s-]?fry|fryer)\b|قلاي[ةه]|مقلا[ةه]", re.I)),
+    ("cooker", re.compile(r"\b(?:gas\s+cooker|electric\s+cooker|built[\s-]?in\s+(?:oven|hob)|hob|oven)\b|بوتاجاز|فرن", re.I)),
     ("microwave", re.compile(r"\b(?:microwave)\b|ميكروويف", re.I)),
     ("heater", re.compile(r"\b(?:water\s+heater|gas\s+heater|fan\s+heater|electric\s+heater|heater)\b|سخان|دفاية", re.I)),
     ("vacuum", re.compile(r"\b(?:vacuum\s+cleaner|vacuum)\b|مكنسة|مكنسه", re.I)),
-    ("air_fryer", re.compile(r"\b(?:air\s+fryer|aero\s+fry|fryer)\b|قلاية|قلايه", re.I)),
     ("blender", re.compile(r"\b(?:blender|hand\s+blender|food\s+processor|stand\s+mixer|mixer)\b|خلاط|كبة", re.I)),
     ("kettle", re.compile(r"\b(?:kettle)\b|غلاية|غلايه", re.I)),
     ("fan", re.compile(r"\b(?:stand\s+fan|ceiling\s+fan|wall\s+fan|box\s+fan|desk\s+fan|pedestal\s+fan)\b|مروحة|مروحه", re.I)),
@@ -531,11 +534,39 @@ def _normalize_code_str(raw: str) -> str:
     return code
 
 
+_DOTTED_MODEL_CODE_RE = re.compile(r"\b([a-z]{2,6}\d{2,5})\.(\d{2,3})(?:\.[a-z0-9]{1,3})?\b", re.I)
+_SPACED_MODEL_CODE_RE = re.compile(r"\b([a-z]{2,4})\s+(\d{3,5}[a-z]{0,2})(?=$|[\s/\-.,)\]])", re.I)
+_SPACED_PREFIX_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "the", "and", "for", "with", "from", "set", "box", "pack", "size", "plus", "pro",
+        "max", "mini", "lite", "air", "auto", "dual", "quad", "fast", "high", "full",
+        "half", "pure", "gold", "blue", "grey", "gray", "pink", "dark", "cool", "heat",
+        "warm", "cold", "soft", "slim", "wide", "deep", "open", "free", "real", "best",
+        "core", "ddr", "usb", "hdmi", "wifi", "gen", "cat", "spf", "bar", "watt", "volt",
+        "inch", "year", "days", "rpm", "dpi", "fps", "mhz", "ghz", "mah", "btu", "pcs",
+        "atx", "sfx", "lga", "rtx", "gtx", "arc", "amd", "cpu", "gpu", "ram", "rom",
+        "ssd", "hdd", "led", "lcd", "ips", "uhd", "fhd", "qhd", "hdr", "usb", "type",
+        "note", "tab", "pad", "fold", "flip", "watch", "buds", "pods", "band", "play",
+        "mate", "nova", "find", "reno", "poco", "moto", "vivo", "oppo", "sony", "asus",
+        "acer", "dell", "leno", "hp", "lg", "msi", "benq", "jbl", "bose", "nike", "puma",
+        "polo", "zara", "lego", "baby", "kids", "mens", "size", "item", "code", "no",
+        "part", "unit", "line", "edge", "neo", "evo", "one", "two", "six", "ten",
+        "only", "over", "into", "more", "than", "each", "upto", "up", "to", "by", "in",
+        "on", "of", "at", "or", "as", "is", "it", "be", "my", "no", "so", "us", "uk", "eu",
+    }
+)
+_REV_SLASH_CODE_RE = re.compile(r"^([a-z]{2,5}\d{3,5})[-/]\d(?:[a-z]{0,2})?$", re.I)
+_CODE_PREFIX_DIGITS_RE = re.compile(r"^([a-z]{2,6})(\d{2,6})")
+
+
 def _extract_high_entropy_model_codes(canon_text: str, raw_title: str) -> tuple[str, ...]:
     """Extract high-entropy alphanumeric manufacturer model codes (letters + digits, len >= 4).
 
     Strictly filters out generic specs (`256gb`, `5g`, `4k`, `120hz`, `30serv`, `60caps`,
-    `2door`, `300mbps`, `ac1200`, `cl30`, `3mode`, standalone motherboard chipsets `b850m`, etc.).
+    `2door`, `300mbps`, `ac1200`, `cl30`, `3mode`, `9in1`, `atx31`, `lga1851`, `rj45`,
+    standalone motherboard chipsets `b850m`, etc.).
+    Also preserves dotted sub-models (`ECAM290.21` vs `ECAM290.61`) and spaced codes
+    (`FH 1396` -> `fh1396`, `EC 685` -> `ec685`) so near-miss SKUs never falsely merge.
     """
     # Strip unit/serving/rating expressions first so `55-inch`, `30-serv`, `2-door`, `3-mode` never mimic codes
     cleaned = re.sub(
@@ -548,27 +579,57 @@ def _extract_high_entropy_model_codes(canon_text: str, raw_title: str) -> tuple[
     )
     codes: list[str] = []
     seen: set[str] = set()
+    dotted_stems: set[str] = set()
+
+    def _add_code(raw_cand: str) -> None:
+        low_raw = raw_cand.lower()
+        if _GENERIC_SPEC_CODE_RE.fullmatch(low_raw):
+            return
+        # Normalize explicit `/1` or `-1` revision suffix on 3+ digit appliance codes (`FH1363-1` -> `fh1363`)
+        rev_m = _REV_SLASH_CODE_RE.fullmatch(low_raw)
+        if rev_m:
+            low_raw = rev_m.group(1)
+        norm = _normalize_code_str(low_raw)
+        if len(norm) < 4 or len(norm) > 22:
+            return
+        if _GENERIC_SPEC_CODE_RE.fullmatch(norm):
+            return
+        if re.fullmatch(r"(?:\d+(?:gb|tb|mb|ml|kg|w|hz|mp|mah|cm|mm|v|hp|in|serv|tabs|caps|door|mode|mbps))+", norm):
+            return
+        if re.fullmatch(r"m[a-z]{2,3}\d[a-z0-9]{2,4}[a-z]?", norm) and "iphone" in canon_text:
+            return
+        if norm not in seen:
+            seen.add(norm)
+            codes.append(norm)
+
+    # 1. Capture dotted manufacturer sub-models first (e.g. `ECAM290.21.B` -> `ecam29021`, `EXAM440.55.BG` -> `exam44055`)
+    for dm in _DOTTED_MODEL_CODE_RE.finditer(cleaned):
+        stem = _normalize_code_str(dm.group(1))
+        sub = dm.group(2)
+        dotted_stems.add(stem)
+        _add_code(f"{stem}{sub}")
+
+    # 2. Capture spaced alphanumeric model codes (e.g. `FH 1396` -> `fh1396`, `EC 685` -> `ec685`)
+    for sm in _SPACED_MODEL_CODE_RE.finditer(cleaned):
+        pfx = sm.group(1).lower()
+        num = sm.group(2).lower()
+        if pfx in _SPACED_PREFIX_STOPWORDS:
+            continue
+        if re.fullmatch(r"20[12]\d|19\d\d", num):
+            continue
+        _add_code(f"{pfx}{num}")
+
+    # 3. Standard contiguous / hyphenated alphanumeric model codes
     for m in _MODEL_CODE_RE.finditer(cleaned):
         raw = m.group(1)
         if not (any(c.isalpha() for c in raw) and any(c.isdigit() for c in raw)):
             continue
-        low_raw = raw.lower()
-        if _GENERIC_SPEC_CODE_RE.fullmatch(low_raw):
+        norm_check = _normalize_code_str(raw)
+        # Skip bare stem already captured with its dotted sub-model (`ecam290` when `ecam29021` exists)
+        if norm_check in dotted_stems:
             continue
-        norm = _normalize_code_str(low_raw)
-        if len(norm) < 4 or len(norm) > 22:
-            continue
-        if _GENERIC_SPEC_CODE_RE.fullmatch(norm):
-            continue
-        # Reject pure spec combinations like `16gb512gb` or `8gb256gb` or `128gb5g` or `30serv90tabs`
-        if re.fullmatch(r"(?:\d+(?:gb|tb|mb|ml|kg|w|hz|mp|mah|cm|mm|v|hp|in|serv|tabs|caps|door|mode|mbps))+", norm):
-            continue
-        # Reject Apple regional MPNs on iPhones (e.g. MYEC3ZDA / MFYN4AFA) which differ by region
-        if re.fullmatch(r"m[a-z]{2,3}\d[a-z0-9]{2,4}[a-z]?", norm) and "iphone" in canon_text:
-            continue
-        if norm not in seen:
-            seen.add(norm)
-            codes.append(norm)
+        _add_code(raw)
+
     return tuple(codes[:6])
 
 
@@ -860,15 +921,25 @@ def _extract_hard_specs(
         unit_spec = UnitSpec()
 
     # Tier modifiers (`pro`, `max`, `plus`, `ultra`, `mini`, `lite`, `fe`, `se`, `air`, `neo`, ...)
-    # Strip phrase contexts where `air` or `pro` is a noun/component, NOT a model tier
+    # Strip phrase contexts where `air`, `pro`, `max`, or `x` is a noun/component/color-separator, NOT a model tier
     tier_text = re.sub(
         r"\b(?:air\s+(?:conditioner|conditioners|conditioning|fryer|cooler|cleaner|purifier|humidifier|flow|vent|circulator)|"
         r"pro\s+(?:pump|grade|motor|filter|blade|series|tech|care|finish|edition|version|inverter)|"
-        r"max\s+(?:power|speed|load|capacity|flow|temp))\b",
+        r"max\s+(?:power|speed|load|capacity|flow|temp)|\d+\s*x\s*\d+)\b",
         " ",
         low,
     )
-    tier_tokens = set(re.findall(r"[a-z0-9]+", tier_text))
+    raw_tier_seq = re.findall(r"[a-z0-9]+", tier_text)
+    tier_tokens = {
+        tok
+        for i, tok in enumerate(raw_tier_seq)
+        if not (
+            tok == "x"
+            and 0 < i < len(raw_tier_seq) - 1
+            and raw_tier_seq[i - 1] in _COLOR_WORDS
+            and raw_tier_seq[i + 1] in _COLOR_WORDS
+        )
+    }
     tier_pool = _TIER_MODIFIERS | (_TECH_EXTRA_TIERS if coarse_domain == "tech_appliances" else frozenset())
     tiers_set = {t for t in tier_tokens if t in tier_pool}
     if coarse_domain == "tech_appliances" and _SUFFIX_S_TIER_RE.search(low):
@@ -1054,14 +1125,40 @@ def _extract_hard_specs(
 
 
 def _model_codes_compatible(codes_a: tuple[str, ...], codes_b: tuple[str, ...]) -> bool:
-    """Return True if two non-empty model-code lists share an exact or prefix-aligned code."""
+    """Return True iff two non-empty model-code lists agree with ZERO near-miss conflicts.
+
+    Enforces precision-first model-code near-miss protection across Pass 2 & Pass 3:
+    1. Same-prefix differing-digit hard veto: if both sides carry an explicit alphanumeric
+       code sharing the same alphabetic prefix (e.g. `fh1396` vs `fh1363`, `cm498` vs `cm886`,
+       `gsk750` vs `gsk850`, `ecam29021` vs `ecam29061`), their numeric model cores MUST match.
+    2. Prefix alignment ONLY for regional/color letter suffixes (`ls27bg402e` vs
+       `ls27bg402emxue`, `hfs50b20` vs `hfs50b20gr`), NEVER when the next character after a
+       trailing digit is another digit (`fh139` vs `fh1396` or `st922` vs `st9222`).
+    """
+    # 1. Hard veto on same-prefix differing-number model codes (even 1-2 digits off!)
+    pfx_a: dict[str, set[str]] = {}
+    pfx_b: dict[str, set[str]] = {}
+    for ca in codes_a:
+        if m := _CODE_PREFIX_DIGITS_RE.match(ca):
+            pfx_a.setdefault(m.group(1), set()).add(m.group(2))
+    for cb in codes_b:
+        if m := _CODE_PREFIX_DIGITS_RE.match(cb):
+            pfx_b.setdefault(m.group(1), set()).add(m.group(2))
+    for shared_pfx in set(pfx_a.keys()) & set(pfx_b.keys()):
+        if not (pfx_a[shared_pfx] & pfx_b[shared_pfx]):
+            return False
+
+    # 2. Require at least one exact match or valid regional-letter-suffix prefix alignment
     for ca in codes_a:
         for cb in codes_b:
             if ca == cb:
                 return True
-            # Allow regional suffix prefix match (e.g. `ls27bg402e` vs `ls27bg402emxue`, `hfs50b20` vs `hfs50b20gr`)
             shorter, longer = (ca, cb) if len(ca) <= len(cb) else (cb, ca)
             if len(shorter) >= 5 and longer.startswith(shorter):
+                next_char = longer[len(shorter)]
+                # Never treat extra trailing digits on a numeric code as a regional suffix!
+                if shorter[-1].isdigit() and next_char.isdigit():
+                    continue
                 return True
     return False
 

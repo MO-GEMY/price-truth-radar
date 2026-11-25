@@ -27,7 +27,37 @@ export type DiscountVerdict =
   | "GENUINE_DEAL"
   | "FAKE_DISCOUNT"
   | "PRESALE_HIKE"
-  | "NORMAL_PRICE";
+  | "NORMAL_PRICE"
+  | "NEWLY_TRACKED"
+  | "RECENT_DROP"
+  | "RECENT_HIKE";
+
+export type HistoryMaturity = "EARLY" | "GROWING" | "MATURE";
+
+export type MarketBenchmarkStatus =
+  | "CHEAPEST_IN_MARKET"
+  | "TIED_CHEAPEST"
+  | "ABOVE_MARKET"
+  | "OUT_OF_STOCK";
+
+export type HighlightBasis =
+  | "historical"
+  | "cross_store_lowest"
+  | "recent_drop"
+  | "recent_hike"
+  | "above_market";
+
+export interface MarketBenchmark {
+  stores_count: number;
+  cheapest_price: number;
+  cheapest_store: string;
+  median_market_price: number;
+  highest_price: number;
+  price_diff_vs_cheapest_egp: number;
+  price_diff_vs_cheapest_pct: number;
+  savings_vs_next_cheapest_egp?: number;
+  status: MarketBenchmarkStatus;
+}
 
 export type FeedCategoryFilter = "all" | Category;
 
@@ -81,6 +111,11 @@ export interface Product {
   has_multiple_variants?: boolean;
   min_variant_price?: number | null;
   max_variant_price?: number | null;
+  first_seen_date?: string | null;
+  tracked_days_count?: number;
+  history_maturity?: HistoryMaturity;
+  verified_historical_median?: number | null;
+  market_benchmark?: MarketBenchmark | null;
   applicable_coupons?: ApplicableCoupon[];
   estimated_price_after_coupon?: number | null;
 }
@@ -109,6 +144,10 @@ export interface StatsOverview {
   available_stores: string[];
   category_counts?: Record<string, number>;
   cross_store_matches_count?: number;
+  recent_drops_today?: number;
+  recent_hikes_today?: number;
+  newly_tracked_today?: number;
+  mature_tracked_count?: number;
 }
 
 export interface CategoryFacetItem {
@@ -205,6 +244,9 @@ export interface PriceHistoryPoint {
   rolling_60d_median: number;
   in_stock: boolean;
   available_sizes_count: number | null;
+  tracked_days_count?: number | null;
+  history_maturity?: HistoryMaturity | null;
+  verified_historical_median?: number | null;
 }
 
 export interface AlternativeListing {
@@ -251,6 +293,7 @@ export interface ProductDetailResponse {
   product: Product;
   history: PriceHistoryPoint[];
   alternatives: AlternativeListing[];
+  market_benchmark?: MarketBenchmark | null;
   similar_alternatives?: SimilarAlternative[];
   similar_products?: SimilarAlternative[];
   variants?: ProductVariant[];
@@ -338,6 +381,15 @@ export interface HighlightItem {
   has_multiple_variants?: boolean;
   min_variant_price?: number | null;
   max_variant_price?: number | null;
+  first_seen_date?: string | null;
+  tracked_days_count?: number;
+  history_maturity?: HistoryMaturity;
+  verified_historical_median?: number | null;
+  highlight_basis?: HighlightBasis;
+  market_cheapest_price?: number | null;
+  market_cheapest_store?: string | null;
+  market_stores_count?: number;
+  market_benchmark?: MarketBenchmark | null;
   applicable_coupons?: ApplicableCoupon[];
   estimated_price_after_coupon?: number | null;
 }

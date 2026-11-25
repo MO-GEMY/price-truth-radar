@@ -12,7 +12,14 @@ from sqlalchemy.engine import Connection
 
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
-from app.schemas import CategoryFilter, HighlightVerdict, RadarHighlightItem, RadarHighlightsResponse
+from app.schemas import (
+    CategoryFilter,
+    HighlightBasis,
+    HighlightVerdict,
+    HistoryMaturity,
+    RadarHighlightItem,
+    RadarHighlightsResponse,
+)
 
 router = APIRouter(tags=["highlights"])
 
@@ -67,6 +74,40 @@ _PRICE_FLOOR_SQL_GUARD = f"""
 """
 
 _HIGHLIGHT_COLS = """
+    v.product_sk,
+    v.canonical_product_key,
+    v.store_name,
+    v.category,
+    v.sub_category,
+    v.product_title,
+    v.product_url,
+    v.image_url,
+    v.current_price,
+    v.claimed_original_price,
+    v.rolling_60d_median,
+    v.min_historical_price,
+    v.max_historical_price,
+    v.claimed_discount_pct,
+    v.real_discount_pct,
+    v.discount_verdict,
+    v.last_updated_at,
+    v.parent_product_key,
+    v.variant_label,
+    v.variant_count,
+    v.has_multiple_variants,
+    v.min_variant_price,
+    v.max_variant_price,
+    v.tracked_days_count,
+    v.history_maturity,
+    v.verified_historical_median,
+    m.lowest_price AS market_cheapest_price,
+    m.lowest_price_store AS market_cheapest_store,
+    m.highest_price AS market_highest_price,
+    COALESCE(m.stores_count, 0)::INTEGER AS market_stores_count,
+    COALESCE(m.price_spread_pct, 0.0)::FLOAT AS market_spread_pct
+"""
+
+_HIGHLIGHT_OUTER_COLS = """
     product_sk,
     canonical_product_key,
     store_name,
@@ -79,6 +120,7 @@ _HIGHLIGHT_COLS = """
     claimed_original_price,
     rolling_60d_median,
     min_historical_price,
+    max_historical_price,
     claimed_discount_pct,
     real_discount_pct,
     discount_verdict,
@@ -88,7 +130,15 @@ _HIGHLIGHT_COLS = """
     variant_count,
     has_multiple_variants,
     min_variant_price,
-    max_variant_price
+    max_variant_price,
+    tracked_days_count,
+    history_maturity,
+    verified_historical_median,
+    market_cheapest_price,
+    market_cheapest_store,
+    market_highest_price,
+    market_stores_count,
+    market_spread_pct
 """
 
 
@@ -106,7 +156,32 @@ def _passes_highlight_price_floor(row: dict[str, Any]) -> bool:
 
 def _row_to_highlight(row: dict[str, Any], *, bucket: Literal["scandal", "deal"]) -> RadarHighlightItem:
     current_price = float(row["current_price"])
-    baseline_price = float(row["rolling_60d_median"] or current_price)
+    raw_verdict = str(row["discount_verdict"] or "NORMAL_PRICE")
+
+    raw_days = row.get("tracked_days_count")
+    if raw_days is None:
+        tracked_days = (
+            14
+            if raw_verdict in ("ALL_TIME_LOW", "GENUINE_DEAL", "FAKE_DISCOUNT", "PRESALE_HIKE")
+            else 1
+        )
+    else:
+        tracked_days = max(1, int(raw_days))
+
+    raw_mat = row.get("history_maturity")
+    if raw_mat in ("EARLY", "GROWING", "MATURE"):
+        maturity: HistoryMaturity = raw_mat
+    else:
+        maturity = "EARLY" if tracked_days < 7 else ("GROWING" if tracked_days < 60 else "MATURE")
+
+    verified_med_raw = row.get("verified_historical_median")
+    if verified_med_raw is not None and tracked_days >= 7:
+        verified_med: float | None = round(float(verified_med_raw), 2)
+    elif tracked_days >= 7 and row.get("rolling_60d_median"):
+        verified_med = round(float(row["rolling_60d_median"]), 2)
+    else:
+        verified_med = None
+
     claimed_old = (
         float(row["claimed_original_price"])
         if row["claimed_original_price"] is not None
@@ -114,24 +189,73 @@ def _row_to_highlight(row: dict[str, Any], *, bucket: Literal["scandal", "deal"]
     )
     claimed_pct = float(row["claimed_discount_pct"] or 0.0)
     real_pct = float(row["real_discount_pct"] or 0.0)
-    raw_verdict = str(row["discount_verdict"] or "NORMAL_PRICE")
+    min_hist = float(row.get("min_historical_price") or current_price)
+    max_hist = float(row.get("max_historical_price") or current_price)
 
-    if raw_verdict == "PRESALE_HIKE":
-        verdict: HighlightVerdict = "inflated_before_sale"
-        if baseline_price > 0 and current_price > baseline_price:
-            inflation_pct = round(((current_price - baseline_price) / baseline_price) * 100.0, 1)
-        else:
+    market_cheapest = (
+        round(float(row["market_cheapest_price"]), 2)
+        if row.get("market_cheapest_price") is not None
+        else None
+    )
+    market_cheapest_store = (
+        str(row["market_cheapest_store"])
+        if row.get("market_cheapest_store")
+        else None
+    )
+    market_highest = (
+        round(float(row["market_highest_price"]), 2)
+        if row.get("market_highest_price") is not None
+        else None
+    )
+    market_stores = int(row.get("market_stores_count") or 0)
+
+    basis: HighlightBasis = "historical"
+    baseline_price = verified_med if verified_med is not None else current_price
+    inflation_pct = 0.0
+    real_drop_pct = 0.0
+
+    if bucket == "scandal":
+        if tracked_days >= 7 and raw_verdict == "PRESALE_HIKE":
+            verdict: HighlightVerdict = "inflated_before_sale"
+            basis = "historical"
+            if baseline_price > 0 and current_price > baseline_price:
+                inflation_pct = round(((current_price - baseline_price) / baseline_price) * 100.0, 1)
+            else:
+                inflation_pct = round(max(0.0, claimed_pct - real_pct), 1)
+        elif tracked_days >= 7 and raw_verdict == "FAKE_DISCOUNT":
+            verdict = "fake_discount"
+            basis = "historical"
             inflation_pct = round(max(0.0, claimed_pct - real_pct), 1)
-    elif bucket == "scandal" or raw_verdict == "FAKE_DISCOUNT":
-        verdict = "fake_discount"
-        inflation_pct = round(max(0.0, claimed_pct - real_pct), 1)
+        elif raw_verdict == "RECENT_HIKE" and min_hist > 0 and current_price > min_hist:
+            verdict = "inflated_before_sale"
+            basis = "recent_hike"
+            baseline_price = min_hist
+            inflation_pct = round(((current_price - min_hist) / min_hist) * 100.0, 1)
+        elif market_cheapest is not None and market_cheapest > 0 and current_price > market_cheapest:
+            verdict = "fake_discount"
+            basis = "above_market"
+            baseline_price = market_cheapest
+            inflation_pct = round(((current_price - market_cheapest) / market_cheapest) * 100.0, 1)
+        else:
+            verdict = "fake_discount"
+            basis = "historical"
+            inflation_pct = round(max(0.0, claimed_pct - real_pct), 1)
     else:
         verdict = "real_deal"
-        inflation_pct = 0.0
-
-    real_drop_pct = round(max(0.0, real_pct), 1)
-    if bucket == "deal" and real_drop_pct == 0.0 and claimed_old and claimed_old > current_price:
-        real_drop_pct = round(((claimed_old - current_price) / claimed_old) * 100.0, 1)
+        if tracked_days >= 7 and raw_verdict in ("ALL_TIME_LOW", "GENUINE_DEAL"):
+            basis = "historical"
+            real_drop_pct = round(max(0.0, real_pct), 1)
+        elif raw_verdict == "RECENT_DROP" and max_hist > current_price and max_hist > 0:
+            basis = "recent_drop"
+            baseline_price = max_hist
+            real_drop_pct = round(((max_hist - current_price) / max_hist) * 100.0, 1)
+        elif market_highest is not None and market_highest > current_price and market_stores >= 2:
+            basis = "cross_store_lowest"
+            baseline_price = market_highest
+            real_drop_pct = round(((market_highest - current_price) / market_highest) * 100.0, 1)
+        else:
+            basis = "historical"
+            real_drop_pct = round(max(0.0, real_pct), 1)
 
     variant_count = max(1, int(row.get("variant_count") or 1))
     has_multiple = bool(row.get("has_multiple_variants") or variant_count > 1)
@@ -166,6 +290,13 @@ def _row_to_highlight(row: dict[str, Any], *, bucket: Literal["scandal", "deal"]
         has_multiple_variants=has_multiple,
         min_variant_price=min_var,
         max_variant_price=max_var,
+        tracked_days_count=tracked_days,
+        history_maturity=maturity,
+        verified_historical_median=verified_med,
+        highlight_basis=basis,
+        market_cheapest_price=market_cheapest,
+        market_cheapest_store=market_cheapest_store,
+        market_stores_count=market_stores,
     )
 
 
@@ -178,7 +309,7 @@ def get_radar_highlights(
     db: Connection = Depends(get_db),
 ) -> RadarHighlightsResponse:
     set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
-    cache_key = f"radar:highlights:v2:{category}:{limit}"
+    cache_key = f"radar:highlights:v3:{category}:{limit}"
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -186,19 +317,47 @@ def get_radar_highlights(
     params: dict[str, object] = {"limit": limit}
     cat_filter = ""
     if category != "all":
-        cat_filter = "AND category = :category"
+        cat_filter = "AND v.category = :category"
         params["category"] = category
 
-    parent_expr = "parent_product_key"
-    scandal_rank_expr = """
-        CASE WHEN discount_verdict = 'PRESALE_HIKE' THEN 0 ELSE 1 END ASC,
+    price_floor_v = _PRICE_FLOOR_SQL_GUARD.replace("current_price", "v.current_price").replace(
+        "sub_category", "v.sub_category"
+    ).replace("product_title", "v.product_title")
+
+    scandal_rank_inner = """
+        CASE
+            WHEN v.tracked_days_count >= 7 AND v.discount_verdict = 'PRESALE_HIKE' THEN 0
+            WHEN v.tracked_days_count >= 7 AND v.discount_verdict = 'FAKE_DISCOUNT' THEN 1
+            WHEN v.discount_verdict = 'RECENT_HIKE' THEN 2
+            ELSE 3
+        END ASC,
         GREATEST(
-            claimed_discount_pct - real_discount_pct,
-            CASE
-                WHEN rolling_60d_median > 0
-                THEN ((current_price - rolling_60d_median) / rolling_60d_median) * 100.0
-                ELSE 0.0
-            END
+            CASE WHEN v.tracked_days_count >= 7 THEN (v.claimed_discount_pct - v.real_discount_pct) ELSE 0.0 END,
+            CASE WHEN v.min_historical_price > 0 AND v.discount_verdict = 'RECENT_HIKE'
+                 THEN ((v.current_price - v.min_historical_price) / v.min_historical_price) * 100.0
+                 ELSE 0.0 END,
+            CASE WHEN m.lowest_price > 0 AND v.current_price > m.lowest_price
+                 THEN ((v.current_price - m.lowest_price) / m.lowest_price) * 100.0
+                 ELSE 0.0 END
+        ) DESC,
+        v.current_price ASC,
+        v.product_sk ASC
+    """
+    scandal_rank_outer = """
+        CASE
+            WHEN tracked_days_count >= 7 AND discount_verdict = 'PRESALE_HIKE' THEN 0
+            WHEN tracked_days_count >= 7 AND discount_verdict = 'FAKE_DISCOUNT' THEN 1
+            WHEN discount_verdict = 'RECENT_HIKE' THEN 2
+            ELSE 3
+        END ASC,
+        GREATEST(
+            CASE WHEN tracked_days_count >= 7 THEN (claimed_discount_pct - real_discount_pct) ELSE 0.0 END,
+            CASE WHEN min_historical_price > 0 AND discount_verdict = 'RECENT_HIKE'
+                 THEN ((current_price - min_historical_price) / min_historical_price) * 100.0
+                 ELSE 0.0 END,
+            CASE WHEN market_cheapest_price > 0 AND current_price > market_cheapest_price
+                 THEN ((current_price - market_cheapest_price) / market_cheapest_price) * 100.0
+                 ELSE 0.0 END
         ) DESC,
         current_price ASC,
         product_sk ASC
@@ -206,60 +365,98 @@ def get_radar_highlights(
     scandals_sql = text(
         f"""
         WITH deduped AS (
-            SELECT DISTINCT ON ({parent_expr})
+            SELECT DISTINCT ON (v.parent_product_key)
                 {_HIGHLIGHT_COLS}
-            FROM gold.mart_product_verdicts
-            WHERE in_stock = TRUE
-              {_PRICE_FLOOR_SQL_GUARD}
+            FROM gold.mart_product_verdicts v
+            LEFT JOIN gold.mart_cross_store_matches m
+                ON m.canonical_product_key = v.canonical_product_key
+            WHERE v.in_stock = TRUE
+              {price_floor_v}
               AND (
-                  discount_verdict IN ('PRESALE_HIKE', 'FAKE_DISCOUNT')
-                  OR (claimed_discount_pct - real_discount_pct) >= 10.0
+                  (v.tracked_days_count >= 7 AND v.discount_verdict IN ('PRESALE_HIKE', 'FAKE_DISCOUNT'))
+                  OR v.discount_verdict = 'RECENT_HIKE'
+                  OR (
+                      m.canonical_product_key IS NOT NULL
+                      AND m.lowest_price > 0
+                      AND v.current_price >= m.lowest_price * 1.12
+                      AND m.price_spread_pct >= 12.0
+                  )
               )
               {cat_filter}
-            ORDER BY {parent_expr}, {scandal_rank_expr}
+            ORDER BY v.parent_product_key, {scandal_rank_inner}
         )
-        SELECT {_HIGHLIGHT_COLS}
+        SELECT {_HIGHLIGHT_OUTER_COLS}
         FROM deduped
-        ORDER BY {scandal_rank_expr}
+        ORDER BY {scandal_rank_outer}
         LIMIT :limit
         """
     )
 
-    deal_rank_expr = """
+    deal_rank_inner = """
         CASE
-            WHEN discount_verdict = 'ALL_TIME_LOW' THEN 0
-            WHEN discount_verdict = 'GENUINE_DEAL' THEN 1
-            ELSE 2
+            WHEN v.tracked_days_count >= 7 AND v.discount_verdict = 'ALL_TIME_LOW' THEN 0
+            WHEN v.tracked_days_count >= 7 AND v.discount_verdict = 'GENUINE_DEAL' THEN 1
+            WHEN v.discount_verdict = 'RECENT_DROP' THEN 2
+            ELSE 3
         END ASC,
-        real_discount_pct DESC,
-        claimed_discount_pct DESC,
+        GREATEST(
+            CASE WHEN v.tracked_days_count >= 7 THEN v.real_discount_pct ELSE 0.0 END,
+            CASE WHEN v.max_historical_price > 0 AND v.discount_verdict = 'RECENT_DROP'
+                 THEN ((v.max_historical_price - v.current_price) / v.max_historical_price) * 100.0
+                 ELSE 0.0 END,
+            CASE WHEN m.highest_price > 0 AND v.store_name = m.lowest_price_store
+                 THEN ((m.highest_price - v.current_price) / m.highest_price) * 100.0
+                 ELSE 0.0 END
+        ) DESC,
+        v.current_price ASC,
+        v.product_sk ASC
+    """
+    deal_rank_outer = """
+        CASE
+            WHEN tracked_days_count >= 7 AND discount_verdict = 'ALL_TIME_LOW' THEN 0
+            WHEN tracked_days_count >= 7 AND discount_verdict = 'GENUINE_DEAL' THEN 1
+            WHEN discount_verdict = 'RECENT_DROP' THEN 2
+            ELSE 3
+        END ASC,
+        GREATEST(
+            CASE WHEN tracked_days_count >= 7 THEN real_discount_pct ELSE 0.0 END,
+            CASE WHEN max_historical_price > 0 AND discount_verdict = 'RECENT_DROP'
+                 THEN ((max_historical_price - current_price) / max_historical_price) * 100.0
+                 ELSE 0.0 END,
+            CASE WHEN market_highest_price > 0 AND store_name = market_cheapest_store
+                 THEN ((market_highest_price - current_price) / market_highest_price) * 100.0
+                 ELSE 0.0 END
+        ) DESC,
         current_price ASC,
         product_sk ASC
     """
     deals_sql = text(
         f"""
         WITH deduped AS (
-            SELECT DISTINCT ON ({parent_expr})
+            SELECT DISTINCT ON (v.parent_product_key)
                 {_HIGHLIGHT_COLS}
-            FROM gold.mart_product_verdicts
-            WHERE in_stock = TRUE
-              {_PRICE_FLOOR_SQL_GUARD}
-              AND discount_verdict NOT IN ('FAKE_DISCOUNT', 'PRESALE_HIKE')
+            FROM gold.mart_product_verdicts v
+            LEFT JOIN gold.mart_cross_store_matches m
+                ON m.canonical_product_key = v.canonical_product_key
+            WHERE v.in_stock = TRUE
+              {price_floor_v}
+              AND v.discount_verdict NOT IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')
               AND (
-                  discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL')
-                  OR real_discount_pct > 0.0
+                  (v.tracked_days_count >= 7 AND v.discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL'))
+                  OR v.discount_verdict = 'RECENT_DROP'
                   OR (
-                      claimed_original_price IS NOT NULL
-                      AND claimed_original_price > current_price
-                      AND current_price <= min_historical_price
+                      m.canonical_product_key IS NOT NULL
+                      AND v.store_name = m.lowest_price_store
+                      AND m.price_spread_pct >= 8.0
+                      AND m.highest_price > v.current_price
                   )
               )
               {cat_filter}
-            ORDER BY {parent_expr}, {deal_rank_expr}
+            ORDER BY v.parent_product_key, {deal_rank_inner}
         )
-        SELECT {_HIGHLIGHT_COLS}
+        SELECT {_HIGHLIGHT_OUTER_COLS}
         FROM deduped
-        ORDER BY {deal_rank_expr}
+        ORDER BY {deal_rank_outer}
         LIMIT :limit
         """
     )

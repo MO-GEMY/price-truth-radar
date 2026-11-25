@@ -53,6 +53,10 @@ OVERVIEW_SQL = text(
             COUNT(*) FILTER (WHERE discount_verdict = 'GENUINE_DEAL')::INTEGER AS genuine_cnt,
             COUNT(*) FILTER (WHERE discount_verdict = 'ALL_TIME_LOW')::INTEGER AS atl_cnt,
             COUNT(*) FILTER (WHERE discount_verdict = 'PRESALE_HIKE')::INTEGER AS hike_cnt,
+            COUNT(*) FILTER (WHERE discount_verdict = 'RECENT_DROP')::INTEGER AS recent_drop_cnt,
+            COUNT(*) FILTER (WHERE discount_verdict = 'RECENT_HIKE')::INTEGER AS recent_hike_cnt,
+            COUNT(*) FILTER (WHERE discount_verdict = 'NEWLY_TRACKED')::INTEGER AS newly_tracked_cnt,
+            COUNT(*) FILTER (WHERE tracked_days_count >= 7)::INTEGER AS mature_cnt,
             SUM(claimed_discount_pct - real_discount_pct)
                 FILTER (WHERE discount_verdict = 'FAKE_DISCOUNT') AS fake_infl_sum,
             MAX(last_updated_at) AS max_updated_at
@@ -72,6 +76,10 @@ OVERVIEW_SQL = text(
         COALESCE(SUM(genuine_cnt), 0)::INTEGER AS genuine_deals_today,
         COALESCE(SUM(atl_cnt), 0)::INTEGER AS all_time_lows_today,
         COALESCE(SUM(hike_cnt), 0)::INTEGER AS presale_hikes_today,
+        COALESCE(SUM(recent_drop_cnt), 0)::INTEGER AS recent_drops_today,
+        COALESCE(SUM(recent_hike_cnt), 0)::INTEGER AS recent_hikes_today,
+        COALESCE(SUM(newly_tracked_cnt), 0)::INTEGER AS newly_tracked_today,
+        COALESCE(SUM(mature_cnt), 0)::INTEGER AS mature_tracked_count,
         COALESCE(
             ROUND(
                 (SUM(fake_infl_sum) / NULLIF(SUM(fake_cnt), 0))::NUMERIC,
@@ -151,6 +159,10 @@ def get_overview_stats(
         available_stores=list(row["available_stores"] or []),
         category_counts=cat_counts,
         cross_store_matches_count=int(row.get("cross_store_matches_count") or 0),
+        recent_drops_today=int(row.get("recent_drops_today") or 0),
+        recent_hikes_today=int(row.get("recent_hikes_today") or 0),
+        newly_tracked_today=int(row.get("newly_tracked_today") or 0),
+        mature_tracked_count=int(row.get("mature_tracked_count") or 0),
     )
     api_cache.set(cache_key, result, ttl=21600.0)
     return result

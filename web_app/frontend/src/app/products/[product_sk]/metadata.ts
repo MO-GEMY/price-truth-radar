@@ -67,39 +67,55 @@ export function buildProductDescription(detail: ProductDetailResponse): string {
     return `${lead} قارن السعر بين ${storeCount} متاجر مصرية على ${SITE_NAME_AR}.`;
   }
 
-  // 2. Historical verdict context ONLY when real price history exists (>= 2 recorded days)
-  const hasRealHistory = history.length >= 2;
-  if (hasRealHistory) {
+  // 2. Historical verdict context ONLY when real multi-week history exists (>= 7 tracked days)
+  const trackedDays =
+    typeof product.tracked_days_count === "number" && product.tracked_days_count >= 1
+      ? Math.floor(product.tracked_days_count)
+      : history.length;
+  const maturity =
+    product.history_maturity ??
+    (trackedDays < 7 ? "EARLY" : trackedDays < 60 ? "GROWING" : "MATURE");
+  const windowLabelAr =
+    maturity === "MATURE" ? "آخر 60 يوم" : `آخر ${trackedDays} يوم`;
+  const verifiedMedian =
+    maturity !== "EARLY"
+      ? (product.verified_historical_median ??
+        (Number.isFinite(product.rolling_60d_median) && product.rolling_60d_median > 0
+          ? product.rolling_60d_median
+          : null))
+      : null;
+
+  if (maturity !== "EARLY") {
     const medianText =
-      Number.isFinite(product.rolling_60d_median) && product.rolling_60d_median > 0
-        ? formatEgpPlain(product.rolling_60d_median)
+      verifiedMedian !== null && verifiedMedian > 0
+        ? formatEgpPlain(verifiedMedian)
         : null;
 
     if (product.discount_verdict === "ALL_TIME_LOW") {
-      return `${lead} أقل سعر مرصود منذ بدء المتابعة (توفير ${formatPctPlain(product.real_discount_pct)}% مقارنة بمتوسط السعر).`;
+      return `${lead} أقل سعر مرصود منذ بدء المتابعة (توفير ${formatPctPlain(product.real_discount_pct)}% مقارنة بوسيط ${windowLabelAr}).`;
     }
     if (product.discount_verdict === "GENUINE_DEAL") {
       return medianText
-        ? `${lead} خصم حقيقي ${formatPctPlain(product.real_discount_pct)}% مقارنة بمتوسط آخر 60 يوم (${medianText} ج.م.).`
+        ? `${lead} خصم حقيقي ${formatPctPlain(product.real_discount_pct)}% مقارنة بوسيط ${windowLabelAr} (${medianText} ج.م.).`
         : `${lead} خصم حقيقي ${formatPctPlain(product.real_discount_pct)}% بناءً على سجل الأسعار.`;
     }
     if (product.discount_verdict === "FAKE_DISCOUNT") {
       return medianText
-        ? `${lead} تنبيه: الخصم المعلن (${formatPctPlain(product.claimed_discount_pct)}%) أكبر من التوفير الفعلي مقابل متوسط آخر 60 يوم (${medianText} ج.م.).`
+        ? `${lead} تنبيه: الخصم المعلن (${formatPctPlain(product.claimed_discount_pct)}%) أكبر من التوفير الفعلي مقابل وسيط ${windowLabelAr} (${medianText} ج.م.).`
         : `${lead} تنبيه: الخصم المعلن أكبر من التوفير الفعلي مقارنة بسجل الأسعار.`;
     }
     if (product.discount_verdict === "PRESALE_HIKE") {
       return medianText
-        ? `${lead} ارتفع السعر مؤخراً مقارنة بمتوسط آخر 60 يوم (${medianText} ج.م.).`
+        ? `${lead} ارتفع السعر مؤخراً مقارنة بوسيط ${windowLabelAr} (${medianText} ج.م.).`
         : `${lead} ارتفع السعر مؤخراً مقارنة بسجل الأسعار المرصود.`;
     }
     return medianText
-      ? `${lead} سعر طبيعي متماشي مع سجل الأسعار في آخر 60 يوم (${medianText} ج.م.).`
+      ? `${lead} سعر طبيعي متماشي مع وسيط ${windowLabelAr} (${medianText} ج.م.).`
       : `${lead} تابع سجل الأسعار وقارن البدائل على ${SITE_NAME_AR}.`;
   }
 
-  // 3. New / single-snapshot product: NEVER falsely claim a fake discount
-  return `${lead} جاري بناء سجل الأسعار لهذا المنتج — تابع تغيّر السعر وقارن البدائل في مصر على ${SITE_NAME_AR}.`;
+  // 3. Early-tracking (< 7 days) product: NEVER falsely claim a 60-day median verdict
+  return `${lead} قيد الرصد (${trackedDays} أيام) — جاري بناء التاريخ السعري ومتابعة تغيّر السعر على ${SITE_NAME_AR}.`;
 }
 
 export async function productMetadata(productSk: string, sample: boolean): Promise<Metadata> {

@@ -14,10 +14,15 @@ from app.cache import api_cache, product_detail_cache, search_cache, set_cache_h
 from app.catalog_search import build_catalog_query, search_catalog
 from app.coupons_service import coupon_store
 from app.database import get_db
-from app.routers.radar import PRODUCT_SELECT_COLS
+from app.routers.radar import (
+    PRODUCT_SELECT_COLS,
+    attach_market_benchmarks,
+    compute_market_benchmark,
+)
 from app.schemas import (
     AlternativeListing,
     CategoryFilter,
+    MarketBenchmark,
     PriceHistoryPoint,
     ProductDetailResponse,
     ProductVariantItem,
@@ -194,7 +199,7 @@ def search_products(
     norm_store = store.strip().lower() if (store and store.strip()) else ""
     norm_brand = brand.strip().lower() if (brand and brand.strip()) else ""
     cache_key = (
-        f"products:search:v4:{(q or '').strip().lower()}:{(url or '').strip().lower()}:"
+        f"products:search:v5:{(q or '').strip().lower()}:{(url or '').strip().lower()}:"
         f"{norm_cat}:{norm_sub}:{norm_store}:{norm_brand}:{limit}"
     )
     cached = search_cache.get(cache_key)
@@ -370,7 +375,7 @@ def search_products(
             )
             rows = db.execute(ref_sql, ref_params).mappings().all()
         if rows:
-            items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
+            items = attach_market_benchmarks(db, [ProductVerdictItem.model_validate(dict(r)) for r in rows])
             res = SearchResponse(match_type="url_exact", items=items, total=len(items))
             search_cache.set(cache_key, res, ttl=3600.0)
             return res
@@ -413,7 +418,7 @@ def search_products(
         filters_sql=" AND ".join(filter_clauses),
         filters_params=filter_params,
     )
-    items = [ProductVerdictItem.model_validate(row) for row in rows]
+    items = attach_market_benchmarks(db, [ProductVerdictItem.model_validate(row) for row in rows])
     res = SearchResponse(match_type=match_type, items=items, total=total)
     search_cache.set(cache_key, res, ttl=3600.0)
     return res
@@ -463,7 +468,7 @@ def get_product_detail(
     db: Connection = Depends(get_db),
 ) -> ProductDetailResponse:
     set_cache_headers(response, s_maxage=86400, stale_while_revalidate=604800)
-    cache_key = f"products:detail:v4:{product_sk}"
+    cache_key = f"products:detail:v5:{product_sk}"
     cached = product_detail_cache.get(cache_key)
     if cached is not None:
         return _attach_coupons_to_detail(cached)
@@ -489,7 +494,10 @@ def get_product_detail(
             claimed_original_price,
             rolling_60d_median,
             in_stock,
-            available_sizes_count
+            available_sizes_count,
+            tracked_days_count,
+            history_maturity,
+            verified_historical_median
         FROM gold.fct_price_history
         WHERE product_sk = :product_sk
         ORDER BY snapshot_date ASC
@@ -498,8 +506,8 @@ def get_product_detail(
     history_rows = db.execute(history_sql, {"product_sk": product_sk}).mappings().all()
     history = [PriceHistoryPoint.model_validate(dict(r)) for r in history_rows]
     # For change-only deduplicated history that already has verified multi-point evidence,
-    # project the latest unchanged anchor to `product.last_updated_at.date()` so 60-day
-    # charts extend cleanly to the latest observation without storing flat duplicate rows.
+    # project the latest unchanged anchor to `product.last_updated_at.date()` so charts
+    # extend cleanly to the latest observation without storing flat duplicate rows.
     if (
         len(history) >= 2
         and (
@@ -519,10 +527,15 @@ def get_product_detail(
                     rolling_60d_median=product.rolling_60d_median,
                     in_stock=product.in_stock,
                     available_sizes_count=last_pt.available_sizes_count,
+                    tracked_days_count=product.tracked_days_count,
+                    history_maturity=product.history_maturity,
+                    verified_historical_median=product.verified_historical_median,
                 )
             )
 
+    # Exact cross-store offers MUST ONLY be read from verified `gold.mart_cross_store_matches`.
     alternatives: list[AlternativeListing] = []
+    market_benchmark: Optional[MarketBenchmark] = None
     if product.canonical_product_key:
         alt_sql = text(
             """
@@ -538,6 +551,9 @@ def get_product_detail(
             .first()
         )
         if alt_row and alt_row["listings_json"]:
+            market_benchmark = compute_market_benchmark(product, alt_row["listings_json"])
+            if market_benchmark is not None:
+                product = product.model_copy(update={"market_benchmark": market_benchmark})
             best_by_store: dict[str, AlternativeListing] = {}
             for entry in alt_row["listings_json"]:
                 if entry.get("product_sk") == product_sk:
@@ -605,6 +621,7 @@ def get_product_detail(
         product=product,
         history=history,
         alternatives=alternatives,
+        market_benchmark=market_benchmark,
         similar_alternatives=similar_alternatives,
         similar_products=similar_alternatives,
         variants=variants,

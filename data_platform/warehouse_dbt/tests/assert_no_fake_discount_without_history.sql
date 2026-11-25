@@ -1,17 +1,8 @@
--- Singular dbt data test:
--- Fails if any product in gold.mart_product_verdicts emits a historical verdict
--- (FAKE_DISCOUNT, GENUINE_DEAL, ALL_TIME_LOW, or PRESALE_HIKE) without real
--- historical evidence (fewer than 3 distinct snapshot dates AND no observed
--- price change across >= 2 distinct dates).
-
-WITH history_depth AS (
-    SELECT
-        product_sk,
-        COUNT(DISTINCT snapshot_date)::INTEGER AS days_tracked,
-        (MIN(price) <> MAX(price))::BOOLEAN AS has_price_change
-    FROM {{ ref('fct_price_history') }}
-    GROUP BY product_sk
-)
+-- Singular dbt data test (Cold-Start Honesty):
+-- Fails if ANY product in gold.mart_product_verdicts with tracked_days_count < 7
+-- (history_maturity = 'EARLY') emits a historical median verdict
+-- (FAKE_DISCOUNT, GENUINE_DEAL, ALL_TIME_LOW, or PRESALE_HIKE) OR exposes a
+-- non-null verified_historical_median / non-zero historical real_discount_pct.
 
 SELECT
     v.product_sk,
@@ -20,12 +11,18 @@ SELECT
     v.current_price,
     v.claimed_original_price,
     v.discount_verdict,
-    COALESCE(h.days_tracked, 1) AS days_tracked,
-    COALESCE(h.has_price_change, FALSE) AS has_price_change
+    v.tracked_days_count,
+    v.history_maturity,
+    v.verified_historical_median,
+    v.real_discount_pct
 FROM {{ ref('mart_product_verdicts') }} v
-LEFT JOIN history_depth h
-    ON v.product_sk = h.product_sk
 WHERE
-    v.discount_verdict IN ('FAKE_DISCOUNT', 'GENUINE_DEAL', 'ALL_TIME_LOW', 'PRESALE_HIKE')
-    AND COALESCE(h.days_tracked, 1) < 3
-    AND NOT COALESCE(h.has_price_change, FALSE)
+    (
+        v.tracked_days_count < 7
+        OR v.history_maturity = 'EARLY'
+    )
+    AND (
+        v.discount_verdict IN ('FAKE_DISCOUNT', 'GENUINE_DEAL', 'ALL_TIME_LOW', 'PRESALE_HIKE')
+        OR v.verified_historical_median IS NOT NULL
+        OR v.real_discount_pct <> 0
+    )

@@ -29,7 +29,12 @@ import { buildAffiliateUrl, outboundLinkRel } from "@/lib/affiliate";
 import { retailerHref } from "@/lib/offers";
 import { absoluteUrl } from "@/lib/site";
 import { storeDisplayName } from "@/lib/stores";
-import { hasSufficientPriceHistory } from "@/lib/verdicts";
+import {
+  formatTrackedDays,
+  getHistoryMaturity,
+  getTrackedDaysCount,
+  getVerifiedMedian,
+} from "@/lib/verdicts";
 import { AdSlot } from "@/components/AdSlot";
 import { AlternativesTable } from "@/components/AlternativesTable";
 import { AsarakEmblem } from "@/components/AsarakLogo";
@@ -132,10 +137,12 @@ export function ProductReceipt({
     product,
     history,
     alternatives,
+    market_benchmark: detailMarketBenchmark = null,
     similar_alternatives = [],
     similar_products = [],
     variants = [],
   } = loaded.data;
+  const marketBenchmark = detailMarketBenchmark ?? product.market_benchmark ?? null;
   const similarItems =
     similar_products.length > 0 ? similar_products : similar_alternatives;
   const label = storeDisplayName(product.store_name, lang);
@@ -148,20 +155,90 @@ export function ProductReceipt({
     : null;
   const compareReady = alternatives.some((offer) => offer.in_stock);
   const hasHistory = history.length > 1;
-  const sufficientHistory = hasSufficientPriceHistory(product, history);
-  const median =
-    sufficientHistory && product.rolling_60d_median > 0
-      ? product.rolling_60d_median
-      : null;
+  const trackedDays = getTrackedDaysCount(product, history);
+  const historyMaturity = getHistoryMaturity(product, history);
+  const sufficientHistory = historyMaturity !== "EARLY";
+  const trackedDaysLabel = formatTrackedDays(trackedDays, lang);
+  const median = getVerifiedMedian(product, history);
+  const medianLabel =
+    historyMaturity === "MATURE"
+      ? t("maturity.medianWindow60")
+      : t("maturity.medianWindowDays", {
+          days: formatNumber(trackedDays, lang),
+        });
   const delta = product.real_discount_pct;
+  const recentDropPct =
+    !sufficientHistory &&
+    product.discount_verdict === "RECENT_DROP" &&
+    product.max_historical_price > product.current_price &&
+    product.max_historical_price > 0
+      ? ((product.max_historical_price - product.current_price) /
+          product.max_historical_price) *
+        100
+      : null;
+  const recentHikePct =
+    !sufficientHistory &&
+    product.discount_verdict === "RECENT_HIKE" &&
+    product.min_historical_price > 0 &&
+    product.current_price > product.min_historical_price
+      ? ((product.current_price - product.min_historical_price) /
+          product.min_historical_price) *
+        100
+      : null;
   const takeaway =
-    median === null
-      ? null
-      : Math.abs(delta) < 0.05
+    median !== null
+      ? Math.abs(delta) < 0.05
         ? t("ui.same")
-        : t(delta > 0 ? "ui.below" : "ui.above", {
-            pct: formatPctPlain(Math.abs(delta), lang),
-          });
+        : historyMaturity === "MATURE"
+          ? t(delta > 0 ? "ui.below" : "ui.above", {
+              pct: formatPctPlain(Math.abs(delta), lang),
+            })
+          : t(delta > 0 ? "maturity.belowWindow" : "maturity.aboveWindow", {
+              pct: formatPctPlain(Math.abs(delta), lang),
+              days: formatNumber(trackedDays, lang),
+            })
+      : marketBenchmark
+        ? marketBenchmark.status === "CHEAPEST_IN_MARKET" &&
+          (marketBenchmark.savings_vs_next_cheapest_egp ?? 0) >= 1
+          ? t("market.cheaperBy", {
+              amount: formatPrice(
+                marketBenchmark.savings_vs_next_cheapest_egp ?? 0,
+                lang,
+              ),
+              count: formatNumber(marketBenchmark.stores_count, lang),
+            })
+          : marketBenchmark.status === "ABOVE_MARKET" &&
+              marketBenchmark.price_diff_vs_cheapest_egp >= 1
+            ? t("market.aboveDetail", {
+                amount: formatPrice(
+                  marketBenchmark.price_diff_vs_cheapest_egp,
+                  lang,
+                ),
+                store: storeDisplayName(marketBenchmark.cheapest_store, lang),
+                price: formatPrice(marketBenchmark.cheapest_price, lang),
+                count: formatNumber(marketBenchmark.stores_count, lang),
+              })
+            : marketBenchmark.status === "OUT_OF_STOCK"
+              ? t("market.outOfStockOther", {
+                  store: storeDisplayName(marketBenchmark.cheapest_store, lang),
+                  price: formatPrice(marketBenchmark.cheapest_price, lang),
+                })
+              : null
+        : recentDropPct !== null
+          ? t("maturity.recentDropSummary", {
+              pct: formatPctPlain(recentDropPct, lang),
+              days: trackedDaysLabel,
+              high: formatPrice(product.max_historical_price, lang),
+              current: price,
+            })
+          : recentHikePct !== null
+            ? t("maturity.recentHikeSummary", {
+                pct: formatPctPlain(recentHikePct, lang),
+                days: trackedDaysLabel,
+                low: formatPrice(product.min_historical_price, lang),
+                current: price,
+              })
+            : null;
   const pack = formatPackSize(product.attributes_json);
   const unit = formatUnitPrice(product, lang);
   const live = loaded.source === "api";
@@ -353,9 +430,41 @@ export function ProductReceipt({
 
           {median !== null ? (
             <VerdictBadge verdict={product.discount_verdict} />
+          ) : marketBenchmark ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {marketBenchmark.status === "CHEAPEST_IN_MARKET" && (
+                <span className="ptr-badge ptr-badge-good">
+                  {t("market.cheapestBadge")}
+                </span>
+              )}
+              {marketBenchmark.status === "TIED_CHEAPEST" && (
+                <span className="ptr-badge ptr-badge-good">
+                  {t("market.tiedCheapestBadge")}
+                </span>
+              )}
+              {marketBenchmark.status === "ABOVE_MARKET" && (
+                <a href="#alternatives" className="ptr-badge ptr-badge-amber">
+                  <bdi>
+                    {t("market.aboveBadge", {
+                      amount: formatPrice(
+                        marketBenchmark.price_diff_vs_cheapest_egp,
+                        lang,
+                      ),
+                    })}
+                  </bdi>
+                </a>
+              )}
+              {(product.discount_verdict === "RECENT_DROP" ||
+                product.discount_verdict === "RECENT_HIKE") && (
+                <VerdictBadge verdict={product.discount_verdict} size="sm" />
+              )}
+            </div>
+          ) : product.discount_verdict === "RECENT_DROP" ||
+            product.discount_verdict === "RECENT_HIKE" ? (
+            <VerdictBadge verdict={product.discount_verdict} />
           ) : (
             <span className="ptr-badge">
-              {t(history.length >= 1 ? "detail.baselineBadge" : "ui.noHistory")}
+              {t("maturity.earlyBadge", { days: trackedDaysLabel })}
             </span>
           )}
 
@@ -482,17 +591,48 @@ export function ProductReceipt({
                 </dd>
               </div>
             )}
-            {median !== null && (
+            {median !== null ? (
               <div>
-                <dt>{t("detail.median60")}</dt>
+                <dt>{medianLabel}</dt>
                 <dd>
                   <bdi>{formatPrice(median, lang)}</bdi>
+                </dd>
+              </div>
+            ) : (
+              <div>
+                <dt>{t("detail.history")}</dt>
+                <dd className="text-sm ptr-muted">
+                  {t("maturity.earlyCard", { days: trackedDaysLabel })}
+                </dd>
+              </div>
+            )}
+            {marketBenchmark && (
+              <div>
+                <dt>
+                  {t("market.liveBenchmarkLabel", {
+                    count: formatNumber(marketBenchmark.stores_count, lang),
+                  })}
+                </dt>
+                <dd>
+                  <a href="#alternatives" className="ptr-link">
+                    <bdi>
+                      {marketBenchmark.status === "CHEAPEST_IN_MARKET"
+                        ? t("market.cheapestBadge")
+                        : marketBenchmark.status === "TIED_CHEAPEST"
+                          ? t("market.tiedCheapestBadge")
+                          : `${formatPrice(marketBenchmark.cheapest_price, lang)} (${storeDisplayName(marketBenchmark.cheapest_store, lang)})`}
+                    </bdi>
+                  </a>
                 </dd>
               </div>
             )}
             {product.claimed_discount_pct > 0 && (
               <div>
-                <dt>{t("detail.claimedDisc")}</dt>
+                <dt>
+                  {sufficientHistory
+                    ? t("detail.claimedDisc")
+                    : t("maturity.claimedUnverified")}
+                </dt>
                 <dd>
                   <bdi>{formatPctPlain(product.claimed_discount_pct, lang)}</bdi>
                 </dd>
@@ -502,7 +642,9 @@ export function ProductReceipt({
 
           {takeaway && <p className="ptr-notice">{takeaway}</p>}
 
-          {median !== null && (
+          {(median !== null ||
+            product.discount_verdict === "RECENT_DROP" ||
+            product.discount_verdict === "RECENT_HIKE") && (
             <details>
               <summary className="ptr-link">{t("detail.whatMeans")}</summary>
               <p className="ptr-muted text-sm mt-2">
@@ -513,13 +655,7 @@ export function ProductReceipt({
 
           {!sufficientHistory && (
             <p className="text-sm ptr-muted">
-              {history.length === 0
-                ? t("ui.noHistory")
-                : history.length === 1
-                  ? t("detail.baselineBody")
-                  : t("detail.baselineBodyFew", {
-                      count: formatNumber(history.length, lang),
-                    })}
+              {t("maturity.earlyCard", { days: trackedDaysLabel })}
             </p>
           )}
         </section>
@@ -527,6 +663,7 @@ export function ProductReceipt({
 
       <section id="alternatives" className="surface ptr-section">
         <h2>{t("detail.alternatives")}</h2>
+        <p className="ptr-muted text-sm">{t("detail.alternativesHint")}</p>
         {alternatives.length > 0 ? (
           <AlternativesTable
             alternatives={alternatives}
@@ -550,6 +687,7 @@ export function ProductReceipt({
             category={product.category}
             from={from ?? undefined}
             sample={!live}
+            hasExactAlternatives={alternatives.length > 0}
           />
         </section>
       )}
@@ -588,7 +726,11 @@ export function ProductReceipt({
             <p className="ptr-muted">{t("detail.baselineBody")}</p>
           </div>
         ) : (
-          <PriceChart history={history} />
+          <PriceChart
+            history={history}
+            trackedDaysCount={trackedDays}
+            historyMaturity={historyMaturity}
+          />
         )}
         {hasHistory && (
           <dl className="ptr-history-extremes">

@@ -40,22 +40,39 @@ def _rx(pattern: str) -> re.Pattern[str]:
 
 
 # Ordered from most specific to more general so compound subtypes win
-# (e.g. "gaming mouse" before "gaming", "air fryer" before "air conditioner",
-# "hand blender" before "blender", "deep freezer" before "refrigerator").
+# (e.g. "dishwasher" & "clothes_dryer" before "washing_machine", "air_fryer" &
+# "multi_cooker" before "gas_cooker", "deep_freezer" before "refrigerator",
+# "coffee_grinder" before "espresso_coffee_maker", "smartwatch"/"earbuds"/"tablet"
+# before "smartphone", "tv_receiver_box"/"projector" before "tv").
 _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
     # --- HOME APPLIANCES ---
     SubtypeSpec(
         "air_fryer",
         "Air Fryer",
         "قلاية هوائية",
-        _rx(r"(?:\bair\s*fryer\b|\bfryer\b|قلايه\s*هوائيه|قلايه\s*بدون\s*زيت|اير\s*فراير)"),
-        ("%air fryer%", "%قلايه%", "%fryer%"),
+        _rx(r"(?:\bair\s*fryers?\b|\baero\s*fry\b|\bmultifry(?:er)?\b|\bmulti[\s-]?fry\b|\bhot\s*air\s*fryer\b|قلايه\s*(?:هوائيه|بدون\s*زيت|بالهواء)|اير\s*فراير|مقلاه\s*(?:هوائيه|متعدده))"),
+        ("%air fryer%", "%multifry%", "%multi fry%", "%قلايه هوائيه%", "%اير فراير%"),
+        frozenset({"air_fryer", "air_fryers"}),
+    ),
+    SubtypeSpec(
+        "deep_fryer",
+        "Deep Fryer",
+        "قلاية زيت",
+        _rx(r"(?:\bdeep\s*fryers?\b|قلايه\s*زيت)"),
+        ("%deep fryer%", "%قلايه زيت%"),
+    ),
+    SubtypeSpec(
+        "multi_cooker",
+        "Multi Cooker",
+        "طباخ متعدد / حلة ضغط",
+        _rx(r"(?:\bmulti[\s-]?cookers?\b|\bpressure\s*cookers?\b|\brice\s*cookers?\b|\bslow\s*cookers?\b|\belectric\s*cooker\s*pot\b|حله\s*ضغط|طباخ\s*ارز|مالتي\s*كوكر)"),
+        ("%multi cooker%", "%multicooker%", "%pressure cooker%", "%rice cooker%", "%حله ضغط%"),
     ),
     SubtypeSpec(
         "air_conditioner",
         "Air Conditioner",
         "تكييف هواء",
-        _rx(r"(?:\bair\s*conditioner\b|\bsplit\s*ac\b|\binverter\s*ac\b|\b\d(?:\.\d+)?\s*hp\b|تكييف)"),
+        _rx(r"(?:\bair\s*conditioners?\b|\bsplit\s*ac\b|\binverter\s*ac\b|\b\d(?:\.\d+)?\s*hp\b|تكييف)"),
         ("%air conditioner%", "%تكييف%", "%split%"),
         frozenset({"air_conditioners", "split_air_conditioners"}),
     ),
@@ -63,15 +80,23 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "dishwasher",
         "Dishwasher",
         "غسالة أطباق",
-        _rx(r"(?:\bdishwasher\b|\bdish\s*washer\b|غساله\s*اطباق|غساله\s*صحون)"),
-        ("%dishwasher%", "%غساله اطباق%", "%غساله صحون%"),
+        _rx(r"(?:\bdish\s*washers?\b|غساله\s*(?:لل)?اطباق|غساله\s*(?:لل)?صحون|جلايه\s*صحون|دش\s*ووشر)"),
+        ("%dishwasher%", "%dish washer%", "%غساله اطباق%", "%غساله صحون%", "%غساله للاطباق%"),
         frozenset({"dishwashers"}),
+    ),
+    SubtypeSpec(
+        "clothes_dryer",
+        "Clothes Dryer",
+        "مجفف ملابس",
+        _rx(r"(?!.*(?:\bwashing\s*machine\b|\bwasher\b|غساله))(?:\b(?:clothes|tumble|condenser|heat\s*pump|laundry)\s*dryers?\b|مجفف\s*ملابس)"),
+        ("%clothes dryer%", "%tumble dryer%", "%condenser dryer%", "%heat pump dryer%", "%مجفف ملابس%"),
+        frozenset({"dryers", "clothes_dryers"}),
     ),
     SubtypeSpec(
         "washing_machine",
         "Washing Machine",
         "غسالة ملابس",
-        _rx(r"(?:\bwashing\s*machine\b|\bwasher\b|\bfront\s*load\b|\btop\s*load\b|غساله\s*ملابس|غساله\s*اوتوماتيك|غساله\s*فوق|غساله)"),
+        _rx(r"(?:\bwashing\s*machines?\b|\bwashers?\b|\bfront\s*load\b|\btop\s*load\b|غساله\s*ملابس|غساله\s*اوتوماتيك|غساله\s*فوق|غساله\s*هاف|غساله)"),
         ("%washing machine%", "%غساله%", "%washer%"),
         frozenset({"washing_machines"}),
     ),
@@ -79,15 +104,15 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "deep_freezer",
         "Deep Freezer",
         "ديب فريزر",
-        _rx(r"(?:\bdeep\s*freezer\b|\bchest\s*freezer\b|\bupright\s*freezer\b|ديب\s*فريزر|فريزر)"),
-        ("%freezer%", "%فريزر%"),
+        _rx(r"(?:\bdeep\s*freezers?\b|\bchest\s*freezers?\b|\bupright\s*freezers?\b|ديب\s*فريزر|فريزر\s*(?:افقي|راسي|ادراج|صندوق))"),
+        ("%deep freezer%", "%chest freezer%", "%upright freezer%", "%ديب فريزر%"),
         frozenset({"deep_freezers", "freezers"}),
     ),
     SubtypeSpec(
         "refrigerator",
         "Refrigerator",
         "ثلاجة",
-        _rx(r"(?:\brefrigerator\b|\bfridge\b|\bno\s*frost\b|ثلاجه|تلاجه)"),
+        _rx(r"(?:\brefrigerators?\b|\bfridges?\b|ثلاجه|تلاجه)"),
         ("%refrigerator%", "%fridge%", "%ثلاجه%", "%تلاجه%"),
         frozenset({"refrigerators"}),
     ),
@@ -95,7 +120,7 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "microwave",
         "Microwave",
         "ميكروويف",
-        _rx(r"(?:\bmicrowave\b|ميكروويف|ميكرويف|مايكروويف)"),
+        _rx(r"(?:\bmicrowaves?\b|ميكروويف|ميكرويف|مايكروويف)"),
         ("%microwave%", "%ميكروويف%", "%ميكرويف%"),
         frozenset({"microwaves"}),
     ),
@@ -103,14 +128,14 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "built_in_hob",
         "Built-in Hob",
         "مسطح بلت إن",
-        _rx(r"(?:\bbuilt[\s-]?in\s*(?:gas\s*|electric\s*|ceramic\s*)?hob\b|\bgas\s*hob\b|\bceramic\s*hob\b|مسطح\s*بلت|مسطح\s*غاز)"),
+        _rx(r"(?:\bbuilt[\s-]?in\s*(?:gas\s*|electric\s*|ceramic\s*)?hobs?\b|\bgas\s*hobs?\b|\bceramic\s*hobs?\b|مسطح\s*بلت|مسطح\s*غاز)"),
         ("%hob%", "%مسطح%"),
     ),
     SubtypeSpec(
         "built_in_oven",
         "Oven",
         "فرن",
-        _rx(r"(?:\bbuilt[\s-]?in\s*oven\b|\belectric\s*oven\b|\bgas\s*oven\b|\btoaster\s*oven\b|\boven\b|فرن\s*بلت|فرن\s*كهربائ|فرن)"),
+        _rx(r"(?:\bbuilt[\s-]?in\s*ovens?\b|\belectric\s*ovens?\b|\bgas\s*ovens?\b|\btoaster\s*ovens?\b|\bovens?\b|فرن\s*بلت|فرن\s*كهربائ|فرن)"),
         ("%oven%", "%فرن%"),
         frozenset({"ovens"}),
     ),
@@ -118,15 +143,15 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "gas_cooker",
         "Cooker",
         "بوتاجاز",
-        _rx(r"(?:\bgas\s*cooker\b|\bcooker\b|\b\d\s*burners?\b|بوتاجاز|بوتجاز)"),
-        ("%cooker%", "%بوتاجاز%", "%بوتجاز%"),
+        _rx(r"(?:\bgas\s*cookers?\b|\bfree[\s-]?standing\s*cookers?\b|\belectric\s*cookers?\b|\b\d\s*burners?\b|بوتاجاز|بوتجاز)"),
+        ("%gas cooker%", "%cooker%", "%بوتاجاز%", "%بوتجاز%"),
         frozenset({"cookers"}),
     ),
     SubtypeSpec(
         "water_heater",
         "Water Heater",
         "سخان مياه",
-        _rx(r"(?:\bwater\s*heater\b|سخان\s*مياه|سخان\s*غاز|سخان\s*كهربا|سخان)"),
+        _rx(r"(?:\bwater\s*heaters?\b|سخان\s*مياه|سخان\s*غاز|سخان\s*كهربا|سخان)"),
         ("%water heater%", "%سخان%"),
         frozenset({"water_heaters"}),
     ),
@@ -134,50 +159,64 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "water_cooler",
         "Water Dispenser",
         "مبرد مياه",
-        _rx(r"(?:\bwater\s*cooler\b|\bwater\s*dispenser\b|مبرد\s*مياه|ديسبنسر)"),
+        _rx(r"(?:\bwater\s*coolers?\b|\bwater\s*dispensers?\b|مبرد\s*مياه|ديسبنسر)"),
         ("%water cooler%", "%water dispenser%", "%مبرد مياه%"),
     ),
     SubtypeSpec(
         "vacuum_cleaner",
         "Vacuum Cleaner",
         "مكنسة كهربائية",
-        _rx(r"(?:\bvacuum\s*cleaner\b|\bcanister\s*vacuum\b|\bstick\s*vacuum\b|\brobot\s*vacuum\b|\bvacuum\b|مكنسه)"),
+        _rx(r"(?:\bvacuum\s*cleaners?\b|\bcanister\s*vacuum\b|\bstick\s*vacuum\b|\brobot\s*vacuum\b|\bvacuum\b|مكنسه)"),
         ("%vacuum%", "%مكنسه%"),
         frozenset({"vacuums"}),
+    ),
+    SubtypeSpec(
+        "coffee_grinder",
+        "Coffee Grinder",
+        "مطحنة قهوة",
+        _rx(r"(?:\bcoffee\s*grinders?\b|\bbean\s*grinders?\b|مطحنه\s*(?:قهوه|بن))"),
+        ("%coffee grinder%", "%bean grinder%", "%مطحنه قهوه%", "%مطحنه بن%"),
+    ),
+    SubtypeSpec(
+        "milk_frother",
+        "Milk Frother",
+        "خفاقة حليب",
+        _rx(r"(?:\bmilk\s*frothers?\b|خفاقه\s*حليب|مضرب\s*نسكافيه)"),
+        ("%milk frother%", "%frother%", "%مضرب نسكافيه%"),
     ),
     SubtypeSpec(
         "espresso_coffee_maker",
         "Coffee Maker",
         "ماكينة قهوة",
-        _rx(r"(?:\bespresso\s*machine\b|\bcoffee\s*maker\b|\bcoffee\s*machine\b|\bturkish\s*coffee\s*maker\b|ماكينه\s*قهوه|صانعه\s*قهوه|كنكه\s*كهربا)"),
-        ("%coffee maker%", "%espresso%", "%coffee machine%", "%قهوه%"),
+        _rx(r"(?:\bespresso\s*machines?\b|\bcoffee\s*makers?\b|\bcoffee\s*machines?\b|\bturkish\s*coffee\s*makers?\b|\bnespresso\b|\bdolce\s*gusto\b|ماكينه\s*قهوه|صانعه\s*قهوه|كنكه\s*كهربا)"),
+        ("%coffee maker%", "%espresso%", "%coffee machine%", "%nespresso%", "%ماكينه قهوه%", "%صانعه قهوه%"),
     ),
     SubtypeSpec(
         "kettle",
         "Electric Kettle",
         "غلاية مياه",
-        _rx(r"(?:\bkettle\b|غلايه|كاتل)"),
+        _rx(r"(?:\bkettles?\b|غلايه|كاتل)"),
         ("%kettle%", "%غلايه%", "%كاتل%"),
     ),
     SubtypeSpec(
         "hand_blender",
         "Hand Blender",
         "هاند بلندر",
-        _rx(r"(?:\bhand\s*blender\b|\bimmersion\s*blender\b|هاند\s*بلندر)"),
+        _rx(r"(?:\bhand\s*blenders?\b|\bimmersion\s*blenders?\b|هاند\s*بلندر)"),
         ("%hand blender%", "%هاند بلندر%"),
     ),
     SubtypeSpec(
         "food_processor",
         "Food Processor",
         "محضر طعام",
-        _rx(r"(?:\bfood\s*processor\b|محضر\s*طعام|كيتشن\s*ماشين)"),
+        _rx(r"(?:\bfood\s*processors?\b|محضر\s*طعام|كيتشن\s*ماشين)"),
         ("%food processor%", "%محضر طعام%"),
     ),
     SubtypeSpec(
         "blender",
         "Blender",
         "خلاط",
-        _rx(r"(?:\bblender\b|خلاط)"),
+        _rx(r"(?:\bblenders?\b|خلاط)"),
         ("%blender%", "%خلاط%"),
         frozenset({"blenders"}),
     ),
@@ -185,14 +224,14 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "chopper",
         "Food Chopper",
         "كبة",
-        _rx(r"(?:\bchopper\b|\bmincer\b|كبه|مفرمه)"),
+        _rx(r"(?:\bchoppers?\b|\bmincers?\b|كبه|مفرمه)"),
         ("%chopper%", "%كبه%", "%مفرمه%"),
     ),
     SubtypeSpec(
         "stand_mixer",
         "Mixer",
         "عجان / مضرب",
-        _rx(r"(?:\bstand\s*mixer\b|\bhand\s*mixer\b|\bmixer\b|عجان|مضرب\s*بيض)"),
+        _rx(r"(?:\bstand\s*mixers?\b|\bhand\s*mixers?\b|\bmixers?\b|عجان|مضرب\s*بيض)"),
         ("%mixer%", "%عجان%", "%مضرب%"),
         frozenset({"mixers"}),
     ),
@@ -200,30 +239,53 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "toaster_sandwich",
         "Toaster & Grill",
         "توستر / ساندوتش ميكر",
-        _rx(r"(?:\bsandwich\s*maker\b|\bwaffle\s*maker\b|\btoaster\b|\bgrill\b|توستر|ساندوتش\s*ميكر|شوايه)"),
+        _rx(r"(?:\bsandwich\s*makers?\b|\bwaffle\s*makers?\b|\btoasters?\b|\bgrill\b|توستر|ساندوتش\s*ميكر|شوايه)"),
         ("%sandwich maker%", "%toaster%", "%waffle%", "%توستر%"),
         frozenset({"toasters"}),
     ),
     SubtypeSpec(
+        "hair_styler",
+        "Hair Dryer & Styler",
+        "مجفف / مكواة شعر",
+        _rx(r"(?:\bhair\s*dryers?\b|\bhair\s*stylers?\b|\bhair\s*straighteners?\b|\bcurling\s*irons?\b|مجفف\s*شعر|سشوار|مكواه\s*شعر)"),
+        ("%hair dryer%", "%hair straightener%", "%hair styler%", "%مجفف شعر%", "%سشوار%"),
+    ),
+    SubtypeSpec(
         "iron",
         "Steam Iron",
-        "مكواة",
-        _rx(r"(?:\bsteam\s*iron\b|\bgarment\s*steamer\b|\biron\b|مكواه)"),
+        "مكواة ملابس",
+        _rx(r"(?:\bsteam\s*irons?\b|\bgarment\s*steamers?\b|\biron\b|مكواه\s*بخار|مكواه)"),
         ("%iron%", "%steamer%", "%مكواه%"),
     ),
     SubtypeSpec(
         "fan",
         "Electric Fan",
         "مروحة",
-        _rx(r"(?:\bstand\s*fan\b|\bceiling\s*fan\b|\bwall\s*fan\b|\bbox\s*fan\b|\btable\s*fan\b|مروحه)"),
+        _rx(r"(?:\bstand\s*fans?\b|\bceiling\s*fans?\b|\bwall\s*fans?\b|\bbox\s*fans?\b|\btable\s*fans?\b|مروحه)"),
         ("%stand fan%", "%ceiling fan%", "%wall fan%", "%مروحه%"),
     ),
-    # --- ELECTRONICS ---
+    # --- ELECTRONICS (most specific & non-phone wearables/audio/boxes FIRST!) ---
+    SubtypeSpec(
+        "tv_receiver_box",
+        "TV Receiver / Streaming Box",
+        "رسيفر / تي في بوكس",
+        _rx(r"(?:\bsatellite\s*receivers?\b|\bhd\s*receivers?\b|\bmini\s*receivers?\b|\breceivers?\b|\btv\s*box(?:es)?\b|\bandroid\s*tv\s*box\b|\btv\s*stick\b|\bfire\s*tv\s*stick\b|\bchromecast\b|رسيفر|ريسيفر|تي\s*في\s*بوكس)"),
+        ("%receiver%", "%tv box%", "%tv stick%", "%رسيفر%", "%ريسيفر%"),
+        frozenset({"receivers", "tv_boxes"}),
+    ),
+    SubtypeSpec(
+        "projector",
+        "Projector",
+        "بروجيكتور",
+        _rx(r"(?:\bprojectors?\b|بروجيكتور|بروجكتور)"),
+        ("%projector%", "%بروجيكتور%"),
+        frozenset({"projectors"}),
+    ),
     SubtypeSpec(
         "tv",
         "Smart TV",
         "تلفزيون",
-        _rx(r"(?:\bsmart\s*tv\b|\bled\s*tv\b|\bqled\s*tv\b|\boled\s*tv\b|\b4k\s*tv\b|\buhd\s*tv\b|\btelevision\b|تلفزيون|شاشه\s*\d{2}\s*بوصه)"),
+        _rx(r"(?:\bsmart\s*tvs?\b|\bled\s*tvs?\b|\bqled\s*tvs?\b|\boled\s*tvs?\b|\b4k\s*tvs?\b|\buhd\s*tvs?\b|\btelevisions?\b|تلفزيون|شاشه\s*\d{2,3}\s*بوصه)"),
         ("%smart tv%", "%tv%", "%تلفزيون%"),
         frozenset({"tvs", "smart_tvs"}),
     ),
@@ -231,15 +293,15 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "monitor",
         "Monitor",
         "شاشة كمبيوتر",
-        _rx(r"(?:\bgaming\s*monitor\b|\bips\s*monitor\b|\bcurved\s*monitor\b|\bmonitor\b|شاشه\s*كمبيوتر|شاشه\s*جيمنج)"),
-        ("%monitor%", "%شاشه%"),
+        _rx(r"(?:\bgaming\s*monitors?\b|\bips\s*monitors?\b|\bcurved\s*monitors?\b|\bmonitors?\b|شاشه\s*كمبيوتر|شاشه\s*جيمنج)"),
+        ("%monitor%", "%شاشه كمبيوتر%"),
         frozenset({"monitors"}),
     ),
     SubtypeSpec(
         "laptop",
         "Laptop",
         "لابتوب",
-        _rx(r"(?:\blaptop\b|\bnotebook\b|\bmacbook\b|\bthinkpad\b|\bideapad\b|\bvivobook\b|\bzenbook\b|\bvictus\b|\blegion\b|لابتوب|لاب\s*توب)"),
+        _rx(r"(?:\blaptops?\b|\bnotebooks?\b|\bmacbooks?\b|\bthinkpads?\b|\bideapads?\b|\bvivobooks?\b|\bzenbooks?\b|\bvictus\b|\blegion\b|لابتوب|لاب\s*توب)"),
         ("%laptop%", "%notebook%", "%macbook%", "%لابتوب%"),
         frozenset({"laptops", "notebooks"}),
     ),
@@ -247,23 +309,15 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "tablet",
         "Tablet",
         "تابلت",
-        _rx(r"(?:\btablet\b|\bipad\b|\bgalaxy\s*tab\b|\bpad\s*[a-z0-9]|تابلت|ايباد)"),
-        ("%tablet%", "%ipad%", "%تابلت%"),
+        _rx(r"(?:\btablets?\b|\bipads?\b|\bgalaxy\s*tab\b|\bredmi\s*pad\b|\bxiaomi\s*pad\b|\bmatepad\b|\bpad\s*[a-z0-9]|تابلت|ايباد)"),
+        ("%tablet%", "%ipad%", "%galaxy tab%", "%redmi pad%", "%تابلت%"),
         frozenset({"tablets"}),
-    ),
-    SubtypeSpec(
-        "smartphone",
-        "Smartphone",
-        "موبايل",
-        _rx(r"(?:\bsmartphone\b|\bmobile\s*phone\b|\biphone\b|\bgalaxy\s+[asmz]\d|\bredmi\b|\bpoco\b|\bhonor\s+x\d|\boppo\b|\brealme\b|\binfinix\b|\btecno\b|موبايل|هاتف\s*ذكي|تليفون)"),
-        ("%smartphone%", "%mobile%", "%iphone%", "%galaxy%", "%redmi%", "%موبايل%"),
-        frozenset({"smartphones", "mobiles", "mobile_phones", "phones"}),
     ),
     SubtypeSpec(
         "smartwatch",
         "Smartwatch",
         "ساعة ذكية",
-        _rx(r"(?:\bsmart\s*watch\b|\bsmartwatch\b|\bapple\s*watch\b|\bgalaxy\s*watch\b|\bfitness\s*tracker\b|ساعه\s*ذكيه|سمارت\s*ووتش)"),
+        _rx(r"(?:\bsmart\s*watch(?:es)?\b|\bsmartwatch(?:es)?\b|\bapple\s*watch\b|\bgalaxy\s*watch\b|\bredmi\s*watch\b|\bhuawei\s*watch\b|\bhonor\s*watch\b|\bwatch\s*gt\b|\bfitness\s*tracker\b|\bsmart\s*band\b|\bfitness\s*band\b|ساعه\s*ذكيه|سمارت\s*ووتش)"),
         ("%smartwatch%", "%smart watch%", "%watch%", "%ساعه ذكيه%"),
         frozenset({"wearables", "smart_watches"}),
     ),
@@ -271,7 +325,7 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "earbuds",
         "Wireless Earbuds",
         "سماعة أذن لاسلكية",
-        _rx(r"(?:\bearbuds?\b|\bairpods?\b|\bbuds\b|\btws\b|\bin[\s-]?ear\b|ايربودز|سماعه\s*اذن)"),
+        _rx(r"(?:\bearbuds?\b|\bairpods?\b|\bbuds\b|\btws\b|\bin[\s-]?ear\b|\benco\s*(?:buds|air|free)\b|ايربودز|سماعه\s*اذن)"),
         ("%earbuds%", "%buds%", "%airpods%", "%tws%"),
         frozenset({"earbuds", "earphones"}),
     ),
@@ -279,17 +333,32 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "headphones",
         "Headphones / Headset",
         "سماعة رأس",
-        _rx(r"(?:\bheadset\b|\bheadphones?\b|\bover[\s-]?ear\b|\bon[\s-]?ear\b|سماعه\s*راس|هيدسيت)"),
-        ("%headset%", "%headphone%", "%سماعه%"),
+        _rx(r"(?:\bheadsets?\b|\bheadphones?\b|\bover[\s-]?ear\b|\bon[\s-]?ear\b|سماعه\s*راس|هيدسيت)"),
+        ("%headset%", "%headphone%", "%سماعه راس%"),
         frozenset({"headphones"}),
     ),
     SubtypeSpec(
         "speaker",
         "Speaker",
         "سماعة سبيكر",
-        _rx(r"(?:\bspeaker\b|\bsoundbar\b|\bsubwoofer\b|سبيكر|مكبر\s*صوت)"),
+        _rx(r"(?:\bspeakers?\b|\bsoundbars?\b|\bsubwoofers?\b|سبيكر|مكبر\s*صوت)"),
         ("%speaker%", "%soundbar%", "%سبيكر%"),
         frozenset({"speakers", "soundbars"}),
+    ),
+    SubtypeSpec(
+        "power_bank",
+        "Power Bank",
+        "باور بانك",
+        _rx(r"(?:\bpower\s*banks?\b|\bpowerbanks?\b|\bpowercore\b|باور\s*بانك)"),
+        ("%power bank%", "%powerbank%", "%باور بانك%"),
+    ),
+    SubtypeSpec(
+        "smartphone",
+        "Smartphone",
+        "موبايل",
+        _rx(r"(?:\bsmartphones?\b|\bmobile\s*phones?\b|\biphones?\b|\bgalaxy\s+[asmz]\d|\bredmi\s+(?:note\s+)?\d|\bredmi\s+[ac]\d|\bpoco\s+[xfmc]\d|\bhonor\s+(?:x\d|magic|\d{2,3})|\boppo\s+(?:reno|find|[af]\d)|\brealme\s+(?:c\d|gt|note|\d{1,2})|\binfinix\s+(?:hot|note|smart|zero|gt)|\btecno\s+(?:spark|camon|pova|phantom)|موبايل|هاتف\s*ذكي|تليفون)"),
+        ("%smartphone%", "%mobile%", "%iphone%", "%galaxy%", "%redmi%", "%موبايل%"),
+        frozenset({"smartphones", "mobiles", "mobile_phones", "phones"}),
     ),
     SubtypeSpec(
         "keyboard",
@@ -313,13 +382,6 @@ _SUBTYPE_SPECS: tuple[SubtypeSpec, ...] = (
         "ميكروفون",
         _rx(r"(?:\bmicrophone\b|\bcondenser\s*mic\b|\bmic\b|ميكروفون|مايك)"),
         ("%microphone%", "%ميكروفون%"),
-    ),
-    SubtypeSpec(
-        "power_bank",
-        "Power Bank",
-        "باور بانك",
-        _rx(r"(?:\bpower\s*bank\b|\bpowerbank\b|\bpowercore\b|باور\s*بانك)"),
-        ("%power bank%", "%powerbank%", "%باور بانك%"),
     ),
     SubtypeSpec(
         "router_networking",
@@ -795,14 +857,18 @@ _EXPLICIT_ACCESSORY_RE = re.compile(
     r"cable|charger|adapter|adaptor|remote|strap|band|stand|holder|mount|bracket|hose|filter|"
     r"gasket|seal|hinge|knob|blade|shaft|jug\s*base|frame|grid|barrier|pocket|tipper|"
     r"replacement|spare\s*part|battery|ink|toner|cartridge)\s+(?:for|compatible\s+with)\b|"
-    r"\b(?:screen\s*protector|tempered\s*glass|privacy\s*glass|phone\s*case|silicone\s*case|"
-    r"leather\s*case|clear\s*case|magsafe\s*case|laptop\s*bag|laptop\s*sleeve|laptop\s*backpack|"
-    r"laptop\s*stand|laptop\s*cooler|cooling\s*pad|phone\s*stand|phone\s*holder|car\s*holder|"
-    r"car\s*mount|wall\s*mount|watch\s*strap|watch\s*band|replacement\s*remote|cleaning\s*kit|"
+    r"\b(?:screen\s*protector|tempered\s*glass|privacy\s*glass|phone\s*case|phone\s*cover|back\s*cover|flip\s*cover|silicone\s*case|"
+    r"leather\s*case|clear\s*case|magsafe\s*case|airpods\s*case|buds\s*case|laptop\s*bag|laptop\s*sleeve|laptop\s*backpack|"
+    r"laptop\s*stand|laptop\s*cooler|laptop\s*charger|cooling\s*pad|phone\s*stand|phone\s*holder|car\s*holder|"
+    r"car\s*mount|wall\s*mount|tv\s*(?:mount|bracket|stand|wall\s*mount|cover|remote)|monitor\s*(?:arm|mount|stand)|"
+    r"watch\s*strap|watch\s*band|watch\s*charger|replacement\s*remote|cleaning\s*kit|"
+    r"dishwasher\s*(?:tablets?|tabs?|capsules?|pods?|salt|gel|powder|detergent|cleaner|rinse\s*aid)|"
+    r"washing\s*machine\s*(?:cleaner|stand|cover|base)|ac\s*cover|"
     r"charging\s*station|eggs\s*pocket|meat\s*tipper|ice\s*pack|ice\s*cube|chopper\s*blade|"
     r"shaft\s*assembly|jug\s*base|pipe\s*ceiling|lnb|diseqc|freezer\s*door\s*barrier|"
     r"bottles\s*barrier|medicines\s*barrier|shaker\s*bottle|pill\s*box|tote\s*bag|shoelaces?|insoles?)\b|"
     r"(?:جراب|كفر|اسكرين|سكرين|قطعه\s*غيار|رف\s*ثلاجه|درج\s*ثلاجه|شنطه\s*لابتوب|حقيبه\s*لابتوب|"
+    r"حامل\s*(?:شاشه|تلفزيون)|اقراص\s*غساله|ملح\s*غساله|ملمع\s*غساله|منظف\s*غساله|غطاء\s*(?:غساله|تكييف|ثلاجه)|"
     r"لاصق\s*حمايه|سير\s*ساعه|استراب|شاحن\s*لابتوب|شاحن\s*موبايل|شيكر)"
     r")",
     re.I,
@@ -880,6 +946,25 @@ def _fw_gender(norm_title: str, store_name: str) -> str:
     return "unisex"
 
 
+_STANDALONE_FREEZER_RE = _rx(r"(?:\bfreezers?\b|فريزر)")
+_CROSS_FILED_SUBTYPES: frozenset[str] = frozenset({
+    "dishwasher",
+    "clothes_dryer",
+    "deep_freezer",
+    "air_fryer",
+    "deep_fryer",
+    "multi_cooker",
+    "espresso_coffee_maker",
+    "coffee_grinder",
+    "milk_frother",
+    "kettle",
+    "tv_receiver_box",
+    "projector",
+    "hair_styler",
+})
+_SUBTYPE_BY_CODE: dict[str, SubtypeSpec] = {s.code: s for s in _SUBTYPE_SPECS}
+
+
 def _detect_subtype(title: str, sub_category: str) -> Optional[SubtypeSpec]:
     norm = _norm(title)
     sub = (sub_category or "").strip().lower()
@@ -889,10 +974,18 @@ def _detect_subtype(title: str, sub_category: str) -> Optional[SubtypeSpec]:
             continue
         if spec.match_re.search(norm):
             return spec
+    # Standalone "freezer" / "فريزر" ONLY after confirming it's NOT a refrigerator
+    if _STANDALONE_FREEZER_RE.search(norm):
+        return _SUBTYPE_BY_CODE["deep_freezer"]
     for spec in _SUBTYPE_SPECS:
         if spec.code in _FOOTWEAR_SUBTYPES and is_apparel:
             continue
         if sub and sub in spec.sub_categories:
+            # Never allow noisy store sub_category fallback to misclassify obvious cross-filed devices
+            if spec.code == "washing_machine" and re.search(r"(?:\bdish|\bplace\s*settings?|\bdryer\b|اطباق|صحون|مجفف)", norm):
+                continue
+            if spec.code == "refrigerator" and _STANDALONE_FREEZER_RE.search(norm):
+                continue
             return spec
     return None
 
@@ -1039,7 +1132,17 @@ def find_similar_alternatives(
         else:
             trgm_filter = "TRUE"
 
-    sub_clause = "AND LOWER(sub_category) = :sub_cat" if strict_sub else ""
+    # When a concrete subtype is known to be cross-filed across noisy store sub_categories
+    # (e.g., dishwashers filed under `washing_machines`, air fryers under `cookers`/`kitchen_appliances`),
+    # search across the whole category via GIN pg_trgm patterns and enforce strict subtype equality in Python.
+    enforce_sub_cat = strict_sub and not (
+        target_subtype is not None
+        and (
+            target_subtype.code in _CROSS_FILED_SUBTYPES
+            or (target_subtype.sub_categories and target_sub not in target_subtype.sub_categories)
+        )
+    )
+    sub_clause = "AND LOWER(sub_category) = :sub_cat" if enforce_sub_cat else ""
 
     sql = text(
         f"""
@@ -1099,8 +1202,8 @@ def find_similar_alternatives(
         if cand_price <= 0 or cand_price < min_30 or cand_price > max_30:
             continue
 
-        # Mandatory Guard 0: Strict same sub_category when target sub_category is concrete
-        if strict_sub and cand_sub != target_sub:
+        # Mandatory Guard 0: Strict same sub_category when sub_category aligns with subtype
+        if enforce_sub_cat and cand_sub != target_sub:
             continue
 
         cand_title_norm = _norm(cand_title)

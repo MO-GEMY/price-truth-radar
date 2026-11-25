@@ -515,11 +515,23 @@ _LAPTOP_CHASSIS_RE = re.compile(
     r")\b",
     re.I,
 )
-_GENERIC_MODEL_CODE_RE = re.compile(r"\b([a-z]{1,4}[-]?\d{2,5}[a-z0-9-]{0,6})\b", re.I)
+_GENERIC_MODEL_CODE_RE = re.compile(r"\b([a-z]{1,5}[-]?\d{2,5}(?:\.\d{2,3})?[a-z0-9-]{0,14})\b", re.I)
 # Loose pattern for appliance part numbers that mix letters+digits from the
 # first character (M1SEFT-12CRN8F-Q8, KHEFT12N, 7MD68A, 50C350RP) — the strict
 # regex above requires 2+ digits immediately after the letters and misses these.
-_LOOSE_MODEL_CODE_RE = re.compile(r"\b([a-z]{0,6}[-]?\d{1,6}[a-z0-9-]{0,18})\b", re.I)
+_LOOSE_MODEL_CODE_RE = re.compile(r"\b([a-z]{0,6}[-]?\d{1,6}(?:\.\d{2,3})?[a-z0-9-]{0,18})\b", re.I)
+_SPACED_MODEL_CODE_MATCHER_RE = re.compile(r"\b([a-z]{2,4})\s+(\d{3,5})(?=$|[\s/\-.,)\]])", re.I)
+_SPACED_MODEL_STOP_PFX: frozenset[str] = frozenset(
+    {
+        "the", "and", "for", "with", "from", "set", "box", "pack", "size", "plus", "pro",
+        "max", "mini", "lite", "air", "auto", "dual", "quad", "fast", "high", "full",
+        "core", "ddr", "usb", "hdmi", "wifi", "gen", "cat", "spf", "bar", "watt", "volt",
+        "inch", "year", "rpm", "dpi", "fps", "mhz", "ghz", "mah", "btu", "pcs",
+        "atx", "sfx", "lga", "rtx", "gtx", "arc", "amd", "cpu", "gpu", "ram", "ssd", "hdd",
+        "note", "tab", "pad", "fold", "flip", "watch", "buds", "pods", "band", "play",
+        "sony", "asus", "acer", "dell", "msi", "benq", "jbl", "bose", "oppo", "vivo", "poco",
+    }
+)
 _SCREEN_INCH_RE = re.compile(r"\b(\d{2,3}(?:\.\d)?)\s*(?:\"|''|-?\s*inch(?:es)?\b|بوص[ةه])", re.I)
 
 # Non-model spec / rating / chipset-less tokens that MUST NOT be treated as product model codes
@@ -531,8 +543,9 @@ _NON_MODEL_SPEC_CODE_RE = re.compile(
     r"(?:ac|ax|be)\d{3,5}|"
     r"cl\d{2}|"
     r"\d+x\d+(?:x\d+)?|"
-    r"ddr[2345]|gddr[567]x?|lpddr[45]x?|pcie\d|sata\d|usb\d|hdmi\d|dp\d|hdr\d+|ip\d{2}|spf\d+|"
-    r"wifi[4567]e?|bt[45]|cat[5678]e?|[23456789]in1|1[02]in1"
+    r"ddr[2345]|gddr[567]x?|lpddr[45]x?|pcie\d(?:\.\d)?|sata\d|usb\d(?:\.\d)?|hdmi\d(?:\.\d)?|dp\d(?:\.\d)?|hdr\d+|ip\d{2}|spf\d+|"
+    r"atx\d+(?:\.\d+)?|sfx\d*|lga\d{4}|am[45]|rj\d{2}|[tp][12]000|"
+    r"wifi[4567]e?|bt[45]|cat[5678]e?|(?:[2-9]|1[0-9])in1"
     r")$",
     re.I,
 )
@@ -933,7 +946,9 @@ def _collect_model_codes(cleaned_title: str, min_len: int, loose: bool = False) 
             if any(s <= span[0] < e or s < span[1] <= e for s, e in seen_spans):
                 continue
             raw = m.group(1)
-            norm = _normalize_model_code(raw)
+            # Strip trailing `-1` revision suffix on 3+ digit appliance codes (`FH1363-1` -> `fh1363`)
+            rev_m = re.fullmatch(r"([a-z]{2,5}\d{3,5})-\d(?:[a-z]{0,2})?", raw, re.I)
+            norm = _normalize_model_code(rev_m.group(1) if rev_m else raw)
             if len(norm) < min_len:
                 continue
             if not (any(c.isalpha() for c in norm) and any(c.isdigit() for c in norm)):
@@ -945,6 +960,18 @@ def _collect_model_codes(cleaned_title: str, min_len: int, loose: bool = False) 
                 codes_norm.append(norm)
             if first_raw is None:
                 first_raw = raw
+    if not codes_norm:
+        for sm in _SPACED_MODEL_CODE_MATCHER_RE.finditer(cleaned_title):
+            pfx = sm.group(1).lower()
+            num = sm.group(2)
+            if pfx in _SPACED_MODEL_STOP_PFX or re.fullmatch(r"20[12]\d|19\d\d", num):
+                continue
+            norm = _normalize_model_code(f"{pfx}{num}")
+            if len(norm) >= min_len and not _NON_MODEL_SPEC_CODE_RE.fullmatch(norm):
+                if norm not in codes_norm:
+                    codes_norm.append(norm)
+                if first_raw is None:
+                    first_raw = sm.group(0)
     return codes_norm, first_raw
 
 

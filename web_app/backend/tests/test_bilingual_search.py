@@ -426,6 +426,159 @@ class TestBilingualSearchAndPhoneticResolver(unittest.TestCase):
         self.assertEqual(resp2.status_code, 200)
         self.assertEqual(len(fake_db.calls), calls_after_first)
 
+    def test_similar_alternatives_strict_subtype_gating_blocks_dishwasher_washer_and_appliance_leaks(self) -> None:
+        from app.similar_alternatives import _detect_subtype
+
+        now = datetime(2026, 11, 25, 4, 0, 0, tzinfo=timezone.utc)
+        # Real production bug: LG Dishwasher (plural "Dishwashers") filed under `washing_machines`
+        lg_dishwasher = ProductVerdictItem(
+            product_sk="sk_lg_dw",
+            canonical_product_key="lg_dfc513fve",
+            store_name="2b",
+            category="home_appliances",
+            sub_category="washing_machines",
+            brand="LG",
+            product_title="LG Free Standing Dishwashers 14 Place - 8 Programs Inverter Motor - DFC513FVE",
+            product_url="https://2b.com.eg/lg-dishwasher",
+            image_url=None,
+            attributes_json={},
+            current_price=38989.0,
+            claimed_original_price=None,
+            rolling_60d_median=38989.0,
+            min_historical_price=38989.0,
+            max_historical_price=38989.0,
+            claimed_discount_pct=0.0,
+            real_discount_pct=0.0,
+            discount_verdict="NEWLY_TRACKED",
+            scarcity_flag=False,
+            in_stock=True,
+            last_updated_at=now,
+            parent_product_key="2b::lg-dw",
+            tracked_days_count=2,
+            history_maturity="EARLY",
+            verified_historical_median=None,
+        )
+
+        candidates = [
+            # VALID: Bosch Dishwasher filed under `dishwashers`
+            {
+                "product_sk": "sk_bosch_dw",
+                "product_title": "Bosch Free Standing Dishwasher 14 Place Settings Silver SMS4HVI33E",
+                "store_name": "ehab_center",
+                "brand": "Bosch",
+                "category": "home_appliances",
+                "sub_category": "dishwashers",
+                "current_price": 37999.0,
+                "discount_verdict": "NEWLY_TRACKED",
+                "in_stock": True,
+                "image_url": None,
+                "product_url": "https://ehabcenter.com/bosch-dw",
+                "parent_product_key": "ehab_center::bosch-dw",
+                "canonical_product_key": "bosch_sms4hvi33e",
+            },
+            # VALID: Arabic Dishwasher filed under `washing_machines`
+            {
+                "product_sk": "sk_beko_dw_ar",
+                "product_title": "بيكو غسالة أطباق 14 فرد 6 برامج انفرتر فضي",
+                "store_name": "btech",
+                "brand": "Beko",
+                "category": "home_appliances",
+                "sub_category": "washing_machines",
+                "current_price": 35500.0,
+                "discount_verdict": "NEWLY_TRACKED",
+                "in_stock": True,
+                "image_url": None,
+                "product_url": "https://btech.com/beko-dw",
+                "parent_product_key": "btech::beko-dw",
+                "canonical_product_key": None,
+            },
+            # MUST BE BLOCKED: Toshiba Washing Machine
+            {
+                "product_sk": "sk_toshiba_wm",
+                "product_title": "Toshiba Front Load Washing Machine 10kg Inverter Motor Silver",
+                "store_name": "rayashop",
+                "brand": "Toshiba",
+                "category": "home_appliances",
+                "sub_category": "washing_machines",
+                "current_price": 36999.0,
+                "discount_verdict": "NEWLY_TRACKED",
+                "in_stock": True,
+                "image_url": None,
+                "product_url": "https://rayashop.com/toshiba-wm",
+                "parent_product_key": "rayashop::toshiba-wm",
+                "canonical_product_key": None,
+            },
+            # MUST BE BLOCKED: Hoover Washing Machine
+            {
+                "product_sk": "sk_hoover_wm",
+                "product_title": "Hoover Automatic Washer 11kg Front Load Inverter Silver",
+                "store_name": "raneen",
+                "brand": "Hoover",
+                "category": "home_appliances",
+                "sub_category": "washing_machines",
+                "current_price": 37499.0,
+                "discount_verdict": "NEWLY_TRACKED",
+                "in_stock": True,
+                "image_url": None,
+                "product_url": "https://raneen.com/hoover-wm",
+                "parent_product_key": "raneen::hoover-wm",
+                "canonical_product_key": None,
+            },
+            # MUST BE BLOCKED: Clothes Dryer
+            {
+                "product_sk": "sk_hoover_dryer",
+                "product_title": "Hoover Condenser Clothes Dryer 9kg Inverter Silver",
+                "store_name": "amazon_eg",
+                "brand": "Hoover",
+                "category": "home_appliances",
+                "sub_category": "washing_machines",
+                "current_price": 37900.0,
+                "discount_verdict": "NEWLY_TRACKED",
+                "in_stock": True,
+                "image_url": None,
+                "product_url": "https://amazon.eg/hoover-dryer",
+                "parent_product_key": "amazon_eg::hoover-dryer",
+                "canonical_product_key": None,
+            },
+            # MUST BE BLOCKED: Dishwasher Tablets consumable
+            {
+                "product_sk": "sk_finish_tabs",
+                "product_title": "Finish Powerball Dishwasher Tablets Pack of 100",
+                "store_name": "seoudi",
+                "brand": "Finish",
+                "category": "home_appliances",
+                "sub_category": "dishwashers",
+                "current_price": 35000.0,
+                "discount_verdict": "NEWLY_TRACKED",
+                "in_stock": True,
+                "image_url": None,
+                "product_url": "https://seoudi.com/tabs",
+                "parent_product_key": "seoudi::tabs",
+                "canonical_product_key": None,
+            },
+        ]
+
+        fake_db = _FakeDB(lambda _sql, _params: _FakeResult(rows=candidates))
+        results = find_similar_alternatives(fake_db, lg_dishwasher, max_results=6)
+        self.assertEqual({r.product_sk for r in results}, {"sk_bosch_dw", "sk_beko_dw_ar"})
+        self.assertTrue(all(r.is_exact_match is False for r in results))
+
+        # Verify subtype isolation across all critical incompatible product pairs
+        self.assertEqual(_detect_subtype("LG Free Standing Dishwashers 14 Place", "washing_machines").code, "dishwasher")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Hoover Condenser Clothes Dryer 9kg", "washing_machines").code, "clothes_dryer")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Toshiba Washing Machine 10kg", "washing_machines").code, "washing_machine")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("ثلاجة شارب 450 لتر نوفروست فريزر علوي", "refrigerators").code, "refrigerator")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Sharp Deep Freezer 6 Drawers No Frost", "refrigerators").code, "deep_freezer")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Philips Air Fryer 6.2L Digital", "cookers").code, "air_fryer")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Instant Pot Multi Cooker 6L", "cookers").code, "multi_cooker")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("De'Longhi Espresso Machine EC685", "kitchen_appliances").code, "espresso_coffee_maker")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Tornado Electric Kettle 1.7L", "kitchen_appliances").code, "kettle")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Redmi Watch 4 Smartwatch", "wearables").code, "smartwatch")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Redmi Buds 5 Pro Wireless Earbuds", "audio").code, "earbuds")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Oppo Reno 12 256GB Smartphone", "smartphones").code, "smartphone")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Xiaomi Android TV Box S 2nd Gen", "tvs").code, "tv_receiver_box")  # type: ignore[union-attr]
+        self.assertEqual(_detect_subtype("Samsung 55 Inch 4K Smart TV", "tvs").code, "tv")  # type: ignore[union-attr]
+
     def test_stats_overview_exposes_cross_store_matches_count(self) -> None:
         now = datetime(2026, 11, 24, 12, 0, 0, tzinfo=timezone.utc)
 

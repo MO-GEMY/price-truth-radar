@@ -76,7 +76,37 @@ DiscountVerdict = Literal[
     "FAKE_DISCOUNT",
     "PRESALE_HIKE",
     "NORMAL_PRICE",
+    "NEWLY_TRACKED",
+    "RECENT_DROP",
+    "RECENT_HIKE",
 ]
+
+HistoryMaturity = Literal["EARLY", "GROWING", "MATURE"]
+MarketBenchmarkStatus = Literal[
+    "CHEAPEST_IN_MARKET",
+    "TIED_CHEAPEST",
+    "ABOVE_MARKET",
+    "OUT_OF_STOCK",
+]
+HighlightBasis = Literal[
+    "historical",
+    "cross_store_lowest",
+    "recent_drop",
+    "recent_hike",
+    "above_market",
+]
+
+
+class MarketBenchmark(BaseModel):
+    stores_count: int
+    cheapest_price: float
+    cheapest_store: str
+    median_market_price: float
+    highest_price: float
+    price_diff_vs_cheapest_egp: float
+    price_diff_vs_cheapest_pct: float
+    savings_vs_next_cheapest_egp: float = 0.0
+    status: MarketBenchmarkStatus
 
 
 def _format_utc_z(dt: Optional[datetime]) -> Optional[str]:
@@ -105,6 +135,10 @@ class OverviewStatsResponse(BaseModel):
     available_stores: list[str] = Field(default_factory=list)
     category_counts: dict[str, int] = Field(default_factory=dict)
     cross_store_matches_count: int = 0
+    recent_drops_today: int = 0
+    recent_hikes_today: int = 0
+    newly_tracked_today: int = 0
+    mature_tracked_count: int = 0
 
     @field_serializer("last_pipeline_run_at")
     def serialize_last_run(self, v: Optional[datetime]) -> Optional[str]:
@@ -180,6 +214,11 @@ class ProductVerdictItem(BaseModel):
     has_multiple_variants: bool = False
     min_variant_price: Optional[float] = None
     max_variant_price: Optional[float] = None
+    first_seen_date: Optional[date] = None
+    tracked_days_count: int = 1
+    history_maturity: HistoryMaturity = "EARLY"
+    verified_historical_median: Optional[float] = None
+    market_benchmark: Optional[MarketBenchmark] = None
     applicable_coupons: list[ApplicableCoupon] = Field(default_factory=list)
     estimated_price_after_coupon: Optional[float] = None
 
@@ -187,6 +226,35 @@ class ProductVerdictItem(BaseModel):
     @classmethod
     def _coerce_null_attributes(cls, v: Any) -> dict[str, Any]:
         return v if isinstance(v, dict) else {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_maturity_defaults(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            d = dict(data)
+            raw_days = d.get("tracked_days_count")
+            if raw_days is None:
+                # Backward-compatible inference for synthetic/legacy callers omitting maturity columns
+                verdict = str(d.get("discount_verdict") or "")
+                if verdict in ("ALL_TIME_LOW", "GENUINE_DEAL", "FAKE_DISCOUNT", "PRESALE_HIKE"):
+                    d["tracked_days_count"] = 14
+                    d.setdefault("history_maturity", "GROWING")
+                    if d.get("verified_historical_median") is None and d.get("rolling_60d_median"):
+                        d["verified_historical_median"] = d["rolling_60d_median"]
+                else:
+                    d["tracked_days_count"] = 1
+                    d.setdefault("history_maturity", "EARLY")
+            else:
+                days = max(1, int(raw_days))
+                d["tracked_days_count"] = days
+                if not d.get("history_maturity"):
+                    d["history_maturity"] = (
+                        "EARLY" if days < 7 else ("GROWING" if days < 60 else "MATURE")
+                    )
+                if days < 7:
+                    d["verified_historical_median"] = None
+            return d
+        return data
 
     @model_validator(mode="after")
     def _populate_unit_pricing(self) -> "ProductVerdictItem":
@@ -231,6 +299,9 @@ class PriceHistoryPoint(BaseModel):
     rolling_60d_median: float
     in_stock: bool
     available_sizes_count: Optional[int] = None
+    tracked_days_count: Optional[int] = None
+    history_maturity: Optional[HistoryMaturity] = None
+    verified_historical_median: Optional[float] = None
 
 
 class AlternativeListing(BaseModel):
@@ -276,6 +347,7 @@ class ProductDetailResponse(BaseModel):
     product: ProductVerdictItem
     history: list[PriceHistoryPoint]
     alternatives: list[AlternativeListing]
+    market_benchmark: Optional[MarketBenchmark] = None
     similar_alternatives: list[SimilarAlternativeItem] = Field(default_factory=list)
     similar_products: list[SimilarAlternativeItem] = Field(default_factory=list)
     variants: list[ProductVariantItem] = Field(default_factory=list)
@@ -343,6 +415,13 @@ class RadarHighlightItem(BaseModel):
     has_multiple_variants: bool = False
     min_variant_price: Optional[float] = None
     max_variant_price: Optional[float] = None
+    tracked_days_count: int = 1
+    history_maturity: HistoryMaturity = "EARLY"
+    verified_historical_median: Optional[float] = None
+    highlight_basis: HighlightBasis = "historical"
+    market_cheapest_price: Optional[float] = None
+    market_cheapest_store: Optional[str] = None
+    market_stores_count: int = 0
 
 
 class RadarHighlightsResponse(BaseModel):

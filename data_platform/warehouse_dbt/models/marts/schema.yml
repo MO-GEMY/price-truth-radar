@@ -69,6 +69,29 @@ models:
                   - 'FAKE_DISCOUNT'
                   - 'PRESALE_HIKE'
                   - 'NORMAL_PRICE'
+                  - 'NEWLY_TRACKED'
+                  - 'RECENT_DROP'
+                  - 'RECENT_HIKE'
+      - name: first_seen_date
+        description: "First snapshot date on which this product was observed."
+        tests:
+          - not_null
+      - name: tracked_days_count
+        description: "Number of tracked days from first_seen_date through latest observation (>= 1)."
+        tests:
+          - not_null
+      - name: history_maturity
+        description: "Maturity tier of price history: EARLY (< 7d), GROWING (7–59d), MATURE (>= 60d)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 'EARLY'
+                  - 'GROWING'
+                  - 'MATURE'
+      - name: verified_historical_median
+        description: "Rolling historical median ONLY when tracked_days_count >= 7; NULL during EARLY (< 7d) cold start."
       - name: scarcity_flag
         tests:
           - not_null
@@ -125,6 +148,21 @@ models:
       - name: in_stock
         tests:
           - not_null
+      - name: first_seen_date
+        tests:
+          - not_null
+      - name: tracked_days_count
+        tests:
+          - not_null
+      - name: history_maturity
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 'EARLY'
+                  - 'GROWING'
+                  - 'MATURE'
 
   - name: mart_cross_store_matches
     description: "Cross-store arbitrage comparison in gold schema for products carried by >= 2 stores."

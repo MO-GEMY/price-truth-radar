@@ -167,6 +167,84 @@ class TestElectronicsAndAppliancesPrecisionGuards(unittest.TestCase):
         k2 = _rec("raneen", "Fresh Hummer 7430 Full Stainless Gas Cooker, 5 Gas Burners, 80x55 cm - Black", category="home_appliances", sub_category="cookers", brand="Fresh", price=20499)
         self.assertFalse(_matched(k1, k2))
 
+    def test_model_code_near_miss_guards_fh1396_vs_fh1363_and_ecam_submodels(self):
+        # 1. Real production near-miss: De'Longhi MultiFry FH1396 vs FH1363 (spaced, slashed, hyphenated)
+        fh96_spaced = _rec(
+            "amazon_eg",
+            "DeLonghi Chef Plus FH 1396/1 Multi Cooker (Extra Grey, 1.7L)",
+            category="home_appliances",
+            sub_category="cookers",
+            brand="DeLonghi",
+            price=11507.85,
+        )
+        fh96_ar = _rec(
+            "dream2000",
+            "ديلونجي مقلاة متعددة الاستخدامات، 1.7 لتر، 2200 واط، FH1396",
+            category="home_appliances",
+            sub_category="kitchen_appliances",
+            brand="DeLonghi",
+            price=15000.0,
+        )
+        fh63_plain = _rec(
+            "ehab_center",
+            "Delonghi Multifry Fryer 1.7 L Black 1400 Watt – FH1363",
+            category="home_appliances",
+            sub_category="air_fryer",
+            brand="DeLonghi",
+            price=13799.0,
+        )
+        fh63_dash = _rec(
+            "elghazawy",
+            "De'Longhi Multi-Fry Digital Air Fryer 1.7L 1400W with Window FH1363-1 - Black x White",
+            category="home_appliances",
+            sub_category="kitchen_appliances",
+            brand="DeLonghi",
+            price=14011.0,
+        )
+        fh63_slash = _rec(
+            "rayashop",
+            "De'Longhi MultiFry Deep Fryer, Multi Cooker, 1.7 L, 1400 Watt, Black - FH1363/1BK",
+            category="home_appliances",
+            sub_category="cookers",
+            brand="DeLonghi",
+            price=15119.0,
+        )
+        self.assertFalse(_matched(fh96_spaced, fh63_plain))
+        self.assertFalse(_matched(fh96_spaced, fh63_dash))
+        self.assertFalse(_matched(fh96_spaced, fh63_slash))
+        self.assertFalse(_matched(fh96_ar, fh63_plain))
+        # Exact same FH1363 across stores MUST still match cleanly
+        self.assertTrue(_matched(fh63_plain, fh63_dash))
+
+        # 2. 1-digit near-miss in TF-IDF/Pass 2 (`FH1396` vs `FH1395`) MUST NEVER merge
+        fh95 = _rec(
+            "btech",
+            "DeLonghi Air Fryer MultiFry 1.7L 2200W Black FH1395",
+            category="home_appliances",
+            sub_category="air_fryer",
+            brand="DeLonghi",
+            price=14500.0,
+        )
+        self.assertFalse(_matched(fh96_ar, fh95))
+
+        # 3. Dotted espresso sub-models (`ECAM290.21.B` vs `ECAM290.61.B` vs `ECAM290.81.TB`)
+        e21 = _rec("ehab_center", "Delonghi Magnifica EVO Pump Espresso Automatic Digital Black Model ECAM290.21.B", category="home_appliances", sub_category="kitchen_appliances", brand="DeLonghi", price=40479)
+        e61 = _rec("2b", "De'Longhi Magnifica Evo Fully Automatic Coffee Maker 1450 Watt - 15 Bars - Black - ECAM290.61.B", category="home_appliances", sub_category="kitchen_appliances", brand="DeLonghi", price=47999)
+        self.assertFalse(_matched(e21, e61))
+
+        # 4. Spec tokens (`9-in-1`, `ATX3.1`, `LGA1851`) must NEVER merge different model codes
+        u1 = _rec("gamesworldegypt", "UGREEN CM498 9-in-1 USB-C Hub 100W PD Space Grey", sub_category="accessories", brand="UGREEN", price=2024)
+        u2 = _rec("hardware_market", "UGREEN CM886 9-in-1 USB-C Hub 100W PD Grey", sub_category="accessories", brand="UGREEN", price=2499)
+        self.assertFalse(_matched(u1, u2))
+
+        p1 = _rec("ahw_store", "Antec GSK GSK750 80+ Gold Full Modular ATX3.1 Power Supply", sub_category="psus", brand="Antec", price=5555)
+        p2 = _rec("compumarts", "PSU ANTEC GSK850 850W 80+ GOLD FULL MODULAR ATX3.1 — White", sub_category="psus", brand="Antec", price=5449)
+        self.assertFalse(_matched(p1, p2))
+
+        c1 = _rec("compumarts", "ARCTIC Freezer 8i CPU Cooler Dual Heatpipe Intel LGA1851/1700", sub_category="cooling", brand="Arctic", price=1250)
+        c2 = _rec("alfrensia", "ARCTIC Freezer 36 CO Dual Fan CPU Air Cooler Intel LGA1851 LGA1700", sub_category="cooling", brand="Arctic", price=1920)
+        self.assertFalse(_matched(c1, c2))
+
 
 class TestHealthBeautyGroceriesAndVerticalGuards(unittest.TestCase):
     def test_health_servings_and_caps_never_match_different_supplements(self):

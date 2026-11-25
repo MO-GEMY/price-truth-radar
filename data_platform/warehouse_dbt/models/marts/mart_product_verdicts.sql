@@ -12,7 +12,8 @@
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_parent_key ON {{ this }} (parent_product_key) WHERE has_multiple_variants = TRUE",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_search_doc_trgm ON {{ this }} USING GIN (search_document gin_trgm_ops)",
             "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_store_name ON {{ this }} (store_name)",
-            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_non_normal_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict <> 'NORMAL_PRICE'",
+            "DROP INDEX IF EXISTS gold.idx_mart_verdicts_non_normal_verdict",
+            "CREATE INDEX IF NOT EXISTS idx_mart_verdicts_actionable_verdict ON {{ this }} (discount_verdict, category) WHERE discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')",
             "DELETE FROM {{ this }} v WHERE (v.last_updated_at < (NOW() AT TIME ZONE 'UTC') - INTERVAL '45 days' OR (v.in_stock = FALSE AND COALESCE((SELECT MAX(h.snapshot_date) FROM {{ ref('fct_price_history') }} h WHERE h.product_sk = v.product_sk), v.last_updated_at::DATE) < (CURRENT_DATE - INTERVAL '45 days')::DATE)) AND NOT EXISTS (SELECT 1 FROM public.price_alerts pa WHERE pa.product_key = v.product_sk AND pa.is_active = TRUE)"
         ]
     )
@@ -178,6 +179,8 @@ history_stats AS (
     SELECT
         h.product_sk,
         COUNT(DISTINCT h.snapshot_date)::INTEGER AS history_days,
+        MIN(h.snapshot_date)::DATE AS first_seen_date,
+        MAX(h.snapshot_date)::DATE AS latest_hist_date,
         MIN(h.price)::NUMERIC(12,2) AS min_historical_price,
         MAX(h.price)::NUMERIC(12,2) AS max_historical_price,
         MAX(CASE WHEN h.snapshot_date = ld.latest_date THEN h.rolling_60d_median END)::NUMERIC(12,2) AS rolling_60d_median,
@@ -197,7 +200,7 @@ history_stats AS (
     GROUP BY h.product_sk
 ),
 
-metrics AS (
+metrics_base AS (
     SELECT
         cp.product_sk,
         cp.canonical_product_key,
@@ -241,18 +244,18 @@ metrics AS (
         COALESCE(hs.min_historical_price, cp.current_price)::NUMERIC(12,2) AS min_historical_price,
         COALESCE(hs.max_historical_price, cp.current_price)::NUMERIC(12,2) AS max_historical_price,
         COALESCE(hs.history_days, 1)::INTEGER AS history_days,
+        LEAST(
+            COALESCE(hs.first_seen_date, cp.snapshot_date),
+            cp.snapshot_date
+        )::DATE AS first_seen_date,
+        GREATEST(
+            COALESCE(hs.history_days, 1),
+            (
+                GREATEST(cp.snapshot_date, COALESCE(hs.latest_hist_date, cp.snapshot_date))
+                - LEAST(COALESCE(hs.first_seen_date, cp.snapshot_date), cp.snapshot_date)
+            ) + 1
+        )::INTEGER AS tracked_days_count,
         hs.prior_45d_median,
-        -- Minimum historical evidence gate:
-        -- Require at least 3 distinct snapshot dates OR an observed price change across >= 2 dates
-        -- before emitting any historical verdict (FAKE_DISCOUNT, GENUINE_DEAL, ALL_TIME_LOW, PRESALE_HIKE).
-        (
-            COALESCE(hs.history_days, 1) >= 3
-            OR (
-                COALESCE(hs.history_days, 1) >= 2
-                AND COALESCE(hs.min_historical_price, cp.current_price)
-                    <> COALESCE(hs.max_historical_price, cp.current_price)
-            )
-        )::BOOLEAN AS has_sufficient_history,
         -- Automated variant-mixing anomaly guardrail:
         -- Suppresses false discount verdicts on legacy unsplit multi-variant SKUs exhibiting:
         --   1) Extreme historical price oscillation on the same product_sk (max/min >= 1.8), OR
@@ -294,23 +297,6 @@ metrics AS (
             ELSE 0.00::NUMERIC(5,2)
         END AS claimed_discount_pct,
         CASE
-            WHEN COALESCE(hs.rolling_60d_median, cp.current_price) > 0
-                THEN GREATEST(
-                    -999.99,
-                    LEAST(
-                        999.99,
-                        ROUND(
-                            (
-                                (COALESCE(hs.rolling_60d_median, cp.current_price) - cp.current_price)
-                                / COALESCE(hs.rolling_60d_median, cp.current_price)
-                            ) * 100.0,
-                            2
-                        )
-                    )
-                )::NUMERIC(5,2)
-            ELSE 0.00::NUMERIC(5,2)
-        END AS real_discount_pct,
-        CASE
             WHEN cp.category = 'fashion'
                  AND cp.total_sizes IS NOT NULL
                  AND cp.total_sizes > 0
@@ -327,6 +313,37 @@ metrics AS (
         ON cp.product_sk = hs.product_sk
     LEFT JOIN variant_conflict_signals vcs
         ON cp.product_sk = vcs.product_sk
+),
+
+metrics AS (
+    SELECT
+        mb.*,
+        CASE
+            WHEN mb.tracked_days_count < 7 THEN 'EARLY'
+            WHEN mb.tracked_days_count < 60 THEN 'GROWING'
+            ELSE 'MATURE'
+        END::VARCHAR AS history_maturity,
+        -- Cold-start honesty: NEVER expose a verified historical median or historical
+        -- real_discount_pct when tracked_days_count < 7 (EARLY maturity).
+        CASE
+            WHEN mb.tracked_days_count >= 7 THEN mb.rolling_60d_median
+            ELSE NULL::NUMERIC(12,2)
+        END AS verified_historical_median,
+        CASE
+            WHEN mb.tracked_days_count >= 7 AND mb.rolling_60d_median > 0
+                THEN GREATEST(
+                    -999.99,
+                    LEAST(
+                        999.99,
+                        ROUND(
+                            ((mb.rolling_60d_median - mb.current_price) / mb.rolling_60d_median) * 100.0,
+                            2
+                        )
+                    )
+                )::NUMERIC(5,2)
+            ELSE 0.00::NUMERIC(5,2)
+        END AS real_discount_pct
+    FROM metrics_base mb
 )
 
 SELECT
@@ -377,19 +394,41 @@ SELECT
     claimed_discount_pct::NUMERIC(5,2) AS claimed_discount_pct,
     real_discount_pct::NUMERIC(5,2) AS real_discount_pct,
     CASE
-        WHEN variant_anomaly_flag OR NOT has_sufficient_history
-            THEN 'NORMAL_PRICE'
+        WHEN variant_anomaly_flag THEN
+            CASE WHEN tracked_days_count < 7 THEN 'NEWLY_TRACKED' ELSE 'NORMAL_PRICE' END
+        WHEN tracked_days_count < 7 THEN
+            CASE
+                WHEN history_days >= 2
+                     AND max_historical_price > 0
+                     AND current_price < max_historical_price
+                     AND ((max_historical_price - current_price) / max_historical_price) * 100.0 >= 5.0
+                    THEN 'RECENT_DROP'
+                WHEN history_days >= 2
+                     AND min_historical_price > 0
+                     AND current_price > min_historical_price
+                     AND ((current_price - min_historical_price) / min_historical_price) * 100.0 >= 8.0
+                    THEN 'RECENT_HIKE'
+                ELSE 'NEWLY_TRACKED'
+            END
         WHEN claimed_discount_pct >= 10 AND real_discount_pct < 3
             THEN 'FAKE_DISCOUNT'
         WHEN current_price <= min_historical_price
-             AND history_days >= 14
+             AND tracked_days_count >= 14
              AND real_discount_pct >= 5
             THEN 'ALL_TIME_LOW'
         WHEN real_discount_pct >= 10
             THEN 'GENUINE_DEAL'
-        WHEN prior_45d_median IS NOT NULL
-             AND prior_45d_median > 0
-             AND ((current_price - prior_45d_median) / prior_45d_median) * 100.0 >= 12
+        WHEN (
+            prior_45d_median IS NOT NULL
+            AND prior_45d_median > 0
+            AND ((current_price - prior_45d_median) / prior_45d_median) * 100.0 >= 12
+        ) OR (
+            prior_45d_median IS NULL
+            AND verified_historical_median IS NOT NULL
+            AND verified_historical_median > 0
+            AND history_days >= 2
+            AND ((current_price - verified_historical_median) / verified_historical_median) * 100.0 >= 12
+        )
             THEN 'PRESALE_HIKE'
         ELSE 'NORMAL_PRICE'
     END::VARCHAR AS discount_verdict,
@@ -404,5 +443,9 @@ SELECT
     has_multiple_variants::BOOLEAN AS has_multiple_variants,
     min_variant_price::NUMERIC(12,2) AS min_variant_price,
     max_variant_price::NUMERIC(12,2) AS max_variant_price,
-    is_primary_variant::BOOLEAN AS is_primary_variant
+    is_primary_variant::BOOLEAN AS is_primary_variant,
+    first_seen_date::DATE AS first_seen_date,
+    tracked_days_count::INTEGER AS tracked_days_count,
+    history_maturity::VARCHAR AS history_maturity,
+    verified_historical_median::NUMERIC(12,2) AS verified_historical_median
 FROM metrics

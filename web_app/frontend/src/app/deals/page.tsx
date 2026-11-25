@@ -18,6 +18,8 @@ import { formatDateTime, formatNumber, formatPctPlain, formatPrice } from "@/lib
 import { isStaleObservation, type PriceHighlight } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
 import { absoluteUrl } from "@/lib/site";
+import { storeDisplayName } from "@/lib/stores";
+import { formatTrackedDays } from "@/lib/verdicts";
 import { AdSlot } from "@/components/AdSlot";
 import { EditorialGuide } from "@/components/EditorialGuide";
 import { MockBanner } from "@/components/MockBanner";
@@ -44,14 +46,96 @@ function HighlightCard({
   const category = parseCategory(item.category);
   const href = item.id ? productHref(item.id, from, !live) : null;
   const savings = item.observedSavings;
+  const basis = item.highlightBasis;
+  const badgeText =
+    basis === "cross_store_lowest"
+      ? t("deals.crossStoreDealBadge", {
+          count: formatNumber(Math.max(2, item.marketStoresCount), lang),
+        })
+      : basis === "recent_drop"
+        ? t("deals.recentDropBadge")
+        : basis === "recent_hike"
+          ? t("deals.recentHikeBadge")
+          : basis === "above_market"
+            ? t("deals.aboveMarketBadge")
+            : t(
+                item.priceHike
+                  ? "verdict.PRESALE_HIKE"
+                  : warning
+                    ? "deals.scandalBadge"
+                    : "deals.dealBadge",
+              );
+  const baselineLabel =
+    basis === "cross_store_lowest"
+      ? t("deals.marketHighPrice")
+      : basis === "above_market"
+        ? t("deals.marketCheapestPrice")
+        : basis === "recent_drop"
+          ? t("deals.recentHighPrice")
+          : basis === "recent_hike"
+            ? t("deals.recentLowPrice")
+            : item.historyMaturity === "MATURE"
+              ? t("maturity.medianWindow60")
+              : t("maturity.medianWindowDays", {
+                  days: formatNumber(item.trackedDaysCount, lang),
+                });
   const takeaway =
-    savings === null
-      ? null
-      : Math.abs(savings) < 0.05
-        ? t("ui.same")
-        : t(savings > 0 ? "ui.below" : "ui.above", {
-            pct: formatPctPlain(Math.abs(savings), lang),
-          });
+    basis === "cross_store_lowest" &&
+    item.baseline !== null &&
+    item.price !== null &&
+    item.baseline > item.price
+      ? t("deals.cheapestMarketTakeaway", {
+          count: formatNumber(Math.max(2, item.marketStoresCount), lang),
+          amount: formatPrice(item.baseline - item.price, lang),
+        })
+      : basis === "above_market" &&
+          item.marketCheapestPrice !== null &&
+          item.price !== null &&
+          item.price > item.marketCheapestPrice
+        ? t("deals.aboveMarketTakeaway", {
+            amount: formatPrice(item.price - item.marketCheapestPrice, lang),
+            store: storeDisplayName(item.marketCheapestStore ?? "", lang),
+            count: formatNumber(Math.max(2, item.marketStoresCount), lang),
+          })
+        : basis === "recent_drop" &&
+            item.baseline !== null &&
+            item.price !== null &&
+            savings !== null &&
+            savings > 0
+          ? t("maturity.recentDropSummary", {
+              pct: formatPctPlain(savings, lang),
+              days: formatTrackedDays(item.trackedDaysCount, lang),
+              high: formatPrice(item.baseline, lang),
+              current: formatPrice(item.price, lang),
+            })
+          : basis === "recent_hike" &&
+              item.baseline !== null &&
+              item.price !== null &&
+              savings !== null &&
+              savings < 0
+            ? t("maturity.recentHikeSummary", {
+                pct: formatPctPlain(Math.abs(savings), lang),
+                days: formatTrackedDays(item.trackedDaysCount, lang),
+                low: formatPrice(item.baseline, lang),
+                current: formatPrice(item.price, lang),
+              })
+            : savings === null
+              ? null
+              : Math.abs(savings) < 0.05
+                ? t("ui.same")
+                : item.historyMaturity === "MATURE"
+                  ? t(savings > 0 ? "ui.below" : "ui.above", {
+                      pct: formatPctPlain(Math.abs(savings), lang),
+                    })
+                  : t(
+                      savings > 0
+                        ? "maturity.belowWindow"
+                        : "maturity.aboveWindow",
+                      {
+                        pct: formatPctPlain(Math.abs(savings), lang),
+                        days: formatNumber(item.trackedDaysCount, lang),
+                      },
+                    );
   const hasPriceRange =
     item.hasMultipleVariants &&
     item.minVariantPrice !== null &&
@@ -112,13 +196,7 @@ function HighlightCard({
           ) : (
             <BadgeCheck size={13} aria-hidden="true" />
           )}
-          {t(
-            item.priceHike
-              ? "verdict.PRESALE_HIKE"
-              : warning
-                ? "deals.scandalBadge"
-                : "deals.dealBadge",
-          )}
+          {badgeText}
         </span>
         {takeaway && <p className="text-sm font-medium">{takeaway}</p>}
         {warning && item.advertisedSavings !== null && (
@@ -152,7 +230,7 @@ function HighlightCard({
         )}
         {item.baseline !== null && (
           <div>
-            <dt>{t("deals.baselinePrice")}</dt>
+            <dt>{baselineLabel}</dt>
             <dd>
               <bdi>{formatPrice(item.baseline, lang)}</bdi>
             </dd>

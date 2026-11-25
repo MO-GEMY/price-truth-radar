@@ -231,11 +231,12 @@ daily_prices AS (
 ),
 {% endif %}
 
--- Single window pass to attach next_snapshot_date and separate 1-row SKUs from multi-row SKUs.
+-- Single window pass to attach next_snapshot_date, first_seen_date, and separate 1-row SKUs from multi-row SKUs.
 daily_with_counts AS MATERIALIZED (
     SELECT
         product_sk,
         snapshot_date,
+        MIN(snapshot_date) OVER (PARTITION BY product_sk)::DATE AS first_seen_date,
         LEAD(snapshot_date) OVER (PARTITION BY product_sk ORDER BY snapshot_date ASC) AS next_snapshot_date,
         price,
         claimed_original_price,
@@ -265,7 +266,9 @@ single_day_results AS (
         claimed_original_price,
         price::NUMERIC(12,2) AS rolling_60d_median,
         in_stock,
-        available_sizes_count
+        available_sizes_count,
+        first_seen_date,
+        1::INTEGER AS tracked_days_count
     FROM daily_with_counts
     WHERE day_count = 1
       AND snapshot_date >= min_touched_date
@@ -279,7 +282,9 @@ multi_day_results AS (
         d.claimed_original_price,
         ROUND(m.rolling_60d_median::NUMERIC, 2)::NUMERIC(12,2) AS rolling_60d_median,
         d.in_stock,
-        d.available_sizes_count
+        d.available_sizes_count,
+        d.first_seen_date,
+        GREATEST(1, ((d.snapshot_date - d.first_seen_date) + 1))::INTEGER AS tracked_days_count
     FROM daily_with_counts d
     INNER JOIN multi_day_series p
         ON d.product_sk = p.product_sk
@@ -327,7 +332,18 @@ SELECT
     claimed_original_price::NUMERIC(12,2) AS claimed_original_price,
     rolling_60d_median::NUMERIC(12,2) AS rolling_60d_median,
     in_stock::BOOLEAN AS in_stock,
-    available_sizes_count::INTEGER AS available_sizes_count
+    available_sizes_count::INTEGER AS available_sizes_count,
+    first_seen_date::DATE AS first_seen_date,
+    tracked_days_count::INTEGER AS tracked_days_count,
+    CASE
+        WHEN tracked_days_count < 7 THEN 'EARLY'
+        WHEN tracked_days_count < 60 THEN 'GROWING'
+        ELSE 'MATURE'
+    END::VARCHAR AS history_maturity,
+    CASE
+        WHEN tracked_days_count >= 7 THEN rolling_60d_median::NUMERIC(12,2)
+        ELSE NULL::NUMERIC(12,2)
+    END AS verified_historical_median
 FROM (
     SELECT * FROM single_day_results
     UNION ALL

@@ -317,43 +317,85 @@ export default function HomePage() {
                   </span>
                 </button>
 
-                <button
-                  type="button"
-                  className="asarak-kpi-card"
-                  aria-pressed={verdict === "GENUINE_DEAL"}
-                  onClick={() => filterByVerdict("GENUINE_DEAL")}
-                >
-                  <span className="asarak-kpi-value asarak-kpi-value--emerald">
-                    <bdi>
-                      {formatNumber(storedStats.genuine_deals_today, lang)}
-                    </bdi>
-                  </span>
-                  <span className="asarak-kpi-label">
-                    {t("kpi.genuineDeals")}
-                  </span>
-                  <span className="asarak-kpi-sub">
-                    {t("kpi.activeFilterHint")}
-                  </span>
-                </button>
+                {storedStats.genuine_deals_today > 0 ? (
+                  <button
+                    type="button"
+                    className="asarak-kpi-card"
+                    aria-pressed={verdict === "GENUINE_DEAL"}
+                    onClick={() => filterByVerdict("GENUINE_DEAL")}
+                  >
+                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
+                      <bdi>
+                        {formatNumber(storedStats.genuine_deals_today, lang)}
+                      </bdi>
+                    </span>
+                    <span className="asarak-kpi-label">
+                      {t("kpi.genuineDeals")}
+                    </span>
+                    <span className="asarak-kpi-sub">
+                      {t("kpi.activeFilterHint")}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="asarak-kpi-card"
+                    aria-pressed={verdict === "RECENT_DROP"}
+                    onClick={() => filterByVerdict("RECENT_DROP")}
+                  >
+                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
+                      <bdi>
+                        {formatNumber(storedStats.recent_drops_today ?? 0, lang)}
+                      </bdi>
+                    </span>
+                    <span className="asarak-kpi-label">
+                      {t("kpi.recentDrops")}
+                    </span>
+                    <span className="asarak-kpi-sub">
+                      {t("kpi.activeFilterHint")}
+                    </span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  className="asarak-kpi-card"
-                  aria-pressed={verdict === "FAKE_DISCOUNT"}
-                  onClick={() => filterByVerdict("FAKE_DISCOUNT")}
-                >
-                  <span className="asarak-kpi-value">
-                    <bdi>
-                      {formatNumber(storedStats.fake_discounts_today, lang)}
-                    </bdi>
-                  </span>
-                  <span className="asarak-kpi-label">
-                    {t("kpi.fakeDiscounts")}
-                  </span>
-                  <span className="asarak-kpi-sub">
-                    {t("kpi.activeFilterHint")}
-                  </span>
-                </button>
+                {storedStats.fake_discounts_today > 0 ? (
+                  <button
+                    type="button"
+                    className="asarak-kpi-card"
+                    aria-pressed={verdict === "FAKE_DISCOUNT"}
+                    onClick={() => filterByVerdict("FAKE_DISCOUNT")}
+                  >
+                    <span className="asarak-kpi-value">
+                      <bdi>
+                        {formatNumber(storedStats.fake_discounts_today, lang)}
+                      </bdi>
+                    </span>
+                    <span className="asarak-kpi-label">
+                      {t("kpi.fakeDiscounts")}
+                    </span>
+                    <span className="asarak-kpi-sub">
+                      {t("kpi.activeFilterHint")}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="asarak-kpi-card"
+                    aria-pressed={verdict === "RECENT_HIKE"}
+                    onClick={() => filterByVerdict("RECENT_HIKE")}
+                  >
+                    <span className="asarak-kpi-value">
+                      <bdi>
+                        {formatNumber(storedStats.recent_hikes_today ?? 0, lang)}
+                      </bdi>
+                    </span>
+                    <span className="asarak-kpi-label">
+                      {t("verdict.RECENT_HIKE")}
+                    </span>
+                    <span className="asarak-kpi-sub">
+                      {t("kpi.activeFilterHint")}
+                    </span>
+                  </button>
+                )}
 
                 {storedStats.all_time_lows_today > 0 ? (
                   <button

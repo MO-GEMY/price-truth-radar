@@ -198,6 +198,13 @@ class TestLaunchBackendAPI(unittest.TestCase):
                 "has_multiple_variants",
                 "min_variant_price",
                 "max_variant_price",
+                "tracked_days_count",
+                "history_maturity",
+                "verified_historical_median",
+                "highlight_basis",
+                "market_cheapest_price",
+                "market_cheapest_store",
+                "market_stores_count",
             },
         )
         self.assertEqual(s0["verdict"], "inflated_before_sale")
@@ -659,6 +666,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
         captured_params: list[dict[str, Any]] = []
 
         def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
+            if "FROM gold.mart_cross_store_matches" in sql:
+                return _FakeResult(rows=[])
             captured_params.append(params)
             self.assertIn("p.search_document", sql)
             return _FakeResult(rows=[{**fridge_row, "search_total": 7}])
@@ -1054,6 +1063,120 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertFalse(lazy.connected)
         lazy.close()
         self.assertEqual(connect_calls, 0)
+
+    def test_early_maturity_product_never_claims_60d_median_and_computes_live_market_benchmark(self) -> None:
+        now = datetime(2026, 11, 25, 4, 0, 0, tzinfo=timezone.utc)
+        early_row = {
+            "product_sk": "sk_early_2d",
+            "canonical_product_key": "delonghi_ec685",
+            "store_name": "2b",
+            "category": "home_appliances",
+            "sub_category": "kitchen_appliances",
+            "brand": "DeLonghi",
+            "product_title": "De'Longhi Dedica EC685 Espresso Machine",
+            "product_url": "https://2b.com.eg/en/delonghi-ec685",
+            "image_url": None,
+            "attributes_json": {},
+            "current_price": 9999.0,
+            "claimed_original_price": 12999.0,
+            "rolling_60d_median": 9999.0,
+            "min_historical_price": 9999.0,
+            "max_historical_price": 9999.0,
+            "claimed_discount_pct": 23.08,
+            "real_discount_pct": 0.0,
+            "discount_verdict": "NEWLY_TRACKED",
+            "scarcity_flag": False,
+            "in_stock": True,
+            "last_updated_at": now,
+            "parent_product_key": "2b::ec685",
+            "variant_label": None,
+            "variant_count": 1,
+            "has_multiple_variants": False,
+            "min_variant_price": 9999.0,
+            "max_variant_price": 9999.0,
+            "first_seen_date": datetime(2026, 11, 24, tzinfo=timezone.utc).date(),
+            "tracked_days_count": 2,
+            "history_maturity": "EARLY",
+            "verified_historical_median": None,
+        }
+
+        def handler(sql: str, _params: dict[str, Any]) -> _FakeResult:
+            if "WHERE product_sk = :product_sk" in sql and "mart_product_verdicts" in sql:
+                return _FakeResult(rows=[early_row])
+            if "FROM gold.fct_price_history" in sql:
+                return _FakeResult(
+                    rows=[
+                        {
+                            "snapshot_date": datetime(2026, 11, 24, tzinfo=timezone.utc).date(),
+                            "price": 9999.0,
+                            "claimed_original_price": 12999.0,
+                            "rolling_60d_median": 9999.0,
+                            "in_stock": True,
+                            "available_sizes_count": None,
+                            "tracked_days_count": 1,
+                            "history_maturity": "EARLY",
+                            "verified_historical_median": None,
+                        },
+                        {
+                            "snapshot_date": datetime(2026, 11, 25, tzinfo=timezone.utc).date(),
+                            "price": 9999.0,
+                            "claimed_original_price": 12999.0,
+                            "rolling_60d_median": 9999.0,
+                            "in_stock": True,
+                            "available_sizes_count": None,
+                            "tracked_days_count": 2,
+                            "history_maturity": "EARLY",
+                            "verified_historical_median": None,
+                        },
+                    ]
+                )
+            if "FROM gold.mart_cross_store_matches" in sql:
+                return _FakeResult(
+                    rows=[
+                        {
+                            "listings_json": [
+                                {
+                                    "product_sk": "sk_early_2d",
+                                    "store_name": "2b",
+                                    "price": 9999.0,
+                                    "in_stock": True,
+                                    "product_url": "https://2b.com.eg/en/delonghi-ec685",
+                                    "discount_verdict": "NEWLY_TRACKED",
+                                },
+                                {
+                                    "product_sk": "sk_ec685_amz",
+                                    "store_name": "amazon_eg",
+                                    "price": 8790.0,
+                                    "in_stock": True,
+                                    "product_url": "https://www.amazon.eg/dp/B07TEST",
+                                    "discount_verdict": "NEWLY_TRACKED",
+                                },
+                            ]
+                        }
+                    ]
+                )
+            return _FakeResult(rows=[])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        resp = client.get("/api/v1/products/sk_early_2d")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        prod = body["product"]
+        self.assertEqual(prod["tracked_days_count"], 2)
+        self.assertEqual(prod["history_maturity"], "EARLY")
+        self.assertIsNone(prod["verified_historical_median"])
+        self.assertEqual(prod["discount_verdict"], "NEWLY_TRACKED")
+        self.assertEqual(prod["real_discount_pct"], 0.0)
+        self.assertIsNotNone(body["market_benchmark"])
+        self.assertEqual(body["market_benchmark"]["status"], "ABOVE_MARKET")
+        self.assertEqual(body["market_benchmark"]["cheapest_store"], "amazon_eg")
+        self.assertEqual(body["market_benchmark"]["cheapest_price"], 8790.0)
+        self.assertEqual(body["market_benchmark"]["price_diff_vs_cheapest_egp"], 1209.0)
+        # History points carry EARLY maturity & NULL verified median
+        self.assertTrue(all(pt["verified_historical_median"] is None for pt in body["history"]))
 
 
 if __name__ == "__main__":

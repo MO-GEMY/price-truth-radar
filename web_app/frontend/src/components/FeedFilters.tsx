@@ -24,6 +24,9 @@ export const verdictOptions: DiscountVerdict[] = [
   "ALL_TIME_LOW",
   "GENUINE_DEAL",
   "PRESALE_HIKE",
+  "RECENT_DROP",
+  "RECENT_HIKE",
+  "NEWLY_TRACKED",
   "NORMAL_PRICE",
 ];
 export const sortOptions: FeedSort[] = [

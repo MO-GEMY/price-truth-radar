@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Literal, Optional
+from statistics import median as _stats_median
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
@@ -12,14 +13,40 @@ from sqlalchemy.exc import DBAPIError
 
 from app.cache import api_cache, set_cache_headers
 from app.database import get_db
-from app.schemas import CategoryFilter, DiscountVerdict, ProductVerdictItem, RadarFeedResponse
+from app.schemas import (
+    CategoryFilter,
+    DiscountVerdict,
+    MarketBenchmark,
+    MarketBenchmarkStatus,
+    ProductVerdictItem,
+    RadarFeedResponse,
+)
 from app.subcategories import build_subcategory_sql_filter, normalize_subcategory_slug
 
 router = APIRouter(prefix="/api/v1/radar", tags=["radar"])
 
 SORT_EXPRESSIONS: dict[str, str] = {
-    "claimed_vs_real_gap_desc": "(claimed_discount_pct - real_discount_pct) DESC, product_sk ASC",
-    "real_discount_pct_desc": "real_discount_pct DESC, product_sk ASC",
+    # Prioritize verified mature verdicts -> live verified cross-store comparisons ->
+    # recent observed price moves -> remaining catalog (rich & honest during White Friday cold-start).
+    "claimed_vs_real_gap_desc": (
+        "CASE "
+        "WHEN tracked_days_count >= 7 AND discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'ALL_TIME_LOW', 'GENUINE_DEAL') THEN 0 "
+        "WHEN canonical_product_key IS NOT NULL AND in_stock = TRUE THEN 1 "
+        "WHEN discount_verdict IN ('RECENT_DROP', 'RECENT_HIKE') AND in_stock = TRUE THEN 2 "
+        "ELSE 3 END ASC, "
+        "(claimed_discount_pct - real_discount_pct) DESC, "
+        "product_sk ASC"
+    ),
+    "real_discount_pct_desc": (
+        "CASE "
+        "WHEN tracked_days_count >= 7 AND discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL') THEN 0 "
+        "WHEN discount_verdict = 'RECENT_DROP' AND in_stock = TRUE THEN 1 "
+        "WHEN canonical_product_key IS NOT NULL AND in_stock = TRUE THEN 2 "
+        "ELSE 3 END ASC, "
+        "real_discount_pct DESC, "
+        "CASE WHEN max_historical_price > 0 THEN ((max_historical_price - current_price) / max_historical_price) ELSE 0 END DESC, "
+        "product_sk ASC"
+    ),
     "price_asc": "current_price ASC, product_sk ASC",
     "price_desc": "current_price DESC, product_sk ASC",
 }
@@ -51,8 +78,130 @@ PRODUCT_SELECT_COLS = """
     variant_count,
     has_multiple_variants,
     min_variant_price,
-    max_variant_price
+    max_variant_price,
+    first_seen_date,
+    tracked_days_count,
+    history_maturity,
+    verified_historical_median
 """
+
+
+def compute_market_benchmark(
+    product: ProductVerdictItem,
+    listings_json: list[dict[str, Any]] | None,
+) -> Optional[MarketBenchmark]:
+    """Compute live verified cross-store market benchmark from exact `mart_cross_store_matches` offers."""
+    if not listings_json:
+        return None
+    by_store: dict[str, tuple[float, bool]] = {}
+    for entry in listings_json:
+        st = str(entry.get("store_name") or "").strip()
+        try:
+            pr = float(entry.get("price") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if not st or pr <= 0:
+            continue
+        ins = bool(entry.get("in_stock"))
+        prev = by_store.get(st)
+        if prev is None or (not ins, pr) < (not prev[1], prev[0]):
+            by_store[st] = (pr, ins)
+
+    # Ensure current listing is represented at its latest price/stock
+    if product.store_name and product.current_price > 0:
+        prev = by_store.get(product.store_name)
+        if prev is None or (not product.in_stock, product.current_price) <= (not prev[1], prev[0]):
+            by_store[product.store_name] = (float(product.current_price), bool(product.in_stock))
+
+    in_stock_offers = [(st, pr) for st, (pr, ins) in by_store.items() if ins and pr > 0]
+    if len(by_store) < 2 or not in_stock_offers:
+        return None
+    # Require at least one OTHER store to exist in the exact match cluster
+    if not any(st != product.store_name for st in by_store):
+        return None
+
+    in_stock_offers.sort(key=lambda pair: (pair[1], pair[0]))
+    cheapest_store, cheapest_price = in_stock_offers[0]
+    prices = [pr for _, pr in in_stock_offers]
+    highest_price = prices[-1]
+    median_price = round(float(_stats_median(prices)), 2)
+
+    cur_price = float(product.current_price)
+    diff_egp = round(cur_price - cheapest_price, 2)
+    diff_pct = round((diff_egp / cheapest_price) * 100.0, 2) if cheapest_price > 0 else 0.0
+
+    other_in_stock_prices = sorted(pr for st, pr in in_stock_offers if st != product.store_name)
+    savings_vs_next = 0.0
+    status: MarketBenchmarkStatus
+    if not product.in_stock:
+        status = "OUT_OF_STOCK"
+    elif other_in_stock_prices and cur_price < other_in_stock_prices[0] - 0.5:
+        status = "CHEAPEST_IN_MARKET"
+        savings_vs_next = round(other_in_stock_prices[0] - cur_price, 2)
+    elif cur_price <= cheapest_price + 0.5:
+        status = "TIED_CHEAPEST" if (other_in_stock_prices and abs(other_in_stock_prices[0] - cur_price) <= 0.5) else "CHEAPEST_IN_MARKET"
+        if other_in_stock_prices and other_in_stock_prices[0] > cur_price:
+            savings_vs_next = round(other_in_stock_prices[0] - cur_price, 2)
+    else:
+        status = "ABOVE_MARKET"
+
+    return MarketBenchmark(
+        stores_count=len(by_store),
+        cheapest_price=round(cheapest_price, 2),
+        cheapest_store=cheapest_store,
+        median_market_price=median_price,
+        highest_price=round(highest_price, 2),
+        price_diff_vs_cheapest_egp=diff_egp,
+        price_diff_vs_cheapest_pct=diff_pct,
+        savings_vs_next_cheapest_egp=savings_vs_next,
+        status=status,
+    )
+
+
+def attach_market_benchmarks(
+    db: Connection,
+    items: list[ProductVerdictItem],
+) -> list[ProductVerdictItem]:
+    """Batch-enrich matched items (<= 50) with Live Market Benchmarks in one <1ms PK lookup."""
+    keys = list(dict.fromkeys(item.canonical_product_key for item in items if item.canonical_product_key))
+    if not keys:
+        return items
+    try:
+        rows = (
+            db.execute(
+                text(
+                    """
+                    SELECT canonical_product_key, listings_json
+                    FROM gold.mart_cross_store_matches
+                    WHERE canonical_product_key = ANY(:keys)
+                    """
+                ),
+                {"keys": keys},
+            )
+            .mappings()
+            .all()
+        )
+    except DBAPIError:
+        db.rollback()
+        return items
+
+    listings_by_key = {
+        str(r["canonical_product_key"]): r.get("listings_json")
+        for r in rows
+        if r.get("canonical_product_key") and r.get("listings_json")
+    }
+    if not listings_by_key:
+        return items
+
+    enriched: list[ProductVerdictItem] = []
+    for item in items:
+        if item.canonical_product_key and item.canonical_product_key in listings_by_key:
+            bm = compute_market_benchmark(item, listings_by_key[item.canonical_product_key])
+            if bm is not None:
+                enriched.append(item.model_copy(update={"market_benchmark": bm}))
+                continue
+        enriched.append(item)
+    return enriched
 
 
 @router.get("/feed", response_model=RadarFeedResponse)
@@ -81,7 +230,7 @@ def get_radar_feed(
     else:
         set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
     cache_key = (
-        f"radar:feed:v3:{category}:{norm_sub}:{norm_brand}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
+        f"radar:feed:v4:{category}:{norm_sub}:{norm_brand}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
     )
     cached = api_cache.get(cache_key)
     if cached is not None:
@@ -198,7 +347,7 @@ def get_radar_feed(
     else:
         total = 0
 
-    items = [ProductVerdictItem.model_validate(dict(r)) for r in rows]
+    items = attach_market_benchmarks(db, [ProductVerdictItem.model_validate(dict(r)) for r in rows])
     total_pages = math.ceil(total / limit) if total > 0 else 0
 
     result = RadarFeedResponse(

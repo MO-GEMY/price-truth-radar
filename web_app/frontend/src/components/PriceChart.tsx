@@ -11,8 +11,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { PriceHistoryPoint } from "@/types/contract";
-import { formatChartTick, formatDate, formatPrice } from "@/lib/format";
+import type { HistoryMaturity, PriceHistoryPoint } from "@/types/contract";
+import { formatChartTick, formatDate, formatNumber, formatPrice } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 
@@ -30,36 +30,75 @@ function dayLabel(value: number, lang: "en" | "ar"): string {
     : "";
 }
 
-export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
+export function PriceChart({
+  history,
+  trackedDaysCount,
+  historyMaturity,
+}: {
+  history: PriceHistoryPoint[];
+  trackedDaysCount?: number;
+  historyMaturity?: HistoryMaturity;
+}) {
   const { lang, t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const [range, setRange] = useState<keyof typeof rangeLabels>(0);
 
-  const series = [
-    { key: "price", label: "detail.current", color: "#0CAE79" },
+  const effectiveDays =
+    typeof trackedDaysCount === "number" && trackedDaysCount >= 1
+      ? Math.floor(trackedDaysCount)
+      : Math.max(1, history.length);
+  const effectiveMaturity: HistoryMaturity =
+    historyMaturity ??
+    (effectiveDays < 7 ? "EARLY" : effectiveDays < 60 ? "GROWING" : "MATURE");
+  const showVerifiedMedian = effectiveMaturity !== "EARLY" && effectiveDays >= 7;
+  const medianLegendLabel =
+    effectiveDays >= 60
+      ? t("maturity.chartMedian60")
+      : t("maturity.chartMedianDays", {
+          days: formatNumber(effectiveDays, lang),
+        });
+
+  const series: ReadonlyArray<{
+    key: "price" | "claimed" | "median";
+    label: string;
+    color: string;
+    dash?: string;
+  }> = [
+    { key: "price", label: t("detail.current"), color: "#0CAE79" },
     {
       key: "claimed",
-      label: "chart.claimedOriginal",
+      label: t("chart.claimedOriginal"),
       color: isDark ? "#F87171" : "#DC2626",
       dash: "6 4",
     },
-    {
-      key: "median",
-      label: "chart.median",
-      color: isDark ? "#94A3B8" : "#64748B",
-      dash: "2 4",
-    },
-  ] as const;
+    ...(showVerifiedMedian
+      ? [
+          {
+            key: "median" as const,
+            label: medianLegendLabel,
+            color: isDark ? "#94A3B8" : "#64748B",
+            dash: "2 4",
+          },
+        ]
+      : []),
+  ];
 
   const data = history
-    .map((point) => ({
-      time: Date.parse(point.snapshot_date),
-      date: point.snapshot_date,
-      price: point.price,
-      claimed: point.claimed_original_price,
-      median: point.rolling_60d_median > 0 ? point.rolling_60d_median : null,
-    }))
+    .map((point) => {
+      const verifiedMed =
+        showVerifiedMedian
+          ? (point.verified_historical_median ??
+            (point.rolling_60d_median > 0 ? point.rolling_60d_median : null))
+          : null;
+      return {
+        time: Date.parse(point.snapshot_date),
+        date: point.snapshot_date,
+        price: point.price,
+        claimed: point.claimed_original_price,
+        median: verifiedMed && verifiedMed > 0 ? verifiedMed : null,
+      };
+    })
     .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.price))
     .sort((a, b) => a.time - b.time);
 
@@ -127,7 +166,7 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
                 }}
                 aria-hidden="true"
               />
-              {t(entry.label)}
+              {entry.label}
             </span>
           ))}
         </div>
@@ -234,7 +273,7 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
                     key={entry.key}
                     type="linear"
                     dataKey={entry.key}
-                    name={t(entry.label)}
+                    name={entry.label}
                     stroke={entry.color}
                     strokeDasharray={"dash" in entry ? entry.dash : undefined}
                     strokeWidth={entry.key === "price" ? 2.6 : 1.7}
@@ -261,7 +300,7 @@ export function PriceChart({ history }: { history: PriceHistoryPoint[] }) {
                 <th scope="col">{t("ui.date")}</th>
                 {active.map((entry) => (
                   <th scope="col" key={entry.key}>
-                    {t(entry.label)}
+                    {entry.label}
                   </th>
                 ))}
               </tr>

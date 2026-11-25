@@ -18,11 +18,13 @@ export function SimilarAlternativesList({
   category,
   from,
   sample = false,
+  hasExactAlternatives = false,
 }: {
   items: SimilarAlternative[];
   category: Category;
   from?: string;
   sample?: boolean;
+  hasExactAlternatives?: boolean;
 }) {
   const { lang, t } = useLanguage();
 
@@ -32,7 +34,9 @@ export function SimilarAlternativesList({
         <h2>{t("similar.title")}</h2>
         <span className="ptr-badge ptr-badge-variant">{t("similar.badge")}</span>
       </div>
-      <p className="ptr-muted text-sm">{t("similar.subtitle")}</p>
+      <p className="ptr-muted text-sm">
+        {t(hasExactAlternatives ? "similar.subtitleWithExact" : "similar.subtitle")}
+      </p>
       <ul className="ptr-offers ptr-similar-list">
         {items.map((item) => {
           const safeUrl = retailerHref(item.product_url);
