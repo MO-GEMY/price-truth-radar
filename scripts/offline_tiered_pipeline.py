@@ -171,8 +171,14 @@ def _cmd_scrape_shard(args: argparse.Namespace) -> int:
     for env_key in ("DATABASE_URL", "DATABASE_URL_ADMIN", "DATABASE_URL_READONLY"):
         os.environ[env_key] = ""
 
-    raw_stores = [s.strip().lower() for s in args.stores.split(",") if s.strip()]
-    reg_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
+    raw_stores_arg = (args.stores or "").strip()
+    if args.local_only or raw_stores_arg.lower() == "local_only":
+        reg_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True, region_mode="local_only")}
+        raw_stores = list(reg_entries.keys())
+    else:
+        reg_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
+        raw_stores = [s.strip().lower() for s in raw_stores_arg.split(",") if s.strip()]
+
     targets: list[tuple[str, ScrapeVertical]] = []
     for skey in raw_stores:
         entry = reg_entries.get(skey)
@@ -372,28 +378,44 @@ def _cmd_load_and_transform(args: argparse.Namespace) -> int:
         print("Dry-run complete; skipped dbt, matching, and raw truncation.")
         return 0
 
-    # Step 3: Run incremental dbt -> gold --match-db -> mart_cross_store_matches -> dbt test
+    # Step 3: Run incremental dbt (core -> optional RAM match + cross-store -> dbt test)
     dbt_runner = REPO_ROOT / "data_platform" / "run_dbt.py"
     scrapers_runner = REPO_ROOT / "data_platform" / "ingestion" / "scrapers" / "run_scrapers.py"
+    alerts_runner = REPO_ROOT / "web_app" / "backend" / "jobs" / "check_price_alerts.py"
 
-    for cmd in (
-        [sys.executable, str(dbt_runner), "run"],
-        [sys.executable, str(scrapers_runner), "--match-db"],
-        [sys.executable, str(dbt_runner), "run", "--select", "mart_cross_store_matches"],
-        [sys.executable, str(dbt_runner), "test"],
-    ):
+    if args.skip_match:
+        pipeline_cmds: tuple[list[str], ...] = (
+            [sys.executable, str(dbt_runner), "run", "--select", "stg_products", "fct_price_history", "mart_product_verdicts"],
+        )
+    else:
+        pipeline_cmds = (
+            [sys.executable, str(dbt_runner), "run", "--select", "stg_products", "fct_price_history", "mart_product_verdicts"],
+            [sys.executable, str(scrapers_runner), "--match-db"],
+            [sys.executable, str(dbt_runner), "run", "--select", "mart_cross_store_matches"],
+            [sys.executable, str(dbt_runner), "test"],
+        )
+
+    for cmd in pipeline_cmds:
         rc = subprocess.call(cmd)
         if rc != 0:
             print(f"PIPELINE_ABORTED | step={' '.join(cmd)} exited with code {rc}; raw preserved for debugging.")
             return rc
 
-    # Step 4: Zero-rest raw staging cleanup ONLY AFTER dbt run & dbt test succeed
+    # Step 4: Zero-rest raw staging cleanup ONLY AFTER dbt succeeds
     cleared = truncate_raw_snapshots_after_dbt(dry_run=False)
     snap_after = inspect_neon_storage()
     print(
         f"ZERO_REST_RAW | truncated={cleared:,} rows from raw.raw_product_snapshots "
         f"| total_copied={total_copied:,} | final_db={snap_after.db_size_mb:.2f} MB"
     )
+
+    # Step 5: Optional Price Drop Alert Checker inside the SAME warm Neon window (zero separate wake-up!)
+    if args.run_alerts and alerts_runner.exists():
+        t_al = time.perf_counter()
+        rc_alerts = subprocess.call([sys.executable, str(alerts_runner)])
+        print(f"WARM_WINDOW_ALERTS | exit={rc_alerts} | elapsed={time.perf_counter() - t_al:.2f}s")
+        if rc_alerts != 0:
+            print("WARNING: check_price_alerts.py returned non-zero exit code; pipeline data remains clean.")
     return 0
 
 
@@ -413,19 +435,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_scrape = sub.add_parser("scrape-shard", help="Scrape assigned stores offline to .jsonl.gz (zero DB).")
     p_scrape.add_argument("--shard", required=True)
     p_scrape.add_argument("--priority", default="p1_major_brands")
-    p_scrape.add_argument("--stores", required=True, help="Comma-separated store keys.")
+    p_scrape.add_argument("--stores", default="", help="Comma-separated store keys (or 'local_only').")
+    p_scrape.add_argument("--local-only", action="store_true", help="Scrape all enabled region_mode=local_only stores offline.")
     p_scrape.add_argument("--mode", choices=["daily", "discover", "discovery", "expand"], default="daily")
     p_scrape.add_argument("--limit", type=int, default=None)
     p_scrape.add_argument("--delay", type=float, default=1.0)
     p_scrape.add_argument("--workers", type=int, default=4)
     p_scrape.add_argument("--out", required=True)
 
-    p_load = sub.add_parser("load-and-transform", help="Single Neon session: circuit-breaker -> COPY -> dbt -> match -> TRUNCATE raw.")
+    p_load = sub.add_parser("load-and-transform", help="Single Neon session: circuit-breaker -> COPY -> dbt -> match -> TRUNCATE raw -> optional alerts.")
     p_load.add_argument("--artifacts-dir", required=True)
     p_load.add_argument("--warn-mb", type=float, default=EXPANSION_CEILING_MB)
     p_load.add_argument("--stop-mb", type=float, default=HARD_STOP_CEILING_MB)
     p_load.add_argument("--dry-run", action="store_true")
     p_load.add_argument("--force-dbt", action="store_true")
+    p_load.add_argument("--skip-match", action="store_true", help="Skip --match-db, mart_cross_store_matches, and dbt test (used when cloud runs unified match minutes later).")
+    p_load.add_argument("--run-alerts", action="store_true", help="Run check_price_alerts.py inside the same warm Neon window right after dbt + TRUNCATE.")
     p_load.add_argument("--soft-exit-on-stop", action="store_true")
 
     return p

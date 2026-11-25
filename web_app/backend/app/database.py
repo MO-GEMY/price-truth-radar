@@ -19,6 +19,7 @@ import os
 import threading
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from psycopg2.errors import InsufficientPrivilege
@@ -44,7 +45,7 @@ load_dotenv(_REPO_ROOT / ".env")
 load_dotenv()
 
 _STATEMENT_TIMEOUT_MS = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", "10000"))
-_IDLE_DISPOSE_DEFAULT = 90
+_IDLE_DISPOSE_DEFAULT = 30
 
 
 def _idle_dispose_seconds() -> int:
@@ -261,10 +262,56 @@ def ensure_price_alerts_table(conn: Connection) -> bool:
         return True
 
 
-def get_db() -> Generator[Connection, None, None]:
-    engine = get_engine()
-    with engine.connect() as conn:
-        yield conn
+class LazyConnection:
+    """Deferred SQLAlchemy Connection proxy for FastAPI `Depends(get_db)`.
+
+    Delays `engine.connect()` (and `pool_pre_ping` `SELECT 1`) until the route
+    actually invokes `.execute(...)` on a RAM cache miss. Every RAM cache hit
+    (`api_cache`, `search_cache`, `product_detail_cache`, `sitemap_cache`)
+    therefore opens ZERO Neon sockets and causes ZERO Neon wake-ups.
+    """
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+        self._conn: Connection | None = None
+
+    @property
+    def connected(self) -> bool:
+        return self._conn is not None
+
+    def _ensure(self) -> Connection:
+        if self._conn is None:
+            self._conn = self._engine.connect()
+        return self._conn
+
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        return self._ensure().execute(*args, **kwargs)
+
+    def rollback(self) -> None:
+        if self._conn is not None:
+            self._conn.rollback()
+
+    def commit(self) -> None:
+        if self._conn is not None:
+            self._conn.commit()
+
+    def close(self) -> None:
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            finally:
+                self._conn = None
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._ensure(), name)
+
+
+def get_db() -> Generator[Any, None, None]:
+    lazy = LazyConnection(get_engine())
+    try:
+        yield lazy
+    finally:
+        lazy.close()
 
 
 def get_write_db() -> Generator[Connection, None, None]:

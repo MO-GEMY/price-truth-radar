@@ -1010,6 +1010,51 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(captured[0][1]["inferred_store"], "amazon_eg")
         self.assertIn("store_name = 'amazon_eg'", captured[1][0])
 
+    def test_lazy_db_connection_never_connects_on_ram_cache_hit(self) -> None:
+        from unittest.mock import patch
+        from app.database import LazyConnection
+
+        connect_calls = 0
+
+        class _ExplodingEngine:
+            def connect(self) -> Any:
+                nonlocal connect_calls
+                connect_calls += 1
+                raise AssertionError("RAM cache hit must NEVER call engine.connect() or wake Neon!")
+
+        # Pre-seed api_cache for /api/v1/stats/overview and verify get_db() opens 0 sockets
+        from app.schemas import OverviewStatsResponse
+
+        api_cache.set(
+            "stats:overview",
+            OverviewStatsResponse(
+                total_tracked=265000,
+                fake_discounts_today=120,
+                genuine_deals_today=450,
+                all_time_lows_today=80,
+                presale_hikes_today=40,
+                avg_fake_inflation_pct=22.5,
+                last_pipeline_run_at=None,
+                available_stores=["amazon_eg"],
+                category_counts={"electronics": 46700},
+                cross_store_matches_count=10994,
+            ),
+            ttl=3600.0,
+        )
+        app.dependency_overrides.clear()
+        client = TestClient(app)
+        with patch("app.database.get_engine", return_value=_ExplodingEngine()):
+            r = client.get("/api/v1/stats/overview")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["total_tracked"], 265000)
+        self.assertEqual(connect_calls, 0)
+
+        # Direct LazyConnection smoke check
+        lazy = LazyConnection(_ExplodingEngine())  # type: ignore[arg-type]
+        self.assertFalse(lazy.connected)
+        lazy.close()
+        self.assertEqual(connect_calls, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

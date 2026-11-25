@@ -1,31 +1,32 @@
-<#
+﻿<#
 .SYNOPSIS
-    Run all enabled local/residential (`region_mode: local_only`) Price Truth Radar scrapers,
-    upsert snapshots to Neon, refresh DB-level cross-store canonical keys (`--match-db`),
-    optionally run `dbt run` + `dbt test`, and perform zero-rest raw snapshot truncation.
+    Zero-CU Offline Local Scraper Runner for Price Truth Radar (`region_mode: local_only`).
 
 .DESCRIPTION
-    Designed for Windows Task Scheduler or manual Egypt-residential execution for all
-    stores that block/geo-redirect cloud/datacenter IPs (`amazon_eg`, `egyptlaptop`,
-    `dubaiphone`, `elaraby`, `spinneys`, `okhtein`, `azza_fahmy`, `2b`, `sigma`, etc.).
-
-    When `-Stores` is omitted, targets are dynamically loaded from
-    `data_platform/ingestion/stores_registry.yaml` (`enabled: true` & `region_mode: local_only`),
-    including every configured `extra_verticals` (e.g., `amazon_eg` runs both `core` and
-    `groceries`), keeping `stores_registry.yaml` as the single source of truth.
+    Minimizes Neon Compute Hours (CU-hrs) by enforcing a strict 2-phase offline architecture:
+      1. OFFLINE SCRAPE (0 CU): Unsets DATABASE_URL* and scrapes ALL enabled `local_only`
+         stores (including `extra_verticals` such as `amazon_eg:core` + `amazon_eg:groceries`)
+         concurrently in parallel workers into a compact `.jsonl.gz` staging artifact on disk.
+         Neon stays 100% SUSPENDED during all HTTP requests, retries, and rate-limit waits.
+      2. SINGLE NEON SESSION (~25s): Opens Neon ONCE at the end via
+         `scripts/offline_tiered_pipeline.py load-and-transform` to stream-load the entire batch
+         via PostgreSQL `COPY`, run incremental `dbt`, optionally run RAM `--match-db` +
+         `dbt test` + `check_price_alerts.py`, and `TRUNCATE raw.raw_product_snapshots`.
 #>
 
 [CmdletBinding()]
 param(
     [string[]]$Stores = @(),
-    [switch]$IncludeFallback,
-    [ValidateSet("daily", "discover", "discovery")]
+    [ValidateSet("daily", "discover", "discovery", "expand")]
     [string]$Mode = "daily",
     [switch]$Discovery,
     [int]$Limit = 0,
+    [int]$Workers = 4,
+    [double]$Delay = 0.9,
     [switch]$DryRun,
     [switch]$SkipMatchDb,
     [switch]$RunDbt,
+    [switch]$RunAlerts,
     [int]$LogRetentionDays = 14
 )
 
@@ -35,12 +36,14 @@ $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
 if ($Discovery) {
-    $Mode = "discovery"
+    $Mode = "discover"
+} elseif ($Mode -eq "discovery") {
+    $Mode = "discover"
 }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$RunnerScript = Join-Path $RepoRoot "data_platform\ingestion\scrapers\run_scrapers.py"
-$DbtRunnerScript = Join-Path $RepoRoot "data_platform\run_dbt.py"
+$PipelineScript = Join-Path $RepoRoot "scripts\offline_tiered_pipeline.py"
+$StagingDir = Join-Path $RepoRoot "data\local_offline_staging"
 $LogDir = Join-Path $RepoRoot "logs"
 
 if (-not (Test-Path $LogDir)) {
@@ -73,198 +76,119 @@ function Resolve-PythonExe {
         $candidates += $cmdPy.Source
     }
 
-    $fallbackWithPsycopg2 = $null
     foreach ($py in $candidates) {
-        if (-not $py -or -not (Test-Path $py)) {
-            continue
-        }
+        if (-not $py -or -not (Test-Path $py)) { continue }
         & $py -c "import psycopg2, curl_cffi, httpx, bs4, yaml" 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            return $py
-        }
-        if (-not $fallbackWithPsycopg2) {
-            & $py -c "import psycopg2" 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                $fallbackWithPsycopg2 = $py
-            }
-        }
+        if ($LASTEXITCODE -eq 0) { return $py }
     }
-    return $fallbackWithPsycopg2
+    return $null
 }
 
 $PythonExe = Resolve-PythonExe
 if (-not $PythonExe) {
-    Write-Log "ERROR: Could not find a working Python interpreter with psycopg2 (checked venv, D:\anaconda3\python.exe, PATH)."
+    Write-Log "ERROR: Could not find Python interpreter with required scraper dependencies."
     exit 1
 }
 
-if (-not (Test-Path $RunnerScript)) {
-    Write-Log "ERROR: Scraper runner not found at $RunnerScript"
+if (-not (Test-Path $PipelineScript)) {
+    Write-Log "ERROR: Offline pipeline script not found at $PipelineScript"
     exit 1
 }
 
-# Resolve (store_key, vertical) pairs dynamically from stores_registry.yaml
-$ExplicitCsv = ""
-if ($Stores -and $Stores.Count -gt 0) {
-    $ExplicitCsv = ($Stores -join ",")
+# Prepare clean offline staging directory
+if (Test-Path $StagingDir) {
+    Remove-Item -Recurse -Force $StagingDir -ErrorAction SilentlyContinue
 }
-$IncludeFallbackFlag = if ($IncludeFallback) { "1" } else { "0" }
+New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
+$ArtifactPath = Join-Path $StagingDir "local_only_${Mode}_${DateStamp}.jsonl.gz"
 
-$TargetJson = & $PythonExe -c @"
-import json, sys
-from pathlib import Path
-sys.path.insert(0, r'$RepoRoot')
-from data_platform.ingestion.scrapers.registry_loader import load_stores_registry
-
-explicit = [s.strip().lower() for s in '$ExplicitCsv'.split(',') if s.strip()]
-all_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
-targets = []
-seen = set()
-
-if explicit:
-    for sk in explicit:
-        e = all_entries.get(sk)
-        verts = e.all_verticals if e else ('core',)
-        for v in verts:
-            if (sk, v) not in seen:
-                seen.add((sk, v))
-                targets.append({'store': sk, 'vertical': v})
-else:
-    for e in load_stores_registry(enabled_only=True, region_mode='local_only'):
-        for v in e.all_verticals:
-            if (e.store_key, v) not in seen:
-                seen.add((e.store_key, v))
-                targets.append({'store': e.store_key, 'vertical': v})
-
-if '$IncludeFallbackFlag' == '1':
-    for sk in ('egyptlaptop', 'dubaiphone', 'elaraby', 'dalydress'):
-        e = all_entries.get(sk)
-        verts = e.all_verticals if e else ('core',)
-        for v in verts:
-            if (sk, v) not in seen:
-                seen.add((sk, v))
-                targets.append({'store': sk, 'vertical': v})
-
-print(json.dumps(targets))
-"@
-
-if ($LASTEXITCODE -ne 0 -or -not $TargetJson) {
-    Write-Log "ERROR: Failed to resolve local_only targets from stores_registry.yaml."
-    exit 1
-}
-
-$Targets = @($TargetJson | ConvertFrom-Json)
-if ($Targets.Count -eq 0) {
-    Write-Log "ERROR: No local_only stores resolved."
-    exit 1
-}
-
-$TargetLabels = ($Targets | ForEach-Object { "$($_.store):$($_.vertical)" }) -join ", "
+$ExplicitCsv = if ($Stores -and $Stores.Count -gt 0) { ($Stores -join ",") } else { "" }
 
 Write-Log "======================================================================"
-Write-Log "Price Truth Radar Local Scraper Runner (Registry-Driven local_only)"
-Write-Log "RepoRoot        : $RepoRoot"
-Write-Log "PythonExe       : $PythonExe"
-Write-Log "Targets ($($Targets.Count))    : $TargetLabels"
-Write-Log "Mode            : $Mode"
-Write-Log "Limit           : $(if ($Limit -gt 0) { $Limit } else { 'store default' })"
-Write-Log "DryRun          : $DryRun"
-Write-Log "RunDbt          : $RunDbt"
-Write-Log "LogFile         : $LogFile"
+Write-Log "Price Truth Radar Local Runner — 100% OFFLINE SCRAPE -> SINGLE COPY"
+Write-Log "RepoRoot   : $RepoRoot"
+Write-Log "PythonExe  : $PythonExe"
+Write-Log "Stores     : $(if ($ExplicitCsv) { $ExplicitCsv } else { 'ALL enabled local_only (from stores_registry.yaml)' })"
+Write-Log "Mode       : $Mode | Workers=$Workers | Delay=${Delay}s"
+Write-Log "SkipMatchDb: $SkipMatchDb | RunDbt=$RunDbt | RunAlerts=$RunAlerts | DryRun=$DryRun"
 Write-Log "======================================================================"
 
 Push-Location $RepoRoot
-$FailedStores = @()
-$SucceededStores = @()
+$FinalExit = 0
 
 try {
-    foreach ($item in $Targets) {
-        $store = $item.store
-        $vertical = $item.vertical
-        $label = "${store}:${vertical}"
-        $ArgsList = @($RunnerScript, "--store", $store, "--vertical", $vertical, "--mode", $Mode, "--delta")
-        if ($Limit -gt 0) {
-            $ArgsList += @("--limit", "$Limit")
-        }
-        if ($DryRun) {
-            $ArgsList += "--dry-run"
-        }
-
-        Write-Log "Starting target='$label' (mode=$Mode) ..."
-        & $PythonExe @ArgsList 2>&1 | ForEach-Object {
-            $text = $_.ToString()
-            Write-Output $text
-            Add-Content -Path $LogFile -Value $text -Encoding UTF8
-        }
-        $code = $LASTEXITCODE
-        if ($code -eq 0) {
-            Write-Log "SUCCESS: target='$label' completed (exit=0)."
-            $SucceededStores += $label
-        } else {
-            Write-Log "WARNING: target='$label' failed (exit=$code); continuing with remaining targets."
-            $FailedStores += $label
-        }
+    # PHASE 1: 100% OFFLINE PARALLEL HTTP SCRAPING (ZERO NEON CONNECTIONS / 0 CU)
+    $ScrapeArgs = @(
+        $PipelineScript, "scrape-shard",
+        "--shard", "local_only",
+        "--priority", "p1_major_brands",
+        "--mode", $Mode,
+        "--workers", "$Workers",
+        "--delay", "$Delay",
+        "--out", $ArtifactPath
+    )
+    if ($ExplicitCsv) {
+        $ScrapeArgs += @("--stores", $ExplicitCsv)
+    } else {
+        $ScrapeArgs += "--local-only"
+    }
+    if ($Limit -gt 0) {
+        $ScrapeArgs += @("--limit", "$Limit")
     }
 
-    if (-not $DryRun -and -not $SkipMatchDb -and $SucceededStores.Count -gt 0) {
-        Write-Log "Running DB-level cross-store canonical matching (--match-db) ..."
-        & $PythonExe $RunnerScript --match-db 2>&1 | ForEach-Object {
+    Write-Log "PHASE 1 (OFFLINE / 0 CU): Starting parallel scrape-shard -> $ArtifactPath ..."
+    & $PythonExe @ScrapeArgs 2>&1 | ForEach-Object {
+        $text = $_.ToString()
+        Write-Output $text
+        Add-Content -Path $LogFile -Value $text -Encoding UTF8
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "WARNING: Offline scrape-shard exited with code $LASTEXITCODE."
+        $FinalExit = $LASTEXITCODE
+    }
+
+    # PHASE 2: SINGLE NEON BULK-COPY SESSION -> DBT -> TRUNCATE RAW -> DISCONNECT
+    if (Test-Path $ArtifactPath) {
+        $LoadArgs = @(
+            $PipelineScript, "load-and-transform",
+            "--artifacts-dir", $StagingDir,
+            "--warn-mb", "900",
+            "--stop-mb", "950",
+            "--soft-exit-on-stop"
+        )
+        if ($DryRun) {
+            $LoadArgs += "--dry-run"
+        }
+        if ($SkipMatchDb -or (-not $RunDbt)) {
+            $LoadArgs += "--skip-match"
+        }
+        if ($RunAlerts -and (-not $DryRun)) {
+            $LoadArgs += "--run-alerts"
+        }
+
+        Write-Log "PHASE 2 (SINGLE NEON COPY): Loading $ArtifactPath into Neon ..."
+        & $PythonExe @LoadArgs 2>&1 | ForEach-Object {
             $text = $_.ToString()
             Write-Output $text
             Add-Content -Path $LogFile -Value $text -Encoding UTF8
         }
         if ($LASTEXITCODE -ne 0) {
-            Write-Log "WARNING: --match-db exited with code $LASTEXITCODE."
-            $FailedStores += "match-db"
+            Write-Log "ERROR: Single-session load-and-transform failed with exit code $LASTEXITCODE."
+            $FinalExit = $LASTEXITCODE
         } else {
-            Write-Log "SUCCESS: --match-db completed."
+            Write-Log "SUCCESS: Single-session COPY + dbt + TRUNCATE raw completed cleanly."
         }
     } else {
-        Write-Log "Skipping --match-db (DryRun=$DryRun, SkipMatchDb=$SkipMatchDb, Succeeded=$($SucceededStores.Count))."
-    }
-
-    if ($RunDbt -and -not $DryRun -and $SucceededStores.Count -gt 0) {
-        if (-not (Test-Path $DbtRunnerScript)) {
-            Write-Log "WARNING: dbt runner not found at $DbtRunnerScript; skipping dbt."
-        } else {
-            $DbtOk = $true
-            foreach ($dbtCmd in @("run", "test")) {
-                Write-Log "Running dbt $dbtCmd ..."
-                & $PythonExe $DbtRunnerScript $dbtCmd 2>&1 | ForEach-Object {
-                    $text = $_.ToString()
-                    Write-Output $text
-                    Add-Content -Path $LogFile -Value $text -Encoding UTF8
-                }
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Log "WARNING: dbt $dbtCmd exited with code $LASTEXITCODE."
-                    $FailedStores += "dbt-$dbtCmd"
-                    $DbtOk = $false
-                    break
-                }
-                Write-Log "SUCCESS: dbt $dbtCmd completed."
-            }
-            if ($DbtOk) {
-                Write-Log "Running zero-rest raw snapshot cleanup (--truncate-raw) ..."
-                & $PythonExe $RunnerScript --truncate-raw 2>&1 | ForEach-Object {
-                    $text = $_.ToString()
-                    Write-Output $text
-                    Add-Content -Path $LogFile -Value $text -Encoding UTF8
-                }
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Log "SUCCESS: raw.raw_product_snapshots truncated after clean dbt run + test."
-                }
-            }
-        }
+        Write-Log "No staged artifact produced; skipping Neon wake cleanly (0 CU)."
     }
 } finally {
+    if (Test-Path $StagingDir) {
+        Remove-Item -Recurse -Force $StagingDir -ErrorAction SilentlyContinue
+    }
     Pop-Location
 }
 
 Write-Log "======================================================================"
-Write-Log "Run complete | Succeeded ($($SucceededStores.Count)): $($SucceededStores -join ', ') | Failed: $(if ($FailedStores.Count -gt 0) { $FailedStores -join ', ' } else { 'none' })"
+Write-Log "Local offline pipeline finished (exit=$FinalExit)"
 Write-Log "======================================================================"
-
-if ($FailedStores.Count -gt 0) {
-    exit 1
-}
-exit 0
+exit $FinalExit

@@ -138,5 +138,5 @@ def get_cross_store_comparison(
         page=page,
         limit=limit,
     )
-    api_cache.set(cache_key, result, ttl=3600.0)
+    api_cache.set(cache_key, result, ttl=21600.0)
     return _attach_coupons_to_compare(result)

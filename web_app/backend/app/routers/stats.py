@@ -152,7 +152,7 @@ def get_overview_stats(
         category_counts=cat_counts,
         cross_store_matches_count=int(row.get("cross_store_matches_count") or 0),
     )
-    api_cache.set(cache_key, result, ttl=3600.0)
+    api_cache.set(cache_key, result, ttl=21600.0)
     return result
 
 

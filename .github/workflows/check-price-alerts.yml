@@ -1,10 +1,9 @@
-name: Price Drop Alert Checker
+name: Price Drop Alert Checker (Manual Dispatch Only)
 
 on:
-  schedule:
-    # Runs once daily at 04:02 UTC (06:02 AM Cairo EET) — 45 minutes after the off-peak
-    # 03:17 UTC Daily Stores Batch Matrix window so fresh prices are live before alerting.
-    - cron: '2 4 * * *'
+  # Consolidated directly into daily-stores-matrix.yml (`--run-alerts`) so alerts execute
+  # inside the SAME warm Neon session right after dbt + TRUNCATE raw (zero separate cold wake-up).
+  # Keep manual dispatch ONLY for ad-hoc alert checks and provider test emails.
   workflow_dispatch:
     inputs:
       dry_run:

@@ -362,11 +362,13 @@ class TestIngestionCurrencyFlipCircuitBreaker(unittest.TestCase):
         matrix_on = matrix_wf.get("on") or matrix_wf.get(True)
         matrix_crons = [c["cron"] for c in matrix_on["schedule"]]
         self.assertEqual(matrix_crons, ["17 3 * * 0-5", "17 3 * * 6"])
+        load_cmd = " ".join(str(s.get("run", "")) for s in matrix_wf["jobs"]["load-match-dbt"]["steps"])
+        self.assertIn("--run-alerts", load_cmd)
 
+        # Price Drop Alert Checker MUST have zero separate schedule (runs inside daily-stores-matrix warm window)
         alerts_wf = yaml.safe_load((wf_dir / "check-price-alerts.yml").read_text(encoding="utf-8"))
         alerts_on = alerts_wf.get("on") or alerts_wf.get(True)
-        alerts_crons = [c["cron"] for c in alerts_on["schedule"]]
-        self.assertEqual(alerts_crons, ["2 4 * * *"])
+        self.assertNotIn("schedule", alerts_on)
 
 
 if __name__ == "__main__":

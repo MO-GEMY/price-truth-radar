@@ -55,8 +55,8 @@ class TTLCache:
 
 
 # Shared process-level read caches (bounded LRU + TTL to keep Neon scaled to zero)
-api_cache = TTLCache(maxsize=2048, default_ttl=3600.0)
-search_cache = TTLCache(maxsize=2048, default_ttl=3600.0)  # 1h TTL (catalog refreshes once daily)
+api_cache = TTLCache(maxsize=2048, default_ttl=21600.0)  # 6h TTL (catalog refreshes once daily)
+search_cache = TTLCache(maxsize=2048, default_ttl=14400.0)  # 4h TTL
 product_detail_cache = TTLCache(maxsize=4096, default_ttl=43200.0)  # 12h TTL
 sitemap_cache = TTLCache(maxsize=64, default_ttl=86400.0)  # 24h TTL
 

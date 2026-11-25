@@ -208,5 +208,5 @@ def get_radar_feed(
         limit=limit,
         total_pages=total_pages,
     )
-    api_cache.set(cache_key, result, ttl=3600.0)
+    api_cache.set(cache_key, result, ttl=21600.0)
     return result

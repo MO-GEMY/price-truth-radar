@@ -176,16 +176,26 @@ jobs:
           path: staging_artifacts
           merge-multiple: true
 
-      - name: Circuit-breaker -> Bulk COPY (P1 -> P2 -> P3) -> dbt -> Match -> TRUNCATE raw
+      - name: Circuit-breaker -> Bulk COPY (P1 -> P2 -> P3) -> dbt -> Match -> TRUNCATE raw -> Alerts
         env:
           DATABASE_URL_ADMIN: ${{ secrets.DATABASE_URL_ADMIN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_NOTIFY_CHAT_ID: ${{ secrets.TELEGRAM_NOTIFY_CHAT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          RESEND_FROM_NAME: ${{ secrets.RESEND_FROM_NAME }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
           DRY_RUN_INPUT: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           EXTRA=""
           if [ "$DRY_RUN_INPUT" = "true" ]; then
             EXTRA="--dry-run"
+          else
+            EXTRA="--run-alerts"
           fi
           python scripts/offline_tiered_pipeline.py load-and-transform \
             --artifacts-dir staging_artifacts \

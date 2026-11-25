@@ -374,25 +374,15 @@ def _flush_tier_to_neon(
                             f"| median_ratio={fa.median_ratio:.3f}x | reason={fa.reason}"
                         )
                 if snapshots:
-                    stores = sorted({s.store_name for s in snapshots})
-                    existing = _fetch_existing_latest_for_stores(cur, stores)
-                    target_snaps, touch_rows, dstats = compute_delta_snapshots(snapshots, existing)
-                    new_total = dstats.new_products
-                    changed_total = dstats.changed_existing
-                    for s in target_snaps:
-                        if (s.store_name, s.external_id) not in existing:
-                            new_by_store[s.store_name] = new_by_store.get(s.store_name, 0) + 1
-
-                    rows = sorted(
-                        ((*s.to_db_tuple(), s.scraped_at) for s in target_snaps),
-                        key=lambda r: (r[0], r[1], r[13]),
+                    # Stream-load via PostgreSQL COPY (10x faster than batched INSERT, minimal Neon CU)
+                    upserted_rows = bulk_copy_snapshots_to_neon(
+                        snapshots,
+                        conn=conn,
+                        check_currency_flip=False,  # already validated above inside this transaction
                     )
-                    if rows:
-                        execute_values(cur, UPSERT_SQL, rows, page_size=1000)
-                        upserted_rows = len(rows)
-                    if touch_rows:
-                        touch_rows.sort(key=lambda r: (r[0], r[1], r[2]))
-                        execute_values(cur, TOUCH_LAST_SEEN_SQL, touch_rows, page_size=1000)
+                    new_total = upserted_rows
+                    for s in snapshots:
+                        new_by_store[s.store_name] = new_by_store.get(s.store_name, 0) + 1
 
                 if checkpoint_metas:
                     cp_by_store: dict[str, tuple[str, Optional[str], int, int]] = {}

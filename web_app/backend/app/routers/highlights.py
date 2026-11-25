@@ -290,5 +290,5 @@ def get_radar_highlights(
         biggest_scandals=biggest_scandals,
         best_real_deals=best_real_deals,
     )
-    api_cache.set(cache_key, result, ttl=3600.0)
+    api_cache.set(cache_key, result, ttl=21600.0)
     return result
