@@ -27,6 +27,12 @@ from ..base import (
     normalize_snake_slug,
     utc_now_naive,
 )
+from ..currency_guard import (
+    is_same_store_host,
+    is_valid_egp_currency,
+    normalize_currency_code,
+    normalize_host,
+)
 from ..groceries import (
     extract_grocery_brand,
     parse_grocery_packaging,
@@ -271,6 +277,15 @@ class WooCommerceBaseScraper(BaseScraper):
             return []
 
         prices = item.get("prices") if isinstance(item.get("prices"), dict) else {}
+        item_currency = prices.get("currency_code")
+        if not is_valid_egp_currency(item_currency, allow_missing=True):
+            logger.error(
+                "CURRENCY_MISMATCH_ABORT | store=%s | WooCommerce item %s returned currency_code=%r (expected EGP)",
+                self.store_name,
+                pid,
+                item_currency,
+            )
+            return []
         raw_minor = prices.get("currency_minor_unit")
         minor_unit = int(raw_minor) if raw_minor is not None else 2
         range_min, range_max = _extract_wc_price_range(prices, minor_unit)
@@ -318,6 +333,14 @@ class WooCommerceBaseScraper(BaseScraper):
             parsed_vars: list[tuple[dict[str, Any], Decimal, Optional[Decimal], Optional[str]]] = []
             for v in priced_vars:
                 vp = v["prices"]
+                if not is_valid_egp_currency(vp.get("currency_code"), allow_missing=True):
+                    logger.error(
+                        "CURRENCY_MISMATCH_ABORT | store=%s | WooCommerce variation %s returned currency_code=%r",
+                        self.store_name,
+                        v.get("id"),
+                        vp.get("currency_code"),
+                    )
+                    continue
                 v_minor = int(vp["currency_minor_unit"]) if vp.get("currency_minor_unit") is not None else minor_unit
                 cur = _parse_wc_minor_price(vp.get("price"), v_minor)
                 if cur is None:
@@ -570,6 +593,31 @@ class WooCommerceBaseScraper(BaseScraper):
             if not isinstance(payload, list) or not payload:
                 break
 
+            resp_url = str(getattr(resp, "url", "") or "")
+            if resp_url and not is_same_store_host(resp_url, self.base_url):
+                logger.error(
+                    "CURRENCY_MISMATCH_ABORT | store=%s | GEO_REDIRECT_HOST_MISMATCH on %s -> %s",
+                    self.store_name,
+                    self.base_url,
+                    normalize_host(resp_url),
+                )
+                return []
+
+            if not use_wp_fallback:
+                for raw_check in payload:
+                    if not isinstance(raw_check, dict):
+                        continue
+                    p_obj = raw_check.get("prices")
+                    if isinstance(p_obj, dict) and p_obj.get("currency_code"):
+                        if not is_valid_egp_currency(p_obj.get("currency_code"), allow_missing=False):
+                            logger.error(
+                                "CURRENCY_MISMATCH_ABORT | store=%s | WooCommerce Store API returned currency_code=%r (expected EGP); aborting store.",
+                                self.store_name,
+                                normalize_currency_code(p_obj.get("currency_code")),
+                            )
+                            return []
+                        break
+
             new_raw_items = 0
             page_records: list[RawProductSnapshot] = []
             for raw in payload:
@@ -668,6 +716,30 @@ class WooCommerceBaseScraper(BaseScraper):
             if not isinstance(payload, list) or not payload:
                 exhausted = True
                 break
+
+            resp_url = str(getattr(resp, "url", "") or "")
+            if resp_url and not is_same_store_host(resp_url, self.base_url):
+                logger.error(
+                    "CURRENCY_MISMATCH_ABORT | store=%s | GEO_REDIRECT_HOST_MISMATCH on %s -> %s",
+                    self.store_name,
+                    self.base_url,
+                    normalize_host(resp_url),
+                )
+                return []
+
+            for raw_check in payload:
+                if not isinstance(raw_check, dict):
+                    continue
+                p_obj = raw_check.get("prices")
+                if isinstance(p_obj, dict) and p_obj.get("currency_code"):
+                    if not is_valid_egp_currency(p_obj.get("currency_code"), allow_missing=False):
+                        logger.error(
+                            "CURRENCY_MISMATCH_ABORT | store=%s | WooCommerce Store API returned currency_code=%r (expected EGP); aborting expand.",
+                            self.store_name,
+                            normalize_currency_code(p_obj.get("currency_code")),
+                        )
+                        return []
+                    break
 
             for raw in payload:
                 if not isinstance(raw, dict):

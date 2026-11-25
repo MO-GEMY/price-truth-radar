@@ -26,6 +26,10 @@ from ..base import (
     parse_egp_price,
     utc_now_naive,
 )
+from ..currency_guard import (
+    is_valid_egp_currency,
+    normalize_currency_code,
+)
 from ..groceries import (
     extract_grocery_brand,
     parse_grocery_packaging,
@@ -309,6 +313,16 @@ class MagentoGraphQLBaseScraper(BaseScraper):
         regular_obj = min_price.get("regular_price") if isinstance(min_price.get("regular_price"), dict) else {}
         max_final_obj = max_price.get("final_price") if isinstance(max_price.get("final_price"), dict) else {}
 
+        for cur_cand in (final_obj.get("currency"), regular_obj.get("currency"), max_final_obj.get("currency")):
+            if cur_cand is not None and not is_valid_egp_currency(cur_cand, allow_missing=True):
+                logger.error(
+                    "CURRENCY_MISMATCH_ABORT | store=%s | Magento item %s returned currency=%r (expected EGP)",
+                    self.store_name,
+                    sku,
+                    cur_cand,
+                )
+                return None
+
         current_price = parse_egp_price(final_obj.get("value"))
         if current_price is None:
             return None
@@ -510,6 +524,23 @@ class MagentoGraphQLBaseScraper(BaseScraper):
                 if not raw_items:
                     break
 
+                for raw_check in raw_items:
+                    if not isinstance(raw_check, dict):
+                        continue
+                    pr = raw_check.get("price_range") if isinstance(raw_check.get("price_range"), dict) else {}
+                    mp = pr.get("minimum_price") if isinstance(pr.get("minimum_price"), dict) else {}
+                    fp = mp.get("final_price") if isinstance(mp.get("final_price"), dict) else {}
+                    cur_code = fp.get("currency")
+                    if cur_code is not None and not is_valid_egp_currency(cur_code, allow_missing=True):
+                        logger.error(
+                            "CURRENCY_MISMATCH_ABORT | store=%s | Magento GraphQL returned currency=%r (expected EGP); aborting store.",
+                            self.store_name,
+                            normalize_currency_code(cur_code),
+                        )
+                        return []
+                    if cur_code:
+                        break
+
                 page_records: list[RawProductSnapshot] = []
                 new_raw_skus = 0
                 for raw in raw_items:
@@ -642,6 +673,23 @@ class MagentoGraphQLBaseScraper(BaseScraper):
                 last_good_q = cur_q
                 last_good_page = 0
                 continue
+
+            for raw_check in raw_items:
+                if not isinstance(raw_check, dict):
+                    continue
+                pr = raw_check.get("price_range") if isinstance(raw_check.get("price_range"), dict) else {}
+                mp = pr.get("minimum_price") if isinstance(pr.get("minimum_price"), dict) else {}
+                fp = mp.get("final_price") if isinstance(mp.get("final_price"), dict) else {}
+                cur_code = fp.get("currency")
+                if cur_code is not None and not is_valid_egp_currency(cur_code, allow_missing=True):
+                    logger.error(
+                        "CURRENCY_MISMATCH_ABORT | store=%s | Magento GraphQL expand returned currency=%r (expected EGP); aborting store.",
+                        self.store_name,
+                        normalize_currency_code(cur_code),
+                    )
+                    return []
+                if cur_code:
+                    break
 
             q_added = 0
             for raw in raw_items:

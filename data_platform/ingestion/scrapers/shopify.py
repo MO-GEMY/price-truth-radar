@@ -27,6 +27,13 @@ from .base import (
     parse_egp_price,
     utc_now_naive,
 )
+from .currency_guard import (
+    ALLOWED_COUNTRY,
+    ALLOWED_CURRENCY,
+    enforce_shopify_egypt_context,
+    is_same_store_host,
+    normalize_host,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +233,23 @@ class ShopifyScraper(BaseScraper):
         )
 
     def _scrape_with_fetcher(self, fetcher: Any, target_limit: int, *, is_impersonated: bool) -> list[RawProductSnapshot]:
+        loc = enforce_shopify_egypt_context(
+            fetcher,
+            self.base_url,
+            self.store_name,
+            timeout=self.request_timeout or 25.0,
+        )
+        if not loc.ok:
+            logger.error(
+                "CURRENCY_MISMATCH_ABORT | store=%s | base_url=%s | currency=%s | redirected_host=%s | %s",
+                self.store_name,
+                self.base_url,
+                loc.currency,
+                loc.redirected_host,
+                loc.reason,
+            )
+            return []
+
         snapshot_date = datetime.now(timezone.utc).date()
         scraped_at = utc_now_naive()
         collected: list[RawProductSnapshot] = []
@@ -256,13 +280,27 @@ class ShopifyScraper(BaseScraper):
             )
             try:
                 get_kwargs: dict[str, Any] = {
-                    "params": {"limit": self.per_page, "page": page},
+                    "params": {
+                        "limit": self.per_page,
+                        "page": page,
+                        "currency": ALLOWED_CURRENCY,
+                        "country": ALLOWED_COUNTRY,
+                    },
                     "min_delay_seconds": self.min_delay_seconds,
                     "timeout": self.request_timeout,
                 }
                 if is_impersonated:
                     get_kwargs["check_throttle"] = False
                 resp = fetcher.get(endpoint, **get_kwargs)
+                resp_url = str(getattr(resp, "url", "") or "")
+                if resp_url and not is_same_store_host(resp_url, self.base_url):
+                    logger.error(
+                        "CURRENCY_MISMATCH_ABORT | store=%s | GEO_REDIRECT_HOST_MISMATCH on %s -> %s",
+                        self.store_name,
+                        self.base_url,
+                        normalize_host(resp_url),
+                    )
+                    return []
                 payload = resp.json()
             except ThrottledResponseError as exc:
                 if page == 1 and endpoint.endswith("/products.json") and "/collections/" not in endpoint:
@@ -270,6 +308,15 @@ class ShopifyScraper(BaseScraper):
                     logger.info("[%s] Retrying restricted /products.json via %s", self.store_name, alt_endpoint)
                     try:
                         resp = fetcher.get(alt_endpoint, **get_kwargs)
+                        resp_url = str(getattr(resp, "url", "") or "")
+                        if resp_url and not is_same_store_host(resp_url, self.base_url):
+                            logger.error(
+                                "CURRENCY_MISMATCH_ABORT | store=%s | GEO_REDIRECT_HOST_MISMATCH on %s -> %s",
+                                self.store_name,
+                                self.base_url,
+                                normalize_host(resp_url),
+                            )
+                            return []
                         payload = resp.json()
                         endpoint = alt_endpoint
                     except Exception as alt_exc:

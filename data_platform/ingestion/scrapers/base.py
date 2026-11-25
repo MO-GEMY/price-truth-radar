@@ -555,6 +555,13 @@ class PoliteHttpClient:
     def close(self) -> None:
         self._client.close()
 
+    def set_cookies(self, cookies: dict[str, str], *, domain: Optional[str] = None) -> None:
+        for key, value in cookies.items():
+            if domain:
+                self._client.cookies.set(key, value, domain=domain)
+            else:
+                self._client.cookies.set(key, value)
+
     def _wait_rate_limit(self, min_delay_override: Optional[float] = None) -> None:
         effective_delay = max(self.min_delay_seconds, min_delay_override or 0.0)
         if self._last_request_ts <= 0 or effective_delay <= 0:
@@ -666,6 +673,7 @@ class PoliteHttpClient:
         url: str,
         *,
         json: Optional[Any] = None,
+        data: Optional[Any] = None,
         params: Optional[dict[str, Any]] = None,
         headers: Optional[dict[str, str]] = None,
         min_delay_seconds: Optional[float] = None,
@@ -679,6 +687,7 @@ class PoliteHttpClient:
                 resp = self._client.post(
                     url,
                     json=json,
+                    data=data,
                     params=params,
                     headers=headers,
                     timeout=effective_timeout,
@@ -802,6 +811,13 @@ class ImpersonatedHttpClient:
 
     def close(self) -> None:
         self._session.close()
+
+    def set_cookies(self, cookies: dict[str, str], *, domain: Optional[str] = None) -> None:
+        for key, value in cookies.items():
+            if domain:
+                self._session.cookies.set(key, value, domain=domain)
+            else:
+                self._session.cookies.set(key, value)
 
     def _wait_rate_limit(self, min_delay_override: Optional[float] = None) -> None:
         effective_delay = max(self.min_delay_seconds, min_delay_override or 0.0)
@@ -1307,6 +1323,7 @@ def upsert_snapshots_to_neon(
     max_attempts: int = 5,
     delta_mode: bool = False,
     new_counts_by_store: Optional[dict[str, int]] = None,
+    check_currency_flip: bool = True,
 ) -> int:
     """Non-destructively upsert scraped snapshots into `raw.raw_product_snapshots`.
 
@@ -1333,6 +1350,13 @@ def upsert_snapshots_to_neon(
 
     conn = psycopg2.connect(db_url)
     try:
+        if check_currency_flip:
+            from .currency_guard import filter_currency_flip_batches
+
+            snapshots, _ = filter_currency_flip_batches(snapshots, conn)
+            if not snapshots:
+                return 0
+
         for attempt in range(1, max_attempts + 1):
             try:
                 with conn.cursor() as cur:
@@ -1713,6 +1737,7 @@ def bulk_copy_snapshots_to_neon(
     snapshots: list[RawProductSnapshot],
     *,
     conn: Any = None,
+    check_currency_flip: bool = True,
 ) -> int:
     """Ultra-fast PostgreSQL `COPY` bulk load into `raw.raw_product_snapshots`.
 
@@ -1726,40 +1751,6 @@ def bulk_copy_snapshots_to_neon(
     import csv
     import io
 
-    # Deduplicate locally by (store_name, external_id, snapshot_date) keeping latest scraped_at
-    deduped: dict[tuple[str, str, date], RawProductSnapshot] = {}
-    for s in snapshots:
-        key = (s.store_name, s.external_id, s.snapshot_date)
-        prev = deduped.get(key)
-        if prev is None or s.scraped_at >= prev.scraped_at:
-            deduped[key] = s
-    ordered = sorted(deduped.values(), key=lambda s: (s.store_name, s.external_id, s.snapshot_date))
-
-    buf = io.StringIO()
-    writer = csv.writer(buf, lineterminator="\n")
-    for s in ordered:
-        attrs_str = json.dumps(s.attributes_json, ensure_ascii=False) if s.attributes_json else ""
-        writer.writerow(
-            [
-                s.store_name,
-                s.external_id,
-                "" if s.canonical_product_key is None else s.canonical_product_key,
-                s.category,
-                s.sub_category,
-                s.brand,
-                s.product_title,
-                s.product_url,
-                "" if s.image_url is None else s.image_url,
-                attrs_str,
-                str(s.current_price),
-                "" if s.claimed_original_price is None else str(s.claimed_original_price),
-                "t" if s.in_stock else "f",
-                s.snapshot_date.isoformat(),
-                s.scraped_at.isoformat(sep=" "),
-            ]
-        )
-    buf.seek(0)
-
     own_conn = conn is None
     if own_conn:
         db_url = os.getenv("DATABASE_URL_ADMIN")
@@ -1768,6 +1759,47 @@ def bulk_copy_snapshots_to_neon(
         conn = psycopg2.connect(db_url)
 
     try:
+        if check_currency_flip:
+            from .currency_guard import filter_currency_flip_batches
+
+            snapshots, _ = filter_currency_flip_batches(snapshots, conn)
+            if not snapshots:
+                return 0
+
+        # Deduplicate locally by (store_name, external_id, snapshot_date) keeping latest scraped_at
+        deduped: dict[tuple[str, str, date], RawProductSnapshot] = {}
+        for s in snapshots:
+            key = (s.store_name, s.external_id, s.snapshot_date)
+            prev = deduped.get(key)
+            if prev is None or s.scraped_at >= prev.scraped_at:
+                deduped[key] = s
+        ordered = sorted(deduped.values(), key=lambda s: (s.store_name, s.external_id, s.snapshot_date))
+
+        buf = io.StringIO()
+        writer = csv.writer(buf, lineterminator="\n")
+        for s in ordered:
+            attrs_str = json.dumps(s.attributes_json, ensure_ascii=False) if s.attributes_json else ""
+            writer.writerow(
+                [
+                    s.store_name,
+                    s.external_id,
+                    "" if s.canonical_product_key is None else s.canonical_product_key,
+                    s.category,
+                    s.sub_category,
+                    s.brand,
+                    s.product_title,
+                    s.product_url,
+                    "" if s.image_url is None else s.image_url,
+                    attrs_str,
+                    str(s.current_price),
+                    "" if s.claimed_original_price is None else str(s.claimed_original_price),
+                    "t" if s.in_stock else "f",
+                    s.snapshot_date.isoformat(),
+                    s.scraped_at.isoformat(sep=" "),
+                ]
+            )
+        buf.seek(0)
+
         with conn:
             with conn.cursor() as cur:
                 cur.execute(DDL_SQL)

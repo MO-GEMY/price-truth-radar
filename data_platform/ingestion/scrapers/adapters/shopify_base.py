@@ -35,6 +35,13 @@ from ..base import (
     utc_now_naive,
 )
 from ..coupon_radar import scan_and_record_coupons
+from ..currency_guard import (
+    ALLOWED_COUNTRY,
+    ALLOWED_CURRENCY,
+    enforce_shopify_egypt_context,
+    is_same_store_host,
+    normalize_host,
+)
 from ..groceries import (
     extract_grocery_brand,
     parse_grocery_packaging,
@@ -550,6 +557,23 @@ class ShopifyBaseScraper(BaseScraper):
         return next((r for r in recs if r.in_stock), recs[0])
 
     def _scrape_with_fetcher(self, fetcher: Any, target_limit: int) -> list[RawProductSnapshot]:
+        loc = enforce_shopify_egypt_context(
+            fetcher,
+            self.base_url,
+            self.store_name,
+            timeout=self.request_timeout,
+        )
+        if not loc.ok:
+            logger.error(
+                "CURRENCY_MISMATCH_ABORT | store=%s | base_url=%s | currency=%s | redirected_host=%s | %s",
+                self.store_name,
+                self.base_url,
+                loc.currency,
+                loc.redirected_host,
+                loc.reason,
+            )
+            return []
+
         snapshot_date = datetime.now(timezone.utc).date()
         scraped_at = utc_now_naive()
         collected: list[RawProductSnapshot] = []
@@ -580,13 +604,27 @@ class ShopifyBaseScraper(BaseScraper):
                 logger.info("[%s] Fetching Shopify JSON page %d (%s)", self.store_name, page, endpoint)
                 try:
                     get_kwargs: dict[str, Any] = {
-                        "params": {"limit": req_limit, "page": page},
+                        "params": {
+                            "limit": req_limit,
+                            "page": page,
+                            "currency": ALLOWED_CURRENCY,
+                            "country": ALLOWED_COUNTRY,
+                        },
                         "min_delay_seconds": effective_delay,
                         "timeout": self.request_timeout,
                     }
                     if self.use_impersonation:
                         get_kwargs["check_throttle"] = False
                     resp = fetcher.get(endpoint, **get_kwargs)
+                    resp_url = str(getattr(resp, "url", "") or "")
+                    if resp_url and not is_same_store_host(resp_url, self.base_url):
+                        logger.error(
+                            "CURRENCY_MISMATCH_ABORT | store=%s | GEO_REDIRECT_HOST_MISMATCH on %s -> %s",
+                            self.store_name,
+                            self.base_url,
+                            normalize_host(resp_url),
+                        )
+                        return []
                     payload = resp.json()
                 except Exception as exc:
                     logger.warning("[%s] Error fetching %s page %d: %s", self.store_name, endpoint, page, exc)
@@ -640,6 +678,23 @@ class ShopifyBaseScraper(BaseScraper):
 
     def _scrape_expand_with_fetcher(self, fetcher: Any, target_limit: int) -> list[RawProductSnapshot]:
         """Checkpointed incremental catalog expansion resuming from `(start_cursor, start_page)`."""
+        loc = enforce_shopify_egypt_context(
+            fetcher,
+            self.base_url,
+            self.store_name,
+            timeout=self.request_timeout,
+        )
+        if not loc.ok:
+            logger.error(
+                "CURRENCY_MISMATCH_ABORT | store=%s | base_url=%s | currency=%s | redirected_host=%s | %s",
+                self.store_name,
+                self.base_url,
+                loc.currency,
+                loc.redirected_host,
+                loc.reason,
+            )
+            return []
+
         snapshot_date = datetime.now(timezone.utc).date()
         scraped_at = utc_now_naive()
         collected: list[RawProductSnapshot] = []
@@ -693,13 +748,27 @@ class ShopifyBaseScraper(BaseScraper):
             )
             try:
                 get_kwargs: dict[str, Any] = {
-                    "params": {"limit": req_limit, "page": page},
+                    "params": {
+                        "limit": req_limit,
+                        "page": page,
+                        "currency": ALLOWED_CURRENCY,
+                        "country": ALLOWED_COUNTRY,
+                    },
                     "min_delay_seconds": effective_delay,
                     "timeout": self.request_timeout,
                 }
                 if self.use_impersonation:
                     get_kwargs["check_throttle"] = False
                 resp = fetcher.get(endpoint, **get_kwargs)
+                resp_url = str(getattr(resp, "url", "") or "")
+                if resp_url and not is_same_store_host(resp_url, self.base_url):
+                    logger.error(
+                        "CURRENCY_MISMATCH_ABORT | store=%s | GEO_REDIRECT_HOST_MISMATCH on %s -> %s",
+                        self.store_name,
+                        self.base_url,
+                        normalize_host(resp_url),
+                    )
+                    return []
                 payload = resp.json()
             except ThrottledResponseError as exc:
                 # Some Shopify themes restrict /products.json while allowing /collections/all/products.json
@@ -708,6 +777,15 @@ class ShopifyBaseScraper(BaseScraper):
                     logger.info("[%s] Retrying restricted /products.json via %s", self.store_name, alt_endpoint)
                     try:
                         resp = fetcher.get(alt_endpoint, **get_kwargs)
+                        resp_url = str(getattr(resp, "url", "") or "")
+                        if resp_url and not is_same_store_host(resp_url, self.base_url):
+                            logger.error(
+                                "CURRENCY_MISMATCH_ABORT | store=%s | GEO_REDIRECT_HOST_MISMATCH on %s -> %s",
+                                self.store_name,
+                                self.base_url,
+                                normalize_host(resp_url),
+                            )
+                            return []
                         payload = resp.json()
                         endpoints[cur_ep] = (default_sub, cat, alt_endpoint)
                         endpoint = alt_endpoint
