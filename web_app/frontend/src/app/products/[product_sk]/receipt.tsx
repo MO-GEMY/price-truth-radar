@@ -34,6 +34,7 @@ import {
   getHistoryMaturity,
   getTrackedDaysCount,
   getVerifiedMedian,
+  normalizeVerdict,
 } from "@/lib/verdicts";
 import { AdSlot } from "@/components/AdSlot";
 import { AlternativesTable } from "@/components/AlternativesTable";
@@ -648,7 +649,7 @@ export function ProductReceipt({
             <details>
               <summary className="ptr-link">{t("detail.whatMeans")}</summary>
               <p className="ptr-muted text-sm mt-2">
-                {t(`explain.${product.discount_verdict}`)}
+                {t(`explain.${normalizeVerdict(product.discount_verdict)}`)}
               </p>
             </details>
           )}

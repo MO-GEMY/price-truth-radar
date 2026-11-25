@@ -260,7 +260,7 @@ export function FeedFilters({
                 aria-pressed={value.category === category}
                 onClick={() => selectCategory(category)}
               >
-                <span>{t(categoryLabels[category])}</span>
+                <span>{t(categoryLabels[category] ?? "filters.catAll")}</span>
                 {typeof catCount === "number" && catCount > 0 && (
                   <span className="ptr-chip-count">
                     <bdi>{formatNumber(catCount, lang)}</bdi>
@@ -361,7 +361,7 @@ export function FeedFilters({
                 >
                   <span>
                     {t("filters.subcatAll", {
-                      category: t(categoryLabels[value.category]),
+                      category: t(categoryLabels[value.category] ?? "filters.catAll"),
                     })}
                   </span>
                 </button>

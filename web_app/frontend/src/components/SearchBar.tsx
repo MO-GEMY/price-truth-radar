@@ -321,7 +321,7 @@ export function SearchBar({
           <span className="ptr-search-scope-pill">
             <Filter size={12} aria-hidden="true" />
             <span>
-              {t("search.searchingIn")}: {t(categoryLabels[category])}
+              {t("search.searchingIn")}: {t(categoryLabels[category] ?? "filters.catAll")}
               {subcategory && subcategoryLabel ? ` › ${subcategoryLabel}` : ""}
             </span>
           </span>
@@ -332,7 +332,7 @@ export function SearchBar({
               onClick={onClearSubcategory}
             >
               <X size={12} aria-hidden="true" />
-              <span>{t(categoryLabels[category])}</span>
+              <span>{t(categoryLabels[category] ?? "filters.catAll")}</span>
             </button>
           )}
           {onClearCategory && (

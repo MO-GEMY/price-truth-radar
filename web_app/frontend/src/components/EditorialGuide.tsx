@@ -173,7 +173,7 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
 
 export function EditorialGuide({ variant }: { variant: EditorialVariant }) {
   const { lang } = useLanguage();
-  const copy = CONTENT[variant][lang === "ar" ? "ar" : "en"];
+  const copy = (CONTENT[variant] ?? CONTENT.home)[lang === "ar" ? "ar" : "en"];
 
   return (
     <section

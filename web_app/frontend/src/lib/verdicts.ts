@@ -10,11 +10,22 @@ import {
 import type {
   DiscountVerdict,
   HistoryMaturity,
+  MarketBenchmark,
   PriceHistoryPoint,
   Product,
 } from "@/types/contract";
 
-export const VERDICT_TONES: Record<DiscountVerdict, { icon: LucideIcon; className: string }> = {
+export interface VerdictTone {
+  icon: LucideIcon;
+  className: string;
+}
+
+export const DEFAULT_VERDICT_TONE: VerdictTone = {
+  icon: MinusCircle,
+  className: "",
+};
+
+export const VERDICT_TONES: Record<DiscountVerdict, VerdictTone> = {
   FAKE_DISCOUNT: { icon: ShieldAlert, className: "ptr-badge-warning" },
   ALL_TIME_LOW: { icon: TrendingDown, className: "ptr-badge-good" },
   GENUINE_DEAL: { icon: BadgeCheck, className: "ptr-badge-good" },
@@ -24,6 +35,39 @@ export const VERDICT_TONES: Record<DiscountVerdict, { icon: LucideIcon; classNam
   NEWLY_TRACKED: { icon: Clock, className: "" },
   NORMAL_PRICE: { icon: MinusCircle, className: "" },
 };
+
+export const MARKET_BENCHMARK_TONES: Record<MarketBenchmark["status"], VerdictTone> = {
+  CHEAPEST_IN_MARKET: { icon: BadgeCheck, className: "ptr-badge-good" },
+  TIED_CHEAPEST: { icon: BadgeCheck, className: "ptr-badge-good" },
+  ABOVE_MARKET: { icon: TrendingUp, className: "ptr-badge-amber" },
+  OUT_OF_STOCK: { icon: Clock, className: "" },
+};
+
+export const DEFAULT_MARKET_BENCHMARK_TONE: VerdictTone = {
+  icon: MinusCircle,
+  className: "",
+};
+
+export function normalizeVerdict(verdict: string | null | undefined): DiscountVerdict {
+  if (typeof verdict === "string" && Object.prototype.hasOwnProperty.call(VERDICT_TONES, verdict)) {
+    return verdict as DiscountVerdict;
+  }
+  return "NORMAL_PRICE";
+}
+
+export function getVerdictTone(verdict: string | null | undefined): VerdictTone {
+  return VERDICT_TONES[normalizeVerdict(verdict)] ?? DEFAULT_VERDICT_TONE;
+}
+
+export function getMarketBenchmarkTone(status: string | null | undefined): VerdictTone {
+  if (
+    typeof status === "string" &&
+    Object.prototype.hasOwnProperty.call(MARKET_BENCHMARK_TONES, status)
+  ) {
+    return MARKET_BENCHMARK_TONES[status as MarketBenchmark["status"]] ?? DEFAULT_MARKET_BENCHMARK_TONE;
+  }
+  return DEFAULT_MARKET_BENCHMARK_TONE;
+}
 
 export const VERDICT_ORDER: DiscountVerdict[] = [
   "FAKE_DISCOUNT",

@@ -377,7 +377,7 @@ export default function DealsPage() {
                 })
               }
             >
-              <span>{t(categoryLabels[value])}</span>
+              <span>{t(categoryLabels[value] ?? "filters.catAll")}</span>
               {typeof catCount === "number" && catCount > 0 && (
                 <span className="ptr-chip-count">
                   <bdi>{formatNumber(catCount, lang)}</bdi>

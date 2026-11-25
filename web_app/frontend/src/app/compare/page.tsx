@@ -364,7 +364,7 @@ function ArenaMatchCard({
                   ) : (
                     <span className="ptr-muted">{t("card.outOfStock")}</span>
                   )}
-                  {offer.discount_verdict !== "NORMAL_PRICE" && (
+                  {offer.discount_verdict && offer.discount_verdict !== "NORMAL_PRICE" && (
                     <VerdictBadge verdict={offer.discount_verdict} size="sm" />
                   )}
                 </div>
@@ -628,7 +628,7 @@ export default function ComparePage() {
                   }
                 >
                   <Icon size={14} aria-hidden="true" />
-                  <span>{t(categoryLabels[value])}</span>
+                  <span>{t(categoryLabels[value] ?? "filters.catAll")}</span>
                   {typeof catCount === "number" && catCount > 0 && (
                     <span className="ptr-chip-count">
                       <bdi>{formatNumber(catCount, lang)}</bdi>
