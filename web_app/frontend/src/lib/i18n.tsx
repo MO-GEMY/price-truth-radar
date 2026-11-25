@@ -41,10 +41,10 @@ function applyDocumentAttrs(lang: Lang): void {
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
+  const [lang, setLangState] = useState<Lang>("ar");
   const [ready, setReady] = useState(false);
 
-  // Restore the persisted language after mount.
+  // Restore the persisted language after mount (defaults to Arabic RTL).
   useEffect(() => {
     let stored: string | null = null;
     try {
@@ -52,10 +52,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     } catch {
       stored = null;
     }
-    if (stored === "ar" || stored === "en") {
-      setLangState(stored);
-      applyDocumentAttrs(stored);
-    }
+    const resolved: Lang = stored === "en" ? "en" : "ar";
+    setLangState(resolved);
+    applyDocumentAttrs(resolved);
     setReady(true);
   }, []);
 

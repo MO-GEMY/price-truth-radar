@@ -121,9 +121,9 @@ export const viewport: Viewport = {
 
 /**
  * Applies persisted language and theme before first paint to prevent
- * LTR/RTL or Light/Dark flashes. Kept tiny and dependency-free.
+ * RTL/LTR or Light/Dark flashes. Defaults to Arabic (RTL) unless "en" is stored.
  */
-const EARLY_INIT_SCRIPT = `(function(){try{var d=document.documentElement;var l=localStorage.getItem("ptr-lang");if(l==="ar"){d.lang="ar";d.dir="rtl";d.classList.add("lang-ar");}var t=localStorage.getItem("asarak-theme");if(t==="dark"){d.setAttribute("data-theme","dark");}}catch(e){}})();`;
+const EARLY_INIT_SCRIPT = `(function(){try{var d=document.documentElement;var l=localStorage.getItem("ptr-lang");if(l==="en"){d.lang="en";d.dir="ltr";d.classList.remove("lang-ar");}var t=localStorage.getItem("asarak-theme");if(t==="dark"){d.setAttribute("data-theme","dark");}}catch(e){}})();`;
 
 const ADSENSE_CLIENT = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT ?? "").trim();
 const GA_MEASUREMENT_ID = (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
@@ -133,9 +133,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
-      lang="en"
-      dir="ltr"
-      className={`${plusJakarta.variable} ${plexArabic.variable} ${plexMono.variable}`}
+      lang="ar"
+      dir="rtl"
+      className={`${plusJakarta.variable} ${plexArabic.variable} ${plexMono.variable} lang-ar`}
       suppressHydrationWarning
     >
       <head>
