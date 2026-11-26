@@ -30,10 +30,12 @@ import {
   Check,
   Compass,
   Search,
+  ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Tag,
+  TrendingDown,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -414,15 +416,21 @@ function markDone(): void {
   }
 }
 
-function isDone(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function OnboardingTour() {
+export function OnboardingTour({
+  totalTracked,
+  storeCount,
+  realDealsCount,
+  fakeDiscountsCount,
+  onExploreRealDeals,
+  onExploreFakeDiscounts,
+}: {
+  totalTracked?: number | null;
+  storeCount?: number | null;
+  realDealsCount?: number | null;
+  fakeDiscountsCount?: number | null;
+  onExploreRealDeals?: () => void;
+  onExploreFakeDiscounts?: () => void;
+}) {
   const { lang, dir, t } = useLanguage();
   const params = useBrowseParams();
   const forced = params.get("tour") === "1";
@@ -431,6 +439,7 @@ export function OnboardingTour() {
 
   const [open, setOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const [completed, setCompleted] = useState(false);
   const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [chrome, setChrome] = useState<ChromeInsets>({ mastBottom: 68, bottomNavHeight: 0 });
   const [spot, setSpot] = useState<SpotRect | null>(null);
@@ -438,7 +447,6 @@ export function OnboardingTour() {
 
   const cardRef = useRef<HTMLDivElement>(null);
   const cardHeightRef = useRef(250);
-  const autoCheckedRef = useRef(false);
 
   useEffect(() => {
     cardHeightRef.current = cardHeight;
@@ -448,6 +456,7 @@ export function OnboardingTour() {
     markDone();
     setOpen(false);
     setStepIndex(0);
+    setCompleted(false);
     setSpot(null);
     if (new URLSearchParams(window.location.search).get("tour") === "1") {
       setBrowseParams({ tour: undefined }, true);
@@ -467,20 +476,14 @@ export function OnboardingTour() {
     setStepIndex((prev) => Math.max(prev - 1, 0));
   }, []);
 
-  /* Auto-open once on first visit to `/`, or immediately when forced via `/?tour=1`. */
+  /* Open strictly on demand via `/?tour=1` (Quick Tour button) so first-time
+     visitors are never ambushed by a blocking modal before seeing the site. */
   useEffect(() => {
-    if (forced) {
-      if (!open) {
-        setStepIndex(0);
-        setOpen(true);
-      }
-      return;
+    if (forced && !open) {
+      setStepIndex(0);
+      setCompleted(false);
+      setOpen(true);
     }
-    if (autoCheckedRef.current) return;
-    autoCheckedRef.current = true;
-    if (isDone()) return;
-    const id = window.setTimeout(() => setOpen(true), 650);
-    return () => window.clearTimeout(id);
   }, [forced, open]);
 
   /* Reactive viewport dimensions (never read window.innerWidth non-reactively during render). */
@@ -525,6 +528,11 @@ export function OnboardingTour() {
   /* Target tracking: exact offset scroll + rAF smooth-scroll lockstep + ResizeObserver + MutationObserver. */
   useEffect(() => {
     if (!open) return;
+    if (completed) {
+      setSpot(null);
+      cardRef.current?.focus({ preventScroll: true });
+      return;
+    }
     const step = STEPS[stepIndex];
     cardRef.current?.focus({ preventScroll: true });
 
@@ -628,7 +636,7 @@ export function OnboardingTour() {
       window.removeEventListener("scroll", onScrollOrResize, true);
       window.removeEventListener("resize", onScrollOrResize);
     };
-  }, [open, stepIndex]);
+  }, [open, stepIndex, completed]);
 
   /* Keyboard shortcuts: Escape closes; RTL-aware ArrowLeft / ArrowRight navigate steps. */
   useEffect(() => {
@@ -639,15 +647,16 @@ export function OnboardingTour() {
         close();
         return;
       }
+      if (completed) return;
       if (event.key === "ArrowRight") {
         event.preventDefault();
         if (dir === "rtl") goBack();
-        else if (stepIndex === STEPS.length - 1) close();
+        else if (stepIndex === STEPS.length - 1) setCompleted(true);
         else goNext();
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
         if (dir === "rtl") {
-          if (stepIndex === STEPS.length - 1) close();
+          if (stepIndex === STEPS.length - 1) setCompleted(true);
           else goNext();
         } else {
           goBack();
@@ -656,7 +665,7 @@ export function OnboardingTour() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, dir, stepIndex, close, goNext, goBack]);
+  }, [open, completed, dir, stepIndex, close, goNext, goBack]);
 
   const placement = useMemo(
     () =>
@@ -681,8 +690,25 @@ export function OnboardingTour() {
   const BackArrow = dir === "rtl" ? ArrowRight : ArrowLeft;
 
   const handleNext = () => {
-    if (isLast) close();
-    else goNext();
+    if (isLast) {
+      if (onExploreRealDeals || onExploreFakeDiscounts) {
+        setCompleted(true);
+      } else {
+        close();
+      }
+    } else {
+      goNext();
+    }
+  };
+
+  const handleChooseRealDeals = () => {
+    close();
+    onExploreRealDeals?.();
+  };
+
+  const handleChooseFakeDiscounts = () => {
+    close();
+    onExploreFakeDiscounts?.();
   };
 
   const caretStyle: CSSProperties | undefined =
@@ -751,16 +777,16 @@ export function OnboardingTour() {
 
       <div
         ref={cardRef}
-        key={step.id}
-        className={placement.className}
-        style={placement.style}
+        key={completed ? "tour-completed" : step.id}
+        className={completed ? "asarak-tour-card asarak-tour-card--centered" : placement.className}
+        style={completed ? undefined : placement.style}
         role="dialog"
         aria-modal="true"
         aria-labelledby="asarak-tour-title"
         aria-describedby="asarak-tour-body"
         tabIndex={-1}
       >
-        {placement.caretSide && (
+        {!completed && placement.caretSide && (
           <span
             className={`asarak-tour-caret asarak-tour-caret--${placement.caretSide}`}
             style={caretStyle}
@@ -777,70 +803,152 @@ export function OnboardingTour() {
           <X size={16} aria-hidden="true" />
         </button>
 
-        <div className="asarak-tour-head">
-          <span className="asarak-tour-icon-badge" aria-hidden="true">
-            <StepIcon size={18} strokeWidth={2.2} />
-          </span>
-          <div className="min-w-0">
-            <p className="asarak-tour-progress" role="status">
-              {t("tour.stepOf", {
-                current: formatNumber(stepIndex + 1, lang),
-                total: formatNumber(STEPS.length, lang),
-              })}
-            </p>
-            {isFirst && (
-              <span className="asarak-tour-hero-pill">
-                <Compass size={12} aria-hidden="true" />
-                {t("tour.badge")}
+        {completed ? (
+          <>
+            <div className="asarak-tour-head">
+              <span className="asarak-tour-icon-badge" aria-hidden="true">
+                <Check size={18} strokeWidth={2.5} />
               </span>
-            )}
-          </div>
-        </div>
+              <div className="min-w-0">
+                <p className="asarak-tour-progress" role="status">
+                  {t("tour.done.badge")}
+                </p>
+              </div>
+            </div>
 
-        <div
-          className="asarak-tour-bar"
-          role="progressbar"
-          aria-valuenow={progressPct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-hidden="true"
-        >
-          <span className="asarak-tour-bar-fill" style={{ width: `${progressPct}%` }} />
-        </div>
+            <div
+              className="asarak-tour-bar"
+              role="progressbar"
+              aria-valuenow={100}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-hidden="true"
+            >
+              <span className="asarak-tour-bar-fill" style={{ width: "100%" }} />
+            </div>
 
-        <h2 id="asarak-tour-title" className="asarak-tour-title">
-          {t(step.title)}
-        </h2>
-        <p id="asarak-tour-body" className="asarak-tour-body">
-          {t(step.body)}
-        </p>
+            <h2 id="asarak-tour-title" className="asarak-tour-title">
+              {t("tour.done.title")}
+            </h2>
+            <p id="asarak-tour-body" className="asarak-tour-body">
+              {t("tour.done.body")}
+            </p>
 
-        <div className="asarak-tour-actions">
-          {!isLast && (
-            <button type="button" className="ptr-button asarak-tour-btn-skip" onClick={close}>
-              {t("tour.skip")}
-            </button>
-          )}
-          <span className="asarak-tour-actions-spacer" />
-          {!isFirst && (
-            <button type="button" className="ptr-button asarak-tour-btn-nav" onClick={goBack}>
-              <BackArrow size={15} aria-hidden="true" />
-              <span>{t("tour.back")}</span>
-            </button>
-          )}
-          <button
-            type="button"
-            className="ptr-button ptr-primary asarak-tour-btn-nav"
-            onClick={handleNext}
-          >
-            <span>{t(isFirst ? "tour.start" : isLast ? "tour.finish" : "tour.next")}</span>
-            {isLast ? (
-              <Check size={15} strokeWidth={2.5} aria-hidden="true" />
-            ) : (
-              <NextArrow size={15} aria-hidden="true" />
-            )}
-          </button>
-        </div>
+            <div className="asarak-tour-choices">
+              <button
+                type="button"
+                className="asarak-tour-choice asarak-tour-choice--deals"
+                onClick={handleChooseRealDeals}
+              >
+                <span className="asarak-tour-choice__main">
+                  <TrendingDown size={17} strokeWidth={2.3} aria-hidden="true" />
+                  <span>{t("tour.done.realDeals")}</span>
+                </span>
+                {typeof realDealsCount === "number" && realDealsCount > 0 && (
+                  <span className="asarak-tour-choice__count">
+                    <bdi>{formatNumber(realDealsCount, lang)}</bdi>
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                className="asarak-tour-choice asarak-tour-choice--fake"
+                onClick={handleChooseFakeDiscounts}
+              >
+                <span className="asarak-tour-choice__main">
+                  <ShieldAlert size={17} strokeWidth={2.3} aria-hidden="true" />
+                  <span>{t("tour.done.fakeDiscounts")}</span>
+                </span>
+                {typeof fakeDiscountsCount === "number" && fakeDiscountsCount > 0 && (
+                  <span className="asarak-tour-choice__count">
+                    <bdi>{formatNumber(fakeDiscountsCount, lang)}</bdi>
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                className="ptr-button asarak-tour-btn-skip asarak-tour-done-dismiss"
+                onClick={close}
+              >
+                {t("tour.done.browseAll")}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="asarak-tour-head">
+              <span className="asarak-tour-icon-badge" aria-hidden="true">
+                <StepIcon size={18} strokeWidth={2.2} />
+              </span>
+              <div className="min-w-0">
+                <p className="asarak-tour-progress" role="status">
+                  {t("tour.stepOf", {
+                    current: formatNumber(stepIndex + 1, lang),
+                    total: formatNumber(STEPS.length, lang),
+                  })}
+                </p>
+                {isFirst && (
+                  <span className="asarak-tour-hero-pill">
+                    <Compass size={12} aria-hidden="true" />
+                    {t("tour.badge")}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div
+              className="asarak-tour-bar"
+              role="progressbar"
+              aria-valuenow={progressPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-hidden="true"
+            >
+              <span className="asarak-tour-bar-fill" style={{ width: `${progressPct}%` }} />
+            </div>
+
+            <h2 id="asarak-tour-title" className="asarak-tour-title">
+              {t(step.title)}
+            </h2>
+            <p id="asarak-tour-body" className="asarak-tour-body">
+              {step.id === "welcome"
+                ? t(step.body, {
+                    products: formatNumber(totalTracked && totalTracked > 0 ? totalTracked : 200000, lang),
+                    stores: formatNumber(storeCount && storeCount > 0 ? storeCount : 200, lang),
+                  })
+                : t(step.body)}
+            </p>
+
+            <div className="asarak-tour-actions">
+              {!isLast && (
+                <button type="button" className="ptr-button asarak-tour-btn-skip" onClick={close}>
+                  {t("tour.skip")}
+                </button>
+              )}
+              <span className="asarak-tour-actions-spacer" />
+              {!isFirst && (
+                <button type="button" className="ptr-button asarak-tour-btn-nav" onClick={goBack}>
+                  <BackArrow size={15} aria-hidden="true" />
+                  <span>{t("tour.back")}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="ptr-button ptr-primary asarak-tour-btn-nav"
+                onClick={handleNext}
+              >
+                <span>{t(isFirst ? "tour.start" : isLast ? "tour.finish" : "tour.next")}</span>
+                {isLast ? (
+                  <Check size={15} strokeWidth={2.5} aria-hidden="true" />
+                ) : (
+                  <NextArrow size={15} aria-hidden="true" />
+                )}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatNumber } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 
 type EditorialVariant = "home" | "deals" | "compare";
@@ -34,7 +35,7 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
         {
           title: "2. قواعد موضوعية تمنع التقييمات المتسرّعة",
           body:
-            "لا يصدر أسعارك وسم «عرض حقيقي» أو «خصم يحتاج مراجعة» عشوائياً؛ بل يشترط تراكم 3 أيام رصد على الأقل أو ملاحظة تغيّر سعري فعلي. المنتجات الجديدة تظهر بوضوح في مرحلة تجميع سجل الأسعار لحماية دقة القرار.",
+            "لا يصدر أسعارك وسم «عرض حقيقي» أو «عرض غير حقيقي» عشوائياً؛ بل يشترط تراكم 3 أيام رصد على الأقل أو ملاحظة تغيّر سعري فعلي. المنتجات الجديدة تظهر بوضوح في مرحلة تجميع سجل الأسعار لحماية دقة القرار.",
         },
         {
           title: "3. ابحث بالاسم أو الصق رابط المنتج مباشرة",
@@ -72,9 +73,9 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
   deals: {
     ar: {
       eyebrow: "فهم العروض اليومية · مصر",
-      heading: "كيف تميّز بين الخصم الموثّق والخصم الذي يحتاج مراجعة؟",
+      heading: "كيف تميّز بين العرض الحقيقي والعرض غير الحقيقي؟",
       lead:
-        "تقسّم صفحة أبرز الأسعار العروض اليومية إلى قسمين واضحين حتى تميّز بسهولة بين التخفيض الموثّق بسجل تاريخي والخصم الترويجي الذي يفوق التوفير الفعلي.",
+        "تقسّم صفحة أبرز الأسعار العروض اليومية إلى قسمين واضحين حتى تميّز بسهولة بين التخفيض الموثّق بسجل تاريخي والعرض غير الحقيقي الذي يفوق التوفير الفعلي.",
       blocks: [
         {
           title: "أقل من الوسيط المرصود (خصومات موثّقة)",
@@ -82,7 +83,7 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
             "تضم المنتجات التي انخفض سعرها الحالي فعلياً عن وسيط أسعارها المرصودة خلال الأسابيع الماضية بالجنيه المصري، مع توضيح نسبة التوفير الحقيقية وأقل سعر تاريخي تم تسجيله.",
         },
         {
-          title: "خصومات تحتاج مراجعة (فارق السعر المرجعي)",
+          title: "عروض غير حقيقية (فارق السعر المرجعي)",
           body:
             "تسلّط الضوء على العروض التي يكون فيها السعر المرجعي المشطوب أعلى من السعر المعتاد المرصود، أو حيث ارتفع السعر قبل فترة التخفيضات، لتتمكن من تقييم التوفير الفعلي بدقة.",
         },
@@ -171,9 +172,38 @@ const CONTENT: Record<EditorialVariant, { ar: GuideContent; en: GuideContent }> 
   },
 };
 
-export function EditorialGuide({ variant }: { variant: EditorialVariant }) {
+export function EditorialGuide({
+  variant,
+  totalTracked,
+  storeCount,
+}: {
+  variant: EditorialVariant;
+  totalTracked?: number | null;
+  storeCount?: number | null;
+}) {
   const { lang } = useLanguage();
-  const copy = (CONTENT[variant] ?? CONTENT.home)[lang === "ar" ? "ar" : "en"];
+  const baseCopy = (CONTENT[variant] ?? CONTENT.home)[lang === "ar" ? "ar" : "en"];
+  const liveStores =
+    storeCount && storeCount > 0 ? formatNumber(storeCount, lang) : "200";
+  const liveProducts =
+    totalTracked && totalTracked > 0
+      ? formatNumber(totalTracked, lang)
+      : "112,000+";
+  const replaceCounts = (text: string) =>
+    text
+      .replace(/112,000\+?/g, liveProducts)
+      .replace(/\b200\b/g, liveStores);
+  const copy: GuideContent =
+    variant === "home" && (totalTracked || storeCount)
+      ? {
+          ...baseCopy,
+          heading: replaceCounts(baseCopy.heading),
+          blocks: baseCopy.blocks.map((block) => ({
+            ...block,
+            body: replaceCounts(block.body),
+          })),
+        }
+      : baseCopy;
 
   return (
     <section

@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { ChevronDown, ChevronUp, Store } from "lucide-react";
 import type {
   CategoryFacetsResponse,
+  CompareResponse,
+  DiscountVerdict,
+  FeedCategoryFilter,
   RadarFeedResponse,
   StatsOverview,
 } from "@/types/contract";
 import {
   fetchCategoryFacets,
+  fetchCompare,
   fetchRadarFeed,
   fetchStatsOverview,
   type ApiResult,
@@ -21,10 +23,9 @@ import {
   setBrowseParams,
   useBrowseParams,
 } from "@/lib/browse-state";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import { observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
-import { storeDisplayName } from "@/lib/stores";
 import {
   defaultFilters,
   FeedFilters,
@@ -34,6 +35,12 @@ import {
 } from "@/components/FeedFilters";
 import { AdSlot } from "@/components/AdSlot";
 import { EditorialGuide } from "@/components/EditorialGuide";
+import {
+  CategoryQuickGrid,
+  CrossStoreSpotlight,
+  InlineBadgeGuide,
+  ShopperActionDeck,
+} from "@/components/LandingDiscovery";
 import { MockBanner } from "@/components/MockBanner";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { Pagination } from "@/components/Pagination";
@@ -78,7 +85,8 @@ export default function HomePage() {
   const { lang, t } = useLanguage();
   const params = useBrowseParams();
   const category = parseCategory(params.get("category"));
-  const subcategory = category === "all" ? "" : (params.get("subcategory") ?? "").trim().toLowerCase();
+  const subcategory =
+    category === "all" ? "" : (params.get("subcategory") ?? "").trim().toLowerCase();
   const brand = (params.get("brand") ?? "").trim();
   const store = params.get("store") ?? "";
   const urlQuery = params.get("q") ?? "";
@@ -105,6 +113,8 @@ export default function HomePage() {
   );
 
   const [stats, setStats] = useState<ApiResult<StatsOverview> | null>(null);
+  const [spotlight, setSpotlight] = useState<ApiResult<CompareResponse> | null>(null);
+  const [spotlightLoading, setSpotlightLoading] = useState(true);
   const [facetsState, setFacetsState] = useState<{
     key: string;
     value: ApiResult<CategoryFacetsResponse>;
@@ -118,6 +128,16 @@ export default function HomePage() {
   const [view, setView] = useState<"list" | "grid">("list");
   const [storesOpen, setStoresOpen] = useState(false);
 
+  const hasActiveTextSearch = Boolean(urlQuery.trim() || search.state);
+  const isDefaultLanding =
+    !hasActiveTextSearch &&
+    page === 1 &&
+    category === "all" &&
+    !subcategory &&
+    !brand &&
+    !verdict &&
+    !store;
+
   useEffect(() => {
     const controller = new AbortController();
     fetchStatsOverview(controller.signal)
@@ -127,6 +147,26 @@ export default function HomePage() {
       .catch(() => {});
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (!isDefaultLanding || spotlight) return;
+    const controller = new AbortController();
+    setSpotlightLoading(true);
+    fetchCompare(
+      { category: "all", min_spread_pct: 10, page: 1, limit: 20 },
+      controller.signal,
+    )
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setSpotlight(value);
+          setSpotlightLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSpotlightLoading(false);
+      });
+    return () => controller.abort();
+  }, [isDefaultLanding, spotlight]);
 
   useEffect(() => {
     if (category === "all") return;
@@ -147,8 +187,6 @@ export default function HomePage() {
       : null;
   const facetsLoading =
     category !== "all" && facetsState?.key !== facetsKey && !activeFacets;
-
-  const hasActiveTextSearch = Boolean(urlQuery.trim() || search.state);
 
   useEffect(() => {
     if (hasActiveTextSearch) return;
@@ -224,12 +262,14 @@ export default function HomePage() {
   }
 
   function scrollToResults() {
-    document
-      .getElementById("radar-results")
-      ?.scrollIntoView({ block: "start", behavior: "smooth" });
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("radar-results")
+        ?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
   }
 
-  function filterByVerdict(nextVerdict: FeedFilterState["verdict"]) {
+  function filterByVerdict(nextVerdict: DiscountVerdict) {
     search.clear();
     updateFilters({
       category,
@@ -242,26 +282,90 @@ export default function HomePage() {
     scrollToResults();
   }
 
+  function selectStoreFromDrawer(storeSlug: string) {
+    search.clear();
+    updateFilters({
+      category,
+      subcategory,
+      brand,
+      verdict,
+      sort,
+      store: storeSlug,
+    });
+    setStoresOpen(false);
+    scrollToResults();
+  }
+
+  function selectCategoryFromGrid(nextCategory: FeedCategoryFilter) {
+    search.clear();
+    updateFilters({
+      ...defaultFilters,
+      category: nextCategory,
+    });
+    scrollToResults();
+  }
+
+  const liveStoreCount = storedStats?.available_stores.length ?? 200;
+  const liveProductCount = storedStats?.total_tracked ?? null;
+  const realDealsVerdict: DiscountVerdict =
+    storedStats && storedStats.genuine_deals_today > 0
+      ? "GENUINE_DEAL"
+      : "RECENT_DROP";
+  const realDealsCount = storedStats
+    ? storedStats.genuine_deals_today > 0
+      ? storedStats.genuine_deals_today
+      : (storedStats.recent_drops_today ?? 0)
+    : null;
+  const fakeDiscountsVerdict: DiscountVerdict =
+    storedStats && storedStats.fake_discounts_today > 0
+      ? "FAKE_DISCOUNT"
+      : "RECENT_HIKE";
+  const fakeDiscountsCount = storedStats
+    ? storedStats.fake_discounts_today > 0
+      ? storedStats.fake_discounts_today
+      : (storedStats.recent_hikes_today ?? 0)
+    : null;
+
+  function applyVerdictFromTour(nextVerdict: DiscountVerdict) {
+    search.clear();
+    updateFilters({
+      ...defaultFilters,
+      verdict: nextVerdict,
+    });
+    scrollToResults();
+  }
+
   return (
     <>
-      <OnboardingTour />
-      <section className="asarak-hero-greeting">
+      <OnboardingTour
+        totalTracked={liveProductCount}
+        storeCount={storedStats?.available_stores.length ?? null}
+        realDealsCount={realDealsCount}
+        fakeDiscountsCount={fakeDiscountsCount}
+        onExploreRealDeals={() => applyVerdictFromTour(realDealsVerdict)}
+        onExploreFakeDiscounts={() => applyVerdictFromTour(fakeDiscountsVerdict)}
+      />
+
+      {/* Focused, Calm Welcome Hero + Guided Dual-Mode Search + Action Deck */}
+      <section className="asarak-hero-greeting asarak-hero-greeting--reimagined">
         <div className="ptr-wrap">
           <div className="asarak-hero-center">
             <p className="ptr-eyebrow">
               {storedStats && storedStats.available_stores.length > 0
-                ? t("hero.overlineDynamic", {
-                    count: formatNumber(storedStats.available_stores.length, lang),
+                ? t("hero.liveBadge", {
+                    stores: formatNumber(storedStats.available_stores.length, lang),
+                    products: formatNumber(storedStats.total_tracked, lang),
                   })
                 : t("hero.overline")}
             </p>
-            <h1>{t("hero.title")}</h1>
-            <p className="ptr-hero-lede">{t("hero.subtitle")}</p>
+            <h1>{t("hero.titleShort")}</h1>
+            <p className="ptr-hero-lede">{t("hero.subtitleShort")}</p>
             <SearchBar
               search={search}
               category={category}
               subcategory={subcategory}
               subcategoryLabel={activeSubcatLabel}
+              storeCount={liveStoreCount}
               onClearCategory={() =>
                 updateFilters({
                   ...defaultFilters,
@@ -279,272 +383,90 @@ export default function HomePage() {
                   sort,
                 })
               }
-              onFilterVerifiedDeals={() => filterByVerdict("GENUINE_DEAL")}
-              onFilterDiscountsToReview={() => filterByVerdict("FAKE_DISCOUNT")}
+              onSearchSubmitted={scrollToResults}
             />
           </div>
 
           {storedStats && (
-            <div className="asarak-kpi-section" aria-label={t("kpi.title")}>
-              <div className="asarak-kpi-grid">
-                <button
-                  type="button"
-                  className="asarak-kpi-card"
-                  aria-expanded={storesOpen}
-                  onClick={() => setStoresOpen((prev) => !prev)}
-                >
-                  <span className="asarak-kpi-value">
-                    <bdi>{formatNumber(storedStats.total_tracked, lang)}</bdi>
-                  </span>
-                  <span className="asarak-kpi-label">
-                    {t("kpi.totalTracked")}
-                  </span>
-                  <span className="asarak-kpi-sub">
-                    <Store size={12} aria-hidden="true" />
-                    <span>
-                      {t("kpi.storesValue", {
-                        count: formatNumber(
-                          storedStats.available_stores.length,
-                          lang,
-                        ),
-                      })}
-                    </span>
-                    {storesOpen ? (
-                      <ChevronUp size={12} aria-hidden="true" />
-                    ) : (
-                      <ChevronDown size={12} aria-hidden="true" />
-                    )}
-                  </span>
-                </button>
-
-                {storedStats.genuine_deals_today > 0 ? (
-                  <button
-                    type="button"
-                    className="asarak-kpi-card"
-                    aria-pressed={verdict === "GENUINE_DEAL"}
-                    onClick={() => filterByVerdict("GENUINE_DEAL")}
-                  >
-                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
-                      <bdi>
-                        {formatNumber(storedStats.genuine_deals_today, lang)}
-                      </bdi>
-                    </span>
-                    <span className="asarak-kpi-label">
-                      {t("kpi.genuineDeals")}
-                    </span>
-                    <span className="asarak-kpi-sub">
-                      {t("kpi.activeFilterHint")}
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="asarak-kpi-card"
-                    aria-pressed={verdict === "RECENT_DROP"}
-                    onClick={() => filterByVerdict("RECENT_DROP")}
-                  >
-                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
-                      <bdi>
-                        {formatNumber(storedStats.recent_drops_today ?? 0, lang)}
-                      </bdi>
-                    </span>
-                    <span className="asarak-kpi-label">
-                      {t("kpi.recentDrops")}
-                    </span>
-                    <span className="asarak-kpi-sub">
-                      {t("kpi.activeFilterHint")}
-                    </span>
-                  </button>
-                )}
-
-                {storedStats.fake_discounts_today > 0 ? (
-                  <button
-                    type="button"
-                    className="asarak-kpi-card"
-                    aria-pressed={verdict === "FAKE_DISCOUNT"}
-                    onClick={() => filterByVerdict("FAKE_DISCOUNT")}
-                  >
-                    <span className="asarak-kpi-value">
-                      <bdi>
-                        {formatNumber(storedStats.fake_discounts_today, lang)}
-                      </bdi>
-                    </span>
-                    <span className="asarak-kpi-label">
-                      {t("kpi.fakeDiscounts")}
-                    </span>
-                    <span className="asarak-kpi-sub">
-                      {t("kpi.activeFilterHint")}
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="asarak-kpi-card"
-                    aria-pressed={verdict === "RECENT_HIKE"}
-                    onClick={() => filterByVerdict("RECENT_HIKE")}
-                  >
-                    <span className="asarak-kpi-value">
-                      <bdi>
-                        {formatNumber(storedStats.recent_hikes_today ?? 0, lang)}
-                      </bdi>
-                    </span>
-                    <span className="asarak-kpi-label">
-                      {t("verdict.RECENT_HIKE")}
-                    </span>
-                    <span className="asarak-kpi-sub">
-                      {t("kpi.activeFilterHint")}
-                    </span>
-                  </button>
-                )}
-
-                {storedStats.all_time_lows_today > 0 ? (
-                  <button
-                    type="button"
-                    className="asarak-kpi-card"
-                    aria-pressed={verdict === "ALL_TIME_LOW"}
-                    onClick={() => filterByVerdict("ALL_TIME_LOW")}
-                  >
-                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
-                      <bdi>
-                        {formatNumber(storedStats.all_time_lows_today, lang)}
-                      </bdi>
-                    </span>
-                    <span className="asarak-kpi-label">
-                      {t("kpi.allTimeLows")}
-                    </span>
-                    <span className="asarak-kpi-sub">
-                      {t("kpi.activeFilterHint")}
-                    </span>
-                  </button>
-                ) : (
-                  <Link href="/compare" className="asarak-kpi-card">
-                    <span className="asarak-kpi-value asarak-kpi-value--emerald">
-                      <bdi>
-                        {formatNumber(
-                          storedStats.cross_store_matches_count ?? 0,
-                          lang,
-                        )}
-                      </bdi>
-                    </span>
-                    <span className="asarak-kpi-label">
-                      {t("kpi.crossStoreCompared")}
-                    </span>
-                    <span className="asarak-kpi-sub">
-                      {t("kpi.crossStoreCta")}
-                    </span>
-                  </Link>
-                )}
-              </div>
-
-              <div className="asarak-kpi-meta">
-                <button
-                  type="button"
-                  className="ptr-link inline-flex items-center gap-1.5"
-                  onClick={() => setStoresOpen((prev) => !prev)}
-                >
-                  <Store size={14} aria-hidden="true" />
-                  <span>
-                    {storesOpen
-                      ? t("stores.hideAll")
-                      : t("stores.browseAll", {
-                          count: formatNumber(drawerStores.length, lang),
-                        })}
-                  </span>
-                  {stats?.source === "mock" && ` · ${t("ui.sample")}`}
-                </button>
-                {checked && (
-                  <p className="ptr-muted">
-                    {t("ui.lastChecked", {
-                      time: formatDateTime(checked, lang),
-                    })}
-                  </p>
-                )}
-              </div>
-
-              {storesOpen && (
-                <div className="asarak-store-drawer">
-                  <div className="ptr-controls ptr-stores-scroll">
-                    <button
-                      className="ptr-chip"
-                      type="button"
-                      aria-pressed={store === ""}
-                      onClick={() => {
-                        updateFilters({
-                          category,
-                          subcategory,
-                          brand,
-                          verdict,
-                          sort,
-                          store: "",
-                        });
-                        scrollToResults();
-                      }}
-                    >
-                      {t("stores.allLabel")}
-                    </button>
-                    {drawerStores.map((name) => (
-                      <button
-                        className="ptr-chip"
-                        type="button"
-                        key={name}
-                        aria-pressed={store === name}
-                        onClick={() => {
-                          updateFilters({
-                            category,
-                            subcategory,
-                            brand,
-                            verdict,
-                            sort,
-                            store: name,
-                          });
-                          scrollToResults();
-                        }}
-                      >
-                        {storeDisplayName(name, lang)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <ShopperActionDeck
+              stats={storedStats}
+              statsSource={stats?.source ?? null}
+              checkedAt={checked}
+              activeVerdict={verdict}
+              activeStore={store}
+              drawerStores={drawerStores}
+              storesOpen={storesOpen}
+              onToggleStores={() => setStoresOpen((prev) => !prev)}
+              onSelectDrops={filterByVerdict}
+              onSelectFake={filterByVerdict}
+              onSelectStore={selectStoreFromDrawer}
+            />
           )}
         </div>
       </section>
 
       <div className="ptr-wrap ptr-page">
+        {/* Default Landing Discovery Modules — collapse automatically when searching or filtering */}
+        {isDefaultLanding && (
+          <>
+            <CategoryQuickGrid
+              categoryCounts={storedStats?.category_counts}
+              onSelectCategory={selectCategoryFromGrid}
+            />
+            <CrossStoreSpotlight
+              matches={spotlight?.data.items ?? []}
+              totalMatches={
+                storedStats?.cross_store_matches_count ?? spotlight?.data.total ?? 0
+              }
+              loading={spotlightLoading && !spotlight}
+              from={from}
+              sample={spotlight?.source === "mock"}
+            />
+          </>
+        )}
+
+        {/* Core Searchable & Filterable Product Feed (preserves .ptr-list-item 100%) */}
         <section
           id="radar-results"
           data-tour="deals"
           className="min-w-0 space-y-4"
           aria-busy={searchState ? searchState.status === "loading" : loading}
         >
-          <div className="ptr-toolbar ptr-result-heading">
-            <h2>
-              {t(
-                searchState
-                  ? searchResult?.data.match_type === "fuzzy_trgm"
-                    ? "search.similar"
-                    : "search.results"
-                  : "feed.title",
-              )}
-            </h2>
-            {searchState && (
-              <button type="button" className="ptr-link" onClick={search.clear}>
-                {t("search.close")}
-              </button>
-            )}
-            {!searchState && current && (
-              <p className="ptr-muted text-sm" role="status">
-                {t("filters.showing", {
-                  total: formatNumber(current.data.total, lang),
-                })}
-              </p>
-            )}
+          <div className="asarak-catalog-header">
+            <div className="ptr-toolbar ptr-result-heading">
+              <div className="min-w-0 space-y-0.5">
+                <h2>
+                  {t(
+                    searchState
+                      ? searchResult?.data.match_type === "fuzzy_trgm"
+                        ? "search.similar"
+                        : "search.results"
+                      : "feed.title",
+                  )}
+                </h2>
+                {!searchState && current && (
+                  <p className="ptr-muted text-sm" role="status">
+                    {t("feed.subtitleInStock", {
+                      total: formatNumber(current.data.total, lang),
+                    })}
+                  </p>
+                )}
+              </div>
+              <div className="ptr-controls">
+                {searchState && (
+                  <button type="button" className="ptr-button ptr-small-button" onClick={search.clear}>
+                    {t("search.close")}
+                  </button>
+                )}
+                <InlineBadgeGuide />
+              </div>
+            </div>
           </div>
 
           <FeedFilters
             value={{ category, subcategory, brand, verdict, store, sort }}
             stores={storeChoices}
+            stats={storedStats}
             categoryCounts={storedStats?.category_counts}
             facets={activeFacets}
             facetsLoading={facetsLoading}
@@ -709,7 +631,11 @@ export default function HomePage() {
           minHeight={100}
         />
 
-        <EditorialGuide variant="home" />
+        <EditorialGuide
+          variant="home"
+          totalTracked={liveProductCount}
+          storeCount={storedStats?.available_stores.length ?? null}
+        />
       </div>
     </>
   );

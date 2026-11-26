@@ -2,17 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
   List,
+  ShieldAlert,
   SlidersHorizontal,
+  TrendingDown,
+  TrendingUp,
+  X,
 } from "lucide-react";
 import type {
   CategoryFacetsResponse,
   DiscountVerdict,
   FeedCategoryFilter,
   FeedSort,
+  StatsOverview,
 } from "@/types/contract";
 import { categoryLabels, visibleCategories } from "@/lib/browse-state";
 import { formatNumber } from "@/lib/format";
@@ -29,9 +35,10 @@ export const verdictOptions: DiscountVerdict[] = [
   "NEWLY_TRACKED",
   "NORMAL_PRICE",
 ];
+
 export const sortOptions: FeedSort[] = [
-  "claimed_vs_real_gap_desc",
   "real_discount_pct_desc",
+  "claimed_vs_real_gap_desc",
   "price_asc",
   "price_desc",
 ];
@@ -51,12 +58,19 @@ export const defaultFilters: FeedFilterState = {
   brand: "",
   verdict: "",
   store: "",
-  sort: "claimed_vs_real_gap_desc",
+  sort: "real_discount_pct_desc",
 };
+
+interface RemovableChip {
+  key: string;
+  label: string;
+  onRemove: () => void;
+}
 
 export function FeedFilters({
   value,
   stores,
+  stats,
   categoryCounts,
   facets,
   facetsLoading = false,
@@ -66,6 +80,7 @@ export function FeedFilters({
 }: {
   value: FeedFilterState;
   stores: string[];
+  stats?: StatsOverview | null;
   categoryCounts?: Record<string, number> | null;
   facets?: CategoryFacetsResponse | null;
   facetsLoading?: boolean;
@@ -120,13 +135,82 @@ export function FeedFilters({
       ? value.subcategory.replace(/_/g, " ")
       : "";
 
-  const active = [
-    activeSubcatLabel,
+  // Guaranteed non-empty quick verdict tabs based on live snapshot counts
+  const dropVerdict: DiscountVerdict =
+    stats && stats.genuine_deals_today > 0 ? "GENUINE_DEAL" : "RECENT_DROP";
+  const dropCount = stats
+    ? stats.genuine_deals_today > 0
+      ? stats.genuine_deals_today
+      : (stats.recent_drops_today ?? 0)
+    : null;
+  const hasFakeDiscounts = Boolean(stats && stats.fake_discounts_today > 0);
+  const reviewVerdict: DiscountVerdict | null = hasFakeDiscounts
+    ? "FAKE_DISCOUNT"
+    : stats && (stats.recent_hikes_today ?? 0) > 0
+      ? "RECENT_HIKE"
+      : null;
+  const reviewCount = stats
+    ? hasFakeDiscounts
+      ? stats.fake_discounts_today
+      : (stats.recent_hikes_today ?? 0)
+    : null;
+
+  const modalActiveCount = [
     value.brand,
-    value.verdict && t(`verdict.${value.verdict}`),
-    value.store && storeDisplayName(value.store, lang),
-    value.sort !== defaultFilters.sort && t(`sort.${value.sort}`),
-  ].filter(Boolean);
+    value.verdict,
+    value.store,
+  ].filter(Boolean).length;
+
+  const removableChips: RemovableChip[] = [];
+  if (value.category !== "all") {
+    removableChips.push({
+      key: "category",
+      label: t(categoryLabels[value.category] ?? "filters.catAll"),
+      onRemove: () =>
+        onChange({
+          ...value,
+          category: "all",
+          subcategory: "",
+          brand: "",
+          store: "",
+        }),
+    });
+  }
+  if (activeSubcatLabel) {
+    removableChips.push({
+      key: "subcategory",
+      label: activeSubcatLabel,
+      onRemove: () => onChange({ ...value, subcategory: "", brand: "" }),
+    });
+  }
+  if (value.brand) {
+    removableChips.push({
+      key: "brand",
+      label: value.brand,
+      onRemove: () => onChange({ ...value, brand: "" }),
+    });
+  }
+  if (value.store) {
+    removableChips.push({
+      key: "store",
+      label: storeDisplayName(value.store, lang),
+      onRemove: () => onChange({ ...value, store: "" }),
+    });
+  }
+  if (value.verdict) {
+    removableChips.push({
+      key: "verdict",
+      label: t(`verdict.${value.verdict}`),
+      onRemove: () => onChange({ ...value, verdict: "" }),
+    });
+  }
+  if (value.sort !== defaultFilters.sort) {
+    removableChips.push({
+      key: "sort",
+      label: t(`sort.${value.sort}`),
+      onRemove: () => onChange({ ...value, sort: defaultFilters.sort }),
+    });
+  }
 
   function close() {
     dialog.current?.close();
@@ -242,8 +326,9 @@ export function FeedFilters({
   const EndChevron = dir === "rtl" ? ChevronLeft : ChevronRight;
 
   return (
-    <div className="min-w-0 max-w-full space-y-2.5" data-tour="filters">
-      <div className="ptr-toolbar">
+    <div className="min-w-0 max-w-full space-y-3" data-tour="filters">
+      {/* Row 1: Category Pills (with mobile scroll edge cue) */}
+      <div className="ptr-category-shell">
         <div
           className="ptr-category-bar"
           role="group"
@@ -270,51 +355,9 @@ export function FeedFilters({
             );
           })}
         </div>
-
-        <div className="ptr-controls shrink-0">
-          {onViewChange && (
-            <div className="asarak-segmented" role="group" aria-label={t("view.list")}>
-              <button
-                type="button"
-                aria-pressed={view === "list"}
-                aria-label={t("view.list")}
-                title={t("view.list")}
-                onClick={() => onViewChange("list")}
-              >
-                <List size={15} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                aria-pressed={view === "grid"}
-                aria-label={t("view.grid")}
-                title={t("view.grid")}
-                onClick={() => onViewChange("grid")}
-              >
-                <LayoutGrid size={15} aria-hidden="true" />
-              </button>
-            </div>
-          )}
-
-          <button
-            ref={opener}
-            type="button"
-            className="ptr-button"
-            onClick={() => {
-              setDraft(value);
-              dialog.current?.showModal();
-            }}
-          >
-            <SlidersHorizontal size={15} aria-hidden="true" />
-            <span>{t("filters.title")}</span>
-            {active.length > 0 && (
-              <span className="ptr-badge ptr-badge-variant">
-                {formatNumber(active.length, lang)}
-              </span>
-            )}
-          </button>
-        </div>
       </div>
 
+      {/* Row 2: Subcategories (when a specific category is selected) */}
       {value.category !== "all" && (subcategories.length > 0 || facetsLoading) && (
         <div
           className="ptr-subcategory-shell"
@@ -397,19 +440,164 @@ export function FeedFilters({
         </div>
       )}
 
-      {(active.length > 0 || value.category !== "all") && (
-        <div className="ptr-controls text-sm ptr-muted">
-          {active.length > 0 && <span>{active.join(" · ")}</span>}
+      {/* Row 3: Quick Signal Tabs + Visible Inline Sort + View Toggle + Deep Filters */}
+      <div className="asarak-feed-deck surface">
+        <div
+          className="asarak-segmented asarak-feed-signals"
+          role="group"
+          aria-label={t("filters.verdict")}
+        >
           <button
             type="button"
-            className="ptr-link"
+            aria-pressed={value.verdict === ""}
+            onClick={() => onChange({ ...value, verdict: "" })}
+          >
+            <span>{t("feed.quickAll")}</span>
+          </button>
+
+          {(dropCount === null || dropCount > 0) && (
+            <button
+              type="button"
+              className="is-deal"
+              aria-pressed={value.verdict === dropVerdict}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  verdict: value.verdict === dropVerdict ? "" : dropVerdict,
+                })
+              }
+            >
+              <TrendingDown size={14} aria-hidden="true" />
+              <span>{t("feed.quickDrops")}</span>
+              {typeof dropCount === "number" && dropCount > 0 && (
+                <span className="ptr-chip-count">
+                  <bdi>{formatNumber(dropCount, lang)}</bdi>
+                </span>
+              )}
+            </button>
+          )}
+
+          {reviewVerdict && (
+            <button
+              type="button"
+              className="is-scandal"
+              aria-pressed={value.verdict === reviewVerdict}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  verdict: value.verdict === reviewVerdict ? "" : reviewVerdict,
+                })
+              }
+            >
+              {hasFakeDiscounts ? (
+                <ShieldAlert size={14} aria-hidden="true" />
+              ) : (
+                <TrendingUp size={14} aria-hidden="true" />
+              )}
+              <span>
+                {t(hasFakeDiscounts ? "feed.quickReview" : "feed.quickHikes")}
+              </span>
+              {typeof reviewCount === "number" && reviewCount > 0 && (
+                <span className="ptr-chip-count">
+                  <bdi>{formatNumber(reviewCount, lang)}</bdi>
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+
+        <div className="asarak-feed-deck__actions">
+          {/* Visible Inline Sort Selector */}
+          <label className="asarak-inline-sort">
+            <ArrowUpDown size={14} aria-hidden="true" className="shrink-0 ptr-muted" />
+            <span className="sr-only">{t("filters.sort")}</span>
+            <select
+              value={value.sort}
+              aria-label={t("filters.sort")}
+              onChange={(event) => {
+                const nextSort =
+                  sortOptions.find((item) => item === event.target.value) ??
+                  defaultFilters.sort;
+                onChange({ ...value, sort: nextSort });
+              }}
+            >
+              {sortOptions.map((sortOpt) => (
+                <option key={sortOpt} value={sortOpt}>
+                  {t(`sort.${sortOpt}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {onViewChange && (
+            <div className="asarak-segmented" role="group" aria-label={t("view.list")}>
+              <button
+                type="button"
+                aria-pressed={view === "list"}
+                aria-label={t("view.list")}
+                title={t("view.list")}
+                onClick={() => onViewChange("list")}
+              >
+                <List size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "grid"}
+                aria-label={t("view.grid")}
+                title={t("view.grid")}
+                onClick={() => onViewChange("grid")}
+              >
+                <LayoutGrid size={15} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
+          <button
+            ref={opener}
+            type="button"
+            className="ptr-button"
+            onClick={() => {
+              setDraft(value);
+              dialog.current?.showModal();
+            }}
+          >
+            <SlidersHorizontal size={15} aria-hidden="true" />
+            <span>{t("filters.title")}</span>
+            {modalActiveCount > 0 && (
+              <span className="ptr-badge ptr-badge-variant">
+                {formatNumber(modalActiveCount, lang)}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Row 4: Individually Removable Active Filter Chips */}
+      {removableChips.length > 0 && (
+        <div className="asarak-active-filters" role="status">
+          {removableChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              className="asarak-active-pill"
+              onClick={chip.onRemove}
+              aria-label={t("feed.removeFilter", { label: chip.label })}
+            >
+              <span>{chip.label}</span>
+              <X size={12} aria-hidden="true" />
+            </button>
+          ))}
+          <button
+            type="button"
+            className="ptr-link text-xs"
             onClick={() => onChange(defaultFilters)}
           >
-            {t("filters.reset")}
+            {t("feed.resetAll")}
           </button>
         </div>
       )}
 
+      {/* Deep Filters Modal (Store, Brand, Verdict, Sort) */}
       <dialog
         ref={dialog}
         className="surface ptr-dialog"

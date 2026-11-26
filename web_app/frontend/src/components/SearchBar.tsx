@@ -3,12 +3,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BadgeCheck,
   Check,
+  ClipboardPaste,
   Filter,
   Link2,
   Search,
-  ShieldAlert,
   X,
 } from "lucide-react";
 import type { FeedCategoryFilter, SearchResponse } from "@/types/contract";
@@ -18,6 +17,7 @@ import { categoryLabels, productHref } from "@/lib/browse-state";
 import { getCategorySearchCopy } from "@/lib/category-search-config";
 import {
   cleanSearchQuery,
+  formatNumber,
   hasArabicChars,
   normalizeArabicAggressive,
 } from "@/lib/format";
@@ -207,34 +207,48 @@ export function SearchBar({
   category = "all",
   subcategory = "",
   subcategoryLabel,
+  storeCount = 200,
   onClearCategory,
   onClearSubcategory,
-  onFilterVerifiedDeals,
-  onFilterDiscountsToReview,
+  onSearchSubmitted,
 }: {
   search: ReturnType<typeof useProductSearch>;
   category?: FeedCategoryFilter;
   subcategory?: string;
   subcategoryLabel?: string | null;
+  storeCount?: number;
   onClearCategory?: () => void;
   onClearSubcategory?: () => void;
-  onFilterVerifiedDeals?: () => void;
-  onFilterDiscountsToReview?: () => void;
+  onSearchSubmitted?: () => void;
 }) {
   const { lang, t } = useLanguage();
   const field = useRef<HTMLInputElement>(null);
+  const [inputMode, setInputMode] = useState<"product" | "url">("product");
+  const [pasteNotice, setPasteNotice] = useState(false);
+
   const isUrlInput = retailerQuery(search.query.trim()) !== null;
+  const effectiveMode = isUrlInput ? "url" : inputMode;
   const categoryCopy = getCategorySearchCopy(category);
-  const placeholder = categoryCopy
-    ? lang === "ar"
-      ? categoryCopy.placeholderAr
-      : categoryCopy.placeholderEn
-    : t("search.placeholder");
+
+  const placeholder =
+    effectiveMode === "url"
+      ? t("search.placeholderUrl")
+      : categoryCopy
+        ? lang === "ar"
+          ? categoryCopy.placeholderAr
+          : categoryCopy.placeholderEn
+        : t("search.placeholderShort");
+
   const quickChips: readonly string[] = categoryCopy
     ? lang === "ar"
       ? categoryCopy.chipsAr
       : categoryCopy.chipsEn
-    : [t("search.chipIphone"), t("search.chipSharp"), t("search.chipWasher")];
+    : [
+        t("search.chipIphone"),
+        t("search.chipSharp"),
+        t("search.chipWasher"),
+        t("search.chipAirFryer"),
+      ];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -242,17 +256,45 @@ export function SearchBar({
       field.current?.focus();
       return;
     }
+    setPasteNotice(false);
     void search.run(search.query);
+    onSearchSubmitted?.();
   }
 
   function clear() {
+    setPasteNotice(false);
     search.clear();
     field.current?.focus();
   }
 
   function runQuickQuery(term: string) {
+    setInputMode("product");
+    setPasteNotice(false);
     search.setQuery(term);
     void search.run(term);
+    onSearchSubmitted?.();
+  }
+
+  async function handlePasteClipboard() {
+    setPasteNotice(false);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
+        const text = (await navigator.clipboard.readText()).trim();
+        if (text) {
+          search.setQuery(text);
+          field.current?.focus();
+          if (retailerQuery(text)) {
+            void search.run(text);
+            onSearchSubmitted?.();
+          }
+          return;
+        }
+      }
+    } catch {
+      // Clipboard read permission denied or unsupported — fall back gracefully.
+    }
+    setPasteNotice(true);
+    field.current?.focus();
   }
 
   return (
@@ -260,9 +302,40 @@ export function SearchBar({
       <label htmlFor="ptr-search-query" className="sr-only">
         {t("search.label")}
       </label>
+
+      {/* Clear Dual-Mode Toggle: Search by Name vs. Check a Store URL */}
+      <div className="asarak-search-modes" role="group" aria-label={t("search.label")}>
+        <button
+          type="button"
+          className="asarak-search-mode"
+          aria-pressed={effectiveMode === "product"}
+          onClick={() => {
+            setInputMode("product");
+            setPasteNotice(false);
+            field.current?.focus();
+          }}
+        >
+          <Search size={14} aria-hidden="true" />
+          <span>{t("search.modeProduct")}</span>
+        </button>
+        <button
+          type="button"
+          className="asarak-search-mode"
+          aria-pressed={effectiveMode === "url"}
+          onClick={() => {
+            setInputMode("url");
+            setPasteNotice(false);
+            field.current?.focus();
+          }}
+        >
+          <Link2 size={14} aria-hidden="true" />
+          <span>{t("search.modeUrl")}</span>
+        </button>
+      </div>
+
       <div className="ptr-search-shell">
         <div className="ptr-search-field">
-          {isUrlInput ? (
+          {effectiveMode === "url" ? (
             <Link2 size={19} aria-hidden="true" style={{ color: "var(--asarak-emerald)" }} />
           ) : (
             <Search size={19} aria-hidden="true" />
@@ -270,11 +343,15 @@ export function SearchBar({
           <input
             ref={field}
             id="ptr-search-query"
-            type="search"
+            type={effectiveMode === "url" ? "url" : "search"}
+            inputMode={effectiveMode === "url" ? "url" : "search"}
             dir={search.query ? "auto" : undefined}
             autoComplete="off"
             value={search.query}
-            onChange={(event) => search.setQuery(event.target.value)}
+            onChange={(event) => {
+              setPasteNotice(false);
+              search.setQuery(event.target.value);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
@@ -288,6 +365,16 @@ export function SearchBar({
               <Link2 size={11} aria-hidden="true" />
               {t("search.urlBadge")}
             </span>
+          )}
+          {effectiveMode === "url" && !search.query && (
+            <button
+              type="button"
+              className="asarak-paste-btn"
+              onClick={() => void handlePasteClipboard()}
+            >
+              <ClipboardPaste size={13} aria-hidden="true" />
+              <span>{t("search.pasteBtn")}</span>
+            </button>
           )}
           {search.query && (
             <button
@@ -315,6 +402,12 @@ export function SearchBar({
           </span>
         </button>
       </div>
+
+      {pasteNotice && (
+        <p className="text-xs ptr-muted mt-2" role="status">
+          {t("search.pasteFallback")}
+        </p>
+      )}
 
       {category !== "all" && !isUrlInput && (
         <div className="ptr-search-scope-row" role="status">
@@ -349,39 +442,27 @@ export function SearchBar({
         </div>
       )}
 
-      <div className="ptr-quick-try" aria-label={t("search.quickTryLabel")}>
-        <span className="ptr-quick-try-label">{t("search.quickTryLabel")}</span>
-        {quickChips.map((term) => (
-          <button
-            key={`${category}-${term}`}
-            type="button"
-            className="ptr-quick-chip"
-            onClick={() => runQuickQuery(term)}
-          >
-            {term}
-          </button>
-        ))}
-        {onFilterVerifiedDeals && (
-          <button
-            type="button"
-            className="ptr-quick-chip"
-            onClick={onFilterVerifiedDeals}
-          >
-            <BadgeCheck size={13} aria-hidden="true" />
-            {t("kpi.genuineDeals")}
-          </button>
-        )}
-        {onFilterDiscountsToReview && (
-          <button
-            type="button"
-            className="ptr-quick-chip ptr-quick-chip--review"
-            onClick={onFilterDiscountsToReview}
-          >
-            <ShieldAlert size={13} aria-hidden="true" />
-            {t("search.chipTopFake")}
-          </button>
-        )}
-      </div>
+      {effectiveMode === "url" ? (
+        <p className="asarak-url-stores-hint">
+          {t("search.supportedStores", {
+            count: formatNumber(Math.max(200, storeCount), lang),
+          })}
+        </p>
+      ) : (
+        <div className="ptr-quick-try" aria-label={t("search.quickTryLabel")}>
+          <span className="ptr-quick-try-label">{t("search.quickTryLabel")}</span>
+          {quickChips.map((term) => (
+            <button
+              key={`${category}-${term}`}
+              type="button"
+              className="ptr-quick-chip"
+              onClick={() => runQuickQuery(term)}
+            >
+              {term}
+            </button>
+          ))}
+        </div>
+      )}
     </form>
   );
 }

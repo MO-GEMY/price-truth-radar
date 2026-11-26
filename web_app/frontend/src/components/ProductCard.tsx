@@ -181,7 +181,7 @@ export function ProductCard({
               )}
             </div>
 
-            <h3 className="ptr-result-title asarak-grid-card__title">
+            <h3 className="ptr-result-title asarak-grid-card__title" dir="auto">
               <bdi>{product.product_title}</bdi>
             </h3>
 
@@ -222,10 +222,18 @@ export function ProductCard({
                       <bdi>{formatPrice(product.current_price, lang)}</bdi>
                     </p>
                     {showClaimedStrike && product.claimed_original_price && (
-                      <span className="ptr-strike ptr-mono text-xs">
-                        <bdi>
-                          {formatPrice(product.claimed_original_price, lang)}
-                        </bdi>
+                      <span
+                        className="ptr-claimed-ref"
+                        title={t("card.listedRefTitle")}
+                      >
+                        <span className="ptr-claimed-ref__tag">
+                          {t("card.listedRef")}
+                        </span>
+                        <span className="ptr-strike ptr-mono text-xs">
+                          <bdi>
+                            {formatPrice(product.claimed_original_price, lang)}
+                          </bdi>
+                        </span>
                       </span>
                     )}
                   </div>
@@ -280,7 +288,7 @@ export function ProductCard({
             studio={product.category !== "fashion"}
           />
           <div className="min-w-0">
-            <h3 className="ptr-result-title">
+            <h3 className="ptr-result-title" dir="auto">
               <bdi>{product.product_title}</bdi>
             </h3>
             <div className="ptr-controls text-xs ptr-muted">
@@ -328,8 +336,16 @@ export function ProductCard({
                 <bdi>{formatPrice(product.current_price, lang)}</bdi>
               </p>
               {showClaimedStrike && product.claimed_original_price && (
-                <p className="ptr-strike ptr-mono text-xs">
-                  <bdi>{formatPrice(product.claimed_original_price, lang)}</bdi>
+                <p
+                  className="ptr-claimed-ref"
+                  title={t("card.listedRefTitle")}
+                >
+                  <span className="ptr-claimed-ref__tag">
+                    {t("card.listedRef")}
+                  </span>
+                  <span className="ptr-strike ptr-mono text-xs">
+                    <bdi>{formatPrice(product.claimed_original_price, lang)}</bdi>
+                  </span>
                 </p>
               )}
             </>
@@ -348,7 +364,9 @@ export function ProductCard({
           {evidence && <p className="ptr-muted text-xs">{evidence}</p>}
         </div>
         <span className="ptr-result-action">
-          {t("deals.viewTruth")} <ArrowUpRight size={14} aria-hidden="true" />
+          <span className="ptr-result-action__desktop">{t("deals.viewTruth")}</span>
+          <span className="ptr-result-action__mobile">{t("card.mobileInspect")}</span>
+          <ArrowUpRight size={14} aria-hidden="true" />
         </span>
       </Link>
       {live && product.current_price > 0.01 && (
