@@ -343,6 +343,21 @@ class SimilarAlternativeItem(BaseModel):
     is_exact_match: Literal[False] = False
 
 
+class ProductPriceSnapshot(BaseModel):
+    product_sk: str
+    current_price: float
+    in_stock: bool
+    last_updated_at: datetime
+
+    @field_serializer("last_updated_at")
+    def serialize_last_updated(self, v: datetime) -> str:
+        return _format_utc_z(v) or ""
+
+
+class ProductPricesBatchResponse(BaseModel):
+    items: list[ProductPriceSnapshot]
+
+
 class ProductDetailResponse(BaseModel):
     product: ProductVerdictItem
     history: list[PriceHistoryPoint]
@@ -467,6 +482,22 @@ class AlertCreateRequest(BaseModel):
 class AlertCreateResponse(BaseModel):
     id: int
     status: Literal["active"] = "active"
+    message: str
+    cancel_token: Optional[str] = None
+
+
+class AlertCancelRequest(BaseModel):
+    cancel_token: str = Field(..., min_length=16, max_length=256)
+
+    @field_validator("cancel_token", mode="before")
+    @classmethod
+    def _strip_token(cls, v: Any) -> Any:
+        return v.strip() if isinstance(v, str) else v
+
+
+class AlertCancelResponse(BaseModel):
+    id: int
+    status: Literal["cancelled", "already_inactive"]
     message: str
 
 

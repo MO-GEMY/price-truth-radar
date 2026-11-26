@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeftRight,
+  BellRing,
   Globe,
   Moon,
   Search,
@@ -18,12 +19,14 @@ import {
   setBrowseParams,
   useBrowseParams,
 } from "@/lib/browse-state";
+import { formatNumber } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
+import { useSavedAlerts } from "@/lib/saved-alerts";
 import { useTheme } from "@/lib/theme";
 import { AsarakLogo } from "./AsarakLogo";
 
-// `wideOnly` tabs are hidden below 1024px (they remain accessible via the footer)
-// so the 4 primary tabs fit comfortably on mobile (320-639px) and tablet (640-1023px).
+// `wideOnly` tabs hide below 1120px (and remain accessible via the footer)
+// so the 4 primary tabs fit cleanly beside the brand & actions on laptops/tablets.
 const destinations = [
   { href: "/", text: "nav.feed", icon: Search, wideOnly: false },
   { href: "/deals", text: "nav.deals", icon: Sparkles, wideOnly: false },
@@ -35,6 +38,7 @@ const destinations = [
 export function Header() {
   const { lang, ready, t, toggleLang } = useLanguage();
   const { theme, ready: themeReady, toggleTheme } = useTheme();
+  const { count: alertsCount, hydrated: alertsHydrated } = useSavedAlerts();
   const pathname = usePathname();
   const query = useBrowseParams();
   const origin = pathname.startsWith("/products/")
@@ -76,6 +80,25 @@ export function Header() {
         </nav>
 
         <div className="ptr-mast-actions">
+          <Link
+            href="/my-alerts"
+            className="ptr-alerts-nav-btn"
+            aria-current={pathname === "/my-alerts" ? "page" : undefined}
+            aria-label={
+              alertsHydrated && alertsCount > 0
+                ? `${t("nav.myAlerts")} (${formatNumber(alertsCount, lang)})`
+                : t("nav.myAlerts")
+            }
+            title={t("nav.myAlerts")}
+          >
+            <BellRing size={17} strokeWidth={2} aria-hidden="true" />
+            <span className="ptr-alerts-nav-label">{t("nav.myAlerts")}</span>
+            {alertsHydrated && alertsCount > 0 && (
+              <span className="ptr-alerts-nav-badge" aria-hidden="true">
+                <bdi>{alertsCount > 99 ? "99+" : formatNumber(alertsCount, lang)}</bdi>
+              </span>
+            )}
+          </Link>
           <Link
             href="/?tour=1"
             className="ptr-button ptr-tour-replay"

@@ -17,9 +17,12 @@ import type {
   CompareResponse,
   CouponScope,
   CouponsListResponse,
+  PriceAlertCancelResponse,
   PriceAlertRequest,
   PriceAlertResponse,
   ProductDetailResponse,
+  ProductPriceSnapshot,
+  ProductPricesBatchResponse,
   RadarFeedParams,
   RadarFeedResponse,
   RadarHighlights,
@@ -408,7 +411,13 @@ export async function submitPriceAlert(
       cache: "no-store",
     });
     const text = await res.text();
-    let payload: { id?: string | number; status?: string; message?: unknown; detail?: unknown } = {};
+    let payload: {
+      id?: string | number;
+      status?: string;
+      message?: unknown;
+      cancel_token?: unknown;
+      detail?: unknown;
+    } = {};
     try {
       const body: unknown = JSON.parse(text);
       if (body && typeof body === "object" && !Array.isArray(body)) payload = body;
@@ -436,10 +445,135 @@ export async function submitPriceAlert(
       id: String(payload.id),
       status: payload.status,
       message: typeof payload.message === "string" ? payload.message : "",
+      cancel_token:
+        typeof payload.cancel_token === "string" && payload.cancel_token.trim().length > 0
+          ? payload.cancel_token.trim()
+          : null,
     };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+/**
+ * POST /api/alerts/{alert_id}/cancel — token-verified alert deactivation.
+ * Idempotent: treats `cancelled` and `already_inactive` as clean success.
+ */
+export async function cancelPriceAlert(
+  alertId: string,
+  cancelToken: string,
+  signal?: AbortSignal,
+): Promise<PriceAlertCancelResponse> {
+  if (!isApiConfigured()) throw new ApiError(503, "Alert service unavailable");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const onOuterAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onOuterAbort, { once: true });
+  try {
+    const res = await fetch(
+      `${resolveApiBase()}/api/alerts/${encodeURIComponent(alertId)}/cancel`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ cancel_token: cancelToken }),
+        signal: controller.signal,
+        cache: "no-store",
+      },
+    );
+    const text = await res.text();
+    let payload: { id?: string | number; status?: string; message?: unknown; detail?: unknown } = {};
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) payload = parsed;
+    } catch {
+      /* non-JSON body */
+    }
+    if (!res.ok) {
+      const message =
+        typeof payload.message === "string"
+          ? payload.message
+          : typeof payload.detail === "string"
+            ? payload.detail
+            : `HTTP ${res.status}`;
+      throw new ApiError(res.status, message);
+    }
+    const status =
+      payload.status === "already_inactive" ? "already_inactive" : "cancelled";
+    return {
+      id: String(payload.id ?? alertId),
+      status,
+      message: typeof payload.message === "string" ? payload.message : "",
+    };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+/**
+ * GET /api/v1/products/prices?sks=... — lightweight RAM-cached batch price lookup
+ * for `/my-alerts` (1 query for up to 25 items). Gracefully falls back to capped
+ * individual detail lookups if the batch endpoint is not yet deployed (404).
+ */
+export async function fetchProductPricesBatch(
+  sks: string[],
+  signal?: AbortSignal,
+): Promise<Record<string, ProductPriceSnapshot>> {
+  const unique = [...new Set(sks.map((s) => s.trim()).filter(Boolean))].slice(0, 25);
+  if (unique.length === 0) return {};
+
+  if (!isApiConfigured()) {
+    const mockMap: Record<string, ProductPriceSnapshot> = {};
+    for (const sk of unique) {
+      const detail = mockProductDetail(sk);
+      if (detail) {
+        mockMap[sk] = {
+          product_sk: detail.product.product_sk,
+          current_price: detail.product.current_price,
+          in_stock: detail.product.in_stock,
+          last_updated_at: detail.product.last_updated_at,
+        };
+      }
+    }
+    return mockMap;
+  }
+
+  try {
+    const data = await fetchJson<ProductPricesBatchResponse>(
+      "/api/v1/products/prices",
+      { sks: unique.join(",") },
+      signal,
+    );
+    const out: Record<string, ProductPriceSnapshot> = {};
+    for (const item of data.items ?? []) {
+      if (item?.product_sk) out[item.product_sk] = item;
+    }
+    return out;
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    // Backwards-compatible fallback if backend batch route isn't deployed yet (404)
+    if (err instanceof ApiError && err.status === 404) {
+      const capped = unique.slice(0, 8);
+      const settled = await Promise.allSettled(
+        capped.map((sk) => fetchProductDetail(sk, signal, 6000)),
+      );
+      const out: Record<string, ProductPriceSnapshot> = {};
+      for (const res of settled) {
+        if (res.status === "fulfilled" && res.value.source === "api") {
+          const p = res.value.data.product;
+          out[p.product_sk] = {
+            product_sk: p.product_sk,
+            current_price: p.current_price,
+            in_stock: p.in_stock,
+            last_updated_at: p.last_updated_at,
+          };
+        }
+      }
+      return out;
+    }
+    throw err;
   }
 }
 

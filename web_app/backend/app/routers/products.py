@@ -25,6 +25,8 @@ from app.schemas import (
     MarketBenchmark,
     PriceHistoryPoint,
     ProductDetailResponse,
+    ProductPriceSnapshot,
+    ProductPricesBatchResponse,
     ProductVariantItem,
     ProductVerdictItem,
     SearchResponse,
@@ -459,6 +461,54 @@ def _attach_coupons_to_detail(detail: ProductDetailResponse) -> ProductDetailRes
             "alternatives": enriched_alts,
         }
     )
+
+
+MAX_BATCH_PRICE_SKS = 25
+
+
+@router.get("/prices", response_model=ProductPricesBatchResponse)
+def get_product_prices_batch(
+    response: Response,
+    sks: str = Query(default="", description="Comma-separated list of up to 25 product_sk values"),
+    db: Connection = Depends(get_db),
+) -> ProductPricesBatchResponse:
+    """Lightweight, RAM-cached batch price lookup for `/my-alerts` (1 query, zero history/alt overhead)."""
+    set_cache_headers(response, s_maxage=1800, stale_while_revalidate=86400)
+    raw_list = [part.strip() for part in sks.split(",") if part.strip()]
+    unique_sks = list(dict.fromkeys(raw_list))
+    if not unique_sks:
+        return ProductPricesBatchResponse(items=[])
+    if len(unique_sks) > MAX_BATCH_PRICE_SKS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"At most {MAX_BATCH_PRICE_SKS} product_sk values may be queried per request.",
+        )
+
+    cache_key = f"products:prices:v1:{','.join(sorted(unique_sks))}"
+    cached = api_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    batch_sql = text(
+        """
+        SELECT
+            product_sk,
+            current_price,
+            in_stock,
+            last_updated_at
+        FROM gold.mart_product_verdicts
+        WHERE product_sk = ANY(:sks)
+        """
+    )
+    rows = db.execute(batch_sql, {"sks": unique_sks}).mappings().all()
+    by_sk = {
+        str(r["product_sk"]): ProductPriceSnapshot.model_validate(dict(r))
+        for r in rows
+    }
+    ordered_items = [by_sk[sk] for sk in unique_sks if sk in by_sk]
+    result = ProductPricesBatchResponse(items=ordered_items)
+    api_cache.set(cache_key, result, ttl=3600.0)
+    return result
 
 
 @router.get("/{product_sk}", response_model=ProductDetailResponse)

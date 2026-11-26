@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowLeft, BellRing, ExternalLink } from "lucide-react";
+import { ArrowLeft, BellRing, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ProductDetailResponse } from "@/types/contract";
 import { ApiError, fetchProductDetail, type ApiResult } from "@/lib/api";
 import { trackStoreOutbound, trackViewProduct } from "@/lib/analytics";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/format";
 import { isStaleObservation, observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
+import { useSavedAlerts } from "@/lib/saved-alerts";
 import { buildAffiliateUrl, outboundLinkRel } from "@/lib/affiliate";
 import { retailerHref } from "@/lib/offers";
 import { absoluteUrl } from "@/lib/site";
@@ -73,6 +74,7 @@ export function ProductReceipt({
   initial: ApiResult<ProductDetailResponse> | null;
 }) {
   const { lang, ready, t } = useLanguage();
+  const { hydrated: alertsHydrated, getAlertForProduct } = useSavedAlerts();
   const params = useBrowseParams();
   const from = safeBrowseHref(params.get("from"));
   const [retry, setRetry] = useState(0);
@@ -245,6 +247,15 @@ export function ProductReceipt({
   const live = loaded.source === "api";
   const canVisit = live && Boolean(storeLink) && product.in_stock;
   const canAlert = live && product.current_price > 0.01;
+  const productKey = product.canonical_product_key ?? product.product_sk;
+  const savedAlert = alertsHydrated
+    ? getAlertForProduct({
+        product_sk: product.product_sk,
+        product_key: productKey,
+        store_name: product.store_name,
+      })
+    : null;
+  const alertActive = Boolean(savedAlert);
   const variantCount = Math.max(1, product.variant_count ?? 1, variants.length);
   const hasMultipleVariants = Boolean(
     product.has_multiple_variants || variantCount > 1,
@@ -513,11 +524,22 @@ export function ProductReceipt({
               <button
                 type="button"
                 disabled={!ready}
+                aria-pressed={alertActive}
                 onClick={() => setAlertOpen(true)}
-                className={`ptr-button ${!canVisit && !compareReady ? "ptr-primary" : ""}`}
+                className={`ptr-button ${
+                  alertActive
+                    ? "ptr-alert-trigger--active"
+                    : !canVisit && !compareReady
+                      ? "ptr-primary"
+                      : ""
+                }`}
               >
-                <BellRing size={16} aria-hidden="true" />
-                {t("alert.bellAria")}
+                {alertActive ? (
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                ) : (
+                  <BellRing size={16} aria-hidden="true" />
+                )}
+                <span>{t(alertActive ? "alert.activeButton" : "alert.bellAria")}</span>
               </button>
             )}
             {canVisit && alternatives.length > 0 && (
@@ -761,10 +783,14 @@ export function ProductReceipt({
         <PriceAlertModal
           open={alertOpen}
           onClose={() => setAlertOpen(false)}
-          productKey={product.canonical_product_key ?? product.product_sk}
+          productKey={productKey}
+          productSk={product.product_sk}
           productTitle={product.product_title}
+          imageUrl={product.image_url}
+          category={product.category}
           storeName={product.store_name}
           currentPrice={product.current_price}
+          existingAlert={savedAlert}
         />
       )}
     </div>

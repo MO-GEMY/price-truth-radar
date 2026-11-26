@@ -74,6 +74,18 @@ class _FakeAlertsDB:
         if "CREATE TABLE IF NOT EXISTS" in sql:
             self.ddl_ran = True
             return _FakeResult()
+        if "SELECT id, product_key, destination, is_active" in sql and "FROM public.price_alerts" in sql:
+            aid = int(p["alert_id"])
+            for r in self.rows:
+                if r["id"] == aid:
+                    return _FakeResult(rows=[dict(r)])
+            return _FakeResult(rows=[])
+        if "UPDATE public.price_alerts" in sql and "SET is_active = FALSE" in sql:
+            aid = int(p["alert_id"])
+            for r in self.rows:
+                if r["id"] == aid and r["is_active"]:
+                    r["is_active"] = False
+            return _FakeResult()
         if "SELECT id" in sql and "FROM public.price_alerts" in sql:
             dest = str(p["destination"]).lower()
             pk = str(p["product_key"])
@@ -1177,6 +1189,116 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(body["market_benchmark"]["price_diff_vs_cheapest_egp"], 1209.0)
         # History points carry EARLY maturity & NULL verified median
         self.assertTrue(all(pt["verified_historical_median"] is None for pt in body["history"]))
+
+    def test_alert_cancel_token_and_cancellation_flow(self) -> None:
+        fake_alerts_db = _FakeAlertsDB()
+        app.dependency_overrides[get_write_db] = lambda: fake_alerts_db
+        client = TestClient(app)
+
+        with patch.dict(os.environ, {"ALERT_CANCEL_SECRET": "test-super-secret-key-2026"}):
+            # 1. Create alert -> returns id + 64-char HMAC cancel_token
+            create_resp = client.post(
+                "/api/alerts",
+                json={
+                    "product_key": "iphone_16_128gb",
+                    "product_title": "Apple iPhone 16 128GB",
+                    "store_name": "noon",
+                    "target_price": 45000.0,
+                    "channel": "email",
+                    "destination": "shopper@example.com",
+                },
+            )
+            self.assertEqual(create_resp.status_code, 201)
+            created = create_resp.json()
+            alert_id = created["id"]
+            token = created.get("cancel_token")
+            self.assertIsInstance(token, str)
+            self.assertEqual(len(token), 64)
+            self.assertTrue(fake_alerts_db.rows[0]["is_active"])
+
+            # 2. Invalid/forged token -> 403 Forbidden (row stays active)
+            bad_resp = client.post(
+                f"/api/alerts/{alert_id}/cancel",
+                json={"cancel_token": "0" * 64},
+            )
+            self.assertEqual(bad_resp.status_code, 403)
+            self.assertTrue(fake_alerts_db.rows[0]["is_active"])
+
+            # 3. Unknown alert id -> 404 Not Found
+            missing_resp = client.post(
+                "/api/alerts/9999/cancel",
+                json={"cancel_token": token},
+            )
+            self.assertEqual(missing_resp.status_code, 404)
+
+            # 4. Valid token -> 200 cancelled and row deactivated
+            ok_resp = client.post(
+                f"/api/alerts/{alert_id}/cancel",
+                json={"cancel_token": token},
+            )
+            self.assertEqual(ok_resp.status_code, 200)
+            self.assertEqual(ok_resp.json()["status"], "cancelled")
+            self.assertFalse(fake_alerts_db.rows[0]["is_active"])
+
+            # 5. Re-canceling same alert -> 200 already_inactive (idempotent)
+            idem_resp = client.post(
+                f"/api/v1/alerts/{alert_id}/cancel",
+                json={"cancel_token": token},
+            )
+            self.assertEqual(idem_resp.status_code, 200)
+            self.assertEqual(idem_resp.json()["status"], "already_inactive")
+
+    def test_products_prices_batch_endpoint_caches_and_caps(self) -> None:
+        now = datetime(2026, 11, 26, 2, 30, 0, tzinfo=timezone.utc)
+        rows = [
+            {
+                "product_sk": "sk_a",
+                "current_price": 12500.0,
+                "in_stock": True,
+                "last_updated_at": now,
+            },
+            {
+                "product_sk": "sk_b",
+                "current_price": 499.5,
+                "in_stock": False,
+                "last_updated_at": now,
+            },
+        ]
+
+        def handler(sql: str, params: dict[str, Any]) -> _FakeResult:
+            if "WHERE product_sk = ANY(:sks)" in sql:
+                wanted = set(params.get("sks") or [])
+                return _FakeResult(rows=[r for r in rows if r["product_sk"] in wanted])
+            return _FakeResult(rows=[])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        # Empty sks -> zero DB queries
+        empty_resp = client.get("/api/v1/products/prices?sks=")
+        self.assertEqual(empty_resp.status_code, 200)
+        self.assertEqual(empty_resp.json(), {"items": []})
+        self.assertEqual(len(fake_db.calls), 0)
+
+        # > 25 sks -> 422
+        too_many = ",".join(f"sk_{i}" for i in range(26))
+        cap_resp = client.get(f"/api/v1/products/prices?sks={too_many}")
+        self.assertEqual(cap_resp.status_code, 422)
+
+        # Valid batch -> 1 DB query, preserves order, caches subsequent call
+        resp1 = client.get("/api/v1/products/prices?sks=sk_b,sk_a,sk_missing")
+        self.assertEqual(resp1.status_code, 200)
+        body = resp1.json()
+        self.assertEqual([i["product_sk"] for i in body["items"]], ["sk_b", "sk_a"])
+        self.assertEqual(body["items"][0]["current_price"], 499.5)
+        self.assertFalse(body["items"][0]["in_stock"])
+        self.assertEqual(len(fake_db.calls), 1)
+
+        # Reordered identical set hits RAM cache -> still 1 DB query
+        resp2 = client.get("/api/v1/products/prices?sks=sk_a,sk_b,sk_missing")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(len(fake_db.calls), 1)
 
 
 if __name__ == "__main__":

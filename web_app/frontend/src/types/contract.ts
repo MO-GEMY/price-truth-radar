@@ -419,6 +419,24 @@ export interface PriceAlertResponse {
   id: string;
   status: string;
   message: string;
+  cancel_token?: string | null;
+}
+
+export interface PriceAlertCancelResponse {
+  id: string;
+  status: "cancelled" | "already_inactive";
+  message: string;
+}
+
+export interface ProductPriceSnapshot {
+  product_sk: string;
+  current_price: number;
+  in_stock: boolean;
+  last_updated_at: string;
+}
+
+export interface ProductPricesBatchResponse {
+  items: ProductPriceSnapshot[];
 }
 
 /* ------------------------------------------------------------------ */

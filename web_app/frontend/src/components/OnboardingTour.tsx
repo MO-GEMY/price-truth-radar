@@ -212,10 +212,10 @@ function measureSpotlight(
     top = Math.max(minSafeTop, top);
     const maxHeight = isMobile
       ? Math.max(72, Math.min(340, vh - cardHeight - 28 - top))
-      : Math.max(96, Math.min(420, vh - chrome.mastBottom - 120));
-    bottom = Math.min(bottom, top + maxHeight, vh - 12);
+      : Math.max(96, Math.min(420, vh - chrome.mastBottom - chrome.bottomNavHeight - 120));
+    bottom = Math.min(bottom, top + maxHeight, vh - chrome.bottomNavHeight - 12);
     if (bottom - top < 44) {
-      bottom = Math.min(vh - 12, top + 44);
+      bottom = Math.min(vh - chrome.bottomNavHeight - 12, top + 44);
     }
   }
 
@@ -245,7 +245,9 @@ function scrollTargetIntoSafeZone(
   const rect = el.getBoundingClientRect();
   const isMobile = vw < 640;
   const safeTop = chrome.mastBottom + 16;
-  const safeBottom = isMobile ? vh - cardHeight - 28 : vh - 40;
+  const safeBottom = isMobile
+    ? vh - cardHeight - 28
+    : vh - chrome.bottomNavHeight - 40;
   const safeHeight = Math.max(120, safeBottom - safeTop);
 
   // If element is already comfortably inside the safe zone, avoid jarring scroll.
@@ -336,6 +338,7 @@ function computePlacement(
   // Tablet (>= 640px) & Desktop (>= 1024px): smart 4-way collision detection
   const cardWidth = Math.min(DESKTOP_CARD_WIDTH, vw - 32);
   const safeTop = chrome.mastBottom + 12;
+  const safeBottom = vh - chrome.bottomNavHeight - VIEWPORT_MARGIN;
   const targetCenterX = spot.left + spot.width / 2;
   const targetCenterY = spot.top + spot.height / 2;
 
@@ -345,12 +348,12 @@ function computePlacement(
   );
   const clampedTopForSide = Math.min(
     Math.max(targetCenterY - cardHeight / 2, safeTop),
-    Math.max(vh - cardHeight - VIEWPORT_MARGIN, safeTop),
+    Math.max(safeBottom - cardHeight, safeTop),
   );
 
   // 1. Try below target
   const belowTop = spot.bottom + CARD_GAP;
-  if (belowTop + cardHeight <= vh - VIEWPORT_MARGIN) {
+  if (belowTop + cardHeight <= safeBottom) {
     return {
       className: "asarak-tour-card",
       style: { top: belowTop, left: clampedLeft, width: cardWidth },
@@ -395,10 +398,10 @@ function computePlacement(
     }
   }
 
-  // 4. Fallback: clamp safely near bottom of viewport
+  // 4. Fallback: clamp safely near bottom of viewport (above any docked bottom nav)
   const fallbackTop = Math.min(
-    Math.max(vh - cardHeight - VIEWPORT_MARGIN, safeTop),
-    Math.max(vh - cardHeight - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
+    Math.max(safeBottom - cardHeight, safeTop),
+    Math.max(safeBottom - cardHeight, VIEWPORT_MARGIN),
   );
   return {
     className: "asarak-tour-card",

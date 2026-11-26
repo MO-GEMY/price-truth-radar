@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, BellRing } from "lucide-react";
+import { ArrowUpRight, BellRing, Check } from "lucide-react";
 import type { Product } from "@/types/contract";
 import type { DataSource } from "@/lib/api";
 import { categoryLabelKey, productHref } from "@/lib/browse-state";
@@ -15,6 +15,7 @@ import {
   formatUnitPrice,
 } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
+import { useSavedAlerts } from "@/lib/saved-alerts";
 import {
   formatTrackedDays,
   getHistoryMaturity,
@@ -40,8 +41,18 @@ export function ProductCard({
   tourTarget?: boolean;
 }) {
   const { lang, t } = useLanguage();
+  const { hydrated: alertsHydrated, getAlertForProduct } = useSavedAlerts();
   const [alertOpen, setAlertOpen] = useState(false);
   const live = source === "api";
+  const productKey = product.canonical_product_key ?? product.product_sk;
+  const savedAlert = alertsHydrated
+    ? getAlertForProduct({
+        product_sk: product.product_sk,
+        product_key: productKey,
+        store_name: product.store_name,
+      })
+    : null;
+  const alertActive = Boolean(savedAlert);
   const unit = formatUnitPrice(product, lang);
   const pack = formatPackSize(product.attributes_json);
   const catKey = categoryLabelKey(product.category);
@@ -139,12 +150,20 @@ export function ProductCard({
         {live && product.current_price > 0.01 && (
           <button
             type="button"
-            className="ptr-icon-button asarak-grid-card__alert"
+            className={`ptr-icon-button asarak-grid-card__alert${alertActive ? " ptr-alert-btn--active" : ""}`}
+            aria-pressed={alertActive}
             onClick={() => setAlertOpen(true)}
-            aria-label={`${t("alert.bellAria")} · ${product.product_title}`}
-            title={t("alert.bellAria")}
+            aria-label={`${t(alertActive ? "alert.activeAria" : "alert.bellAria")} · ${product.product_title}`}
+            title={t(alertActive ? "alert.activeButton" : "alert.bellAria")}
           >
-            <BellRing size={15} aria-hidden="true" />
+            {alertActive ? (
+              <span className="ptr-bell-active-icon" aria-hidden="true">
+                <BellRing size={15} />
+                <Check size={9} strokeWidth={3} className="ptr-bell-active-check" />
+              </span>
+            ) : (
+              <BellRing size={15} aria-hidden="true" />
+            )}
           </button>
         )}
 
@@ -260,10 +279,14 @@ export function ProductCard({
           <PriceAlertModal
             open={alertOpen}
             onClose={() => setAlertOpen(false)}
-            productKey={product.canonical_product_key ?? product.product_sk}
+            productKey={productKey}
+            productSk={product.product_sk}
             productTitle={product.product_title}
+            imageUrl={product.image_url}
+            category={product.category}
             storeName={product.store_name}
             currentPrice={product.current_price}
+            existingAlert={savedAlert}
           />
         )}
       </article>
@@ -373,20 +396,32 @@ export function ProductCard({
         <>
           <button
             type="button"
-            className="ptr-icon-button ptr-card-alert"
+            className={`ptr-icon-button ptr-card-alert${alertActive ? " ptr-alert-btn--active" : ""}`}
+            aria-pressed={alertActive}
             onClick={() => setAlertOpen(true)}
-            aria-label={`${t("alert.bellAria")} · ${product.product_title}`}
-            title={t("alert.bellAria")}
+            aria-label={`${t(alertActive ? "alert.activeAria" : "alert.bellAria")} · ${product.product_title}`}
+            title={t(alertActive ? "alert.activeButton" : "alert.bellAria")}
           >
-            <BellRing size={16} aria-hidden="true" />
+            {alertActive ? (
+              <span className="ptr-bell-active-icon" aria-hidden="true">
+                <BellRing size={16} />
+                <Check size={9} strokeWidth={3} className="ptr-bell-active-check" />
+              </span>
+            ) : (
+              <BellRing size={16} aria-hidden="true" />
+            )}
           </button>
           <PriceAlertModal
             open={alertOpen}
             onClose={() => setAlertOpen(false)}
-            productKey={product.canonical_product_key ?? product.product_sk}
+            productKey={productKey}
+            productSk={product.product_sk}
             productTitle={product.product_title}
+            imageUrl={product.image_url}
+            category={product.category}
             storeName={product.store_name}
             currentPrice={product.current_price}
+            existingAlert={savedAlert}
           />
         </>
       )}
