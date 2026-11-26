@@ -13,6 +13,10 @@ declare global {
       params?: GtagEventParams,
     ) => void;
     dataLayer?: unknown[];
+    ttq?: {
+      page?: () => void;
+      track?: (event: string, params?: Record<string, unknown>) => void;
+    };
   }
 }
 
