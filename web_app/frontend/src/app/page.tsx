@@ -358,7 +358,10 @@ export default function HomePage() {
                   })
                 : t("hero.overline")}
             </p>
-            <h1>{t("hero.titleShort")}</h1>
+            <h1 className="asarak-hero-title">
+              <span className="asarak-hero-title__line">{t("hero.titleShortLine1")}</span>{" "}
+              <span className="asarak-hero-title__line">{t("hero.titleShortLine2")}</span>
+            </h1>
             <p className="ptr-hero-lede">{t("hero.subtitleShort")}</p>
             <SearchBar
               search={search}

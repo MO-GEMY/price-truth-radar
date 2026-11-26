@@ -547,6 +547,8 @@ export const translations = {
     /* Re-imagined landing page keys */
     "hero.liveBadge": "Live daily tracking · {stores} stores · {products} products",
     "hero.titleShort": "Know the real price before you buy",
+    "hero.titleShortLine1": "Know the real price",
+    "hero.titleShortLine2": "before you buy",
     "hero.subtitleShort":
       "Check 60-day EGP price history, spot inflated discounts, and compare identical products across Egyptian stores in seconds.",
     "search.modeProduct": "Search product",
@@ -1145,6 +1147,8 @@ export const translations = {
     /* Re-imagined landing page keys */
     "hero.liveBadge": "رصد يومي مباشر · {stores} متجر مصري · {products} منتج",
     "hero.titleShort": "اعرف السعر الحقيقي قبل ما تشتري",
+    "hero.titleShortLine1": "اعرف السعر الحقيقي",
+    "hero.titleShortLine2": "قبل ما تشتري",
     "hero.subtitleShort":
       "راجع سجل السعر لآخر 60 يوم، اكشف الخصومات الوهمية، وقارن نفس المنتج عبر المتاجر المصرية في ثوانٍ.",
     "search.modeProduct": "ابحث باسم المنتج",

@@ -4192,6 +4192,16 @@ html[dir="rtl"] .asarak-bar-fill--winner {
   .asarak-hero-greeting--reimagined {
     padding-block: 20px 22px;
   }
+  .asarak-hero-greeting .asarak-hero-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: clamp(1.55rem, 7.6vw, 2.25rem);
+  }
+  .asarak-hero-title__line {
+    display: block;
+    white-space: nowrap;
+  }
   .asarak-search-modes {
     width: 100%;
     justify-content: stretch;
