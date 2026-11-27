@@ -34,7 +34,7 @@ stores:
   vertical: core
   extra_verticals:
   - groceries
-  region_mode: cloud  # Priority #1 daily store split into 5 parallel department shards across all 10 categories; graceful throttle fallback
+  region_mode: local_only  # Priority #1 daily store split into 5 sequential department shards on Egypt residential IP (avoids Azure cloud HTTP 503)
   enabled: true
   verified: true
   batch: core_1

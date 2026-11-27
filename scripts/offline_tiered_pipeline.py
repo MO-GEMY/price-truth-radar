@@ -182,12 +182,19 @@ def _cmd_scrape_shard(args: argparse.Namespace) -> int:
         os.environ[env_key] = ""
 
     raw_stores_arg = (args.stores or "").strip()
+    excluded_stores = {
+        s.strip().lower() for s in (getattr(args, "exclude_stores", "") or "").split(",") if s.strip()
+    }
     if args.local_only or raw_stores_arg.lower() == "local_only":
         reg_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True, region_mode="local_only")}
-        raw_stores = list(reg_entries.keys())
+        raw_stores = [k for k in reg_entries.keys() if k not in excluded_stores]
     else:
         reg_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
-        raw_stores = [s.strip().lower() for s in raw_stores_arg.split(",") if s.strip()]
+        raw_stores = [
+            s.strip().lower()
+            for s in raw_stores_arg.split(",")
+            if s.strip() and s.strip().lower().split(":", 1)[0] not in excluded_stores
+        ]
 
     targets: list[tuple[str, ScrapeVertical, Optional[str]]] = []
     for raw_tok in raw_stores:
@@ -459,6 +466,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_scrape.add_argument("--shard", required=True)
     p_scrape.add_argument("--priority", default="p1_major_brands")
     p_scrape.add_argument("--stores", default="", help="Comma-separated store keys (or 'local_only').")
+    p_scrape.add_argument("--exclude-stores", default="", help="Comma-separated store keys to exclude from this shard.")
     p_scrape.add_argument("--local-only", action="store_true", help="Scrape all enabled region_mode=local_only stores offline.")
     p_scrape.add_argument("--mode", choices=["daily", "discover", "discovery", "expand"], default="daily")
     p_scrape.add_argument("--limit", type=int, default=None)

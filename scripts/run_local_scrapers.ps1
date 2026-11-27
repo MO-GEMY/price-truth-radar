@@ -117,38 +117,90 @@ Push-Location $RepoRoot
 $FinalExit = 0
 
 try {
-    # PHASE 1: 100% OFFLINE PARALLEL HTTP SCRAPING (ZERO NEON CONNECTIONS / 0 CU)
-    $ScrapeArgs = @(
-        $PipelineScript, "scrape-shard",
-        "--shard", "local_only",
-        "--priority", "p1_major_brands",
-        "--mode", $Mode,
-        "--workers", "$Workers",
-        "--delay", "$Delay",
-        "--out", $ArtifactPath
-    )
+    # PHASE 1: 100% OFFLINE HTTP SCRAPING (ZERO NEON CONNECTIONS / 0 CU)
     if ($ExplicitCsv) {
-        $ScrapeArgs += @("--stores", $ExplicitCsv)
+        $ScrapeArgs = @(
+            $PipelineScript, "scrape-shard",
+            "--shard", "local_only",
+            "--priority", "p1_major_brands",
+            "--mode", $Mode,
+            "--workers", "$Workers",
+            "--delay", "$Delay",
+            "--stores", $ExplicitCsv,
+            "--out", $ArtifactPath
+        )
+        if ($Limit -gt 0) {
+            $ScrapeArgs += @("--limit", "$Limit")
+        }
+        Write-Log "PHASE 1 (OFFLINE / 0 CU): Starting explicit scrape-shard ($ExplicitCsv) -> $ArtifactPath ..."
+        & $PythonExe @ScrapeArgs 2>&1 | ForEach-Object {
+            $text = $_.ToString()
+            Write-Output $text
+            Add-Content -Path $LogFile -Value $text -Encoding UTF8
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "WARNING: Offline scrape-shard exited with code $LASTEXITCODE."
+            $FinalExit = $LASTEXITCODE
+        }
     } else {
-        $ScrapeArgs += "--local-only"
-    }
-    if ($Limit -gt 0) {
-        $ScrapeArgs += @("--limit", "$Limit")
-    }
+        # PHASE 1A: Amazon Egypt (#1 Priority) — run all 5 department shards SEQUENTIALLY (--workers 1)
+        # so the residential Egypt IP never hits Amazon concurrently across shards.
+        $AmazonArtifactPath = Join-Path $StagingDir "amazon_eg_${Mode}_${DateStamp}.jsonl.gz"
+        $AmazonShardsCsv = "amazon_eg:electronics,amazon_eg:home_appliances,amazon_eg:fashion_beauty,amazon_eg:groceries_health,amazon_eg:home_sports_baby_pet"
+        $AmazonArgs = @(
+            $PipelineScript, "scrape-shard",
+            "--shard", "p1_amazon_eg_local",
+            "--priority", "p1_major_brands",
+            "--mode", $Mode,
+            "--workers", "1",
+            "--delay", "2.5",
+            "--stores", $AmazonShardsCsv,
+            "--out", $AmazonArtifactPath
+        )
+        if ($Limit -gt 0) {
+            $AmazonArgs += @("--limit", "$Limit")
+        }
+        Write-Log "PHASE 1A (OFFLINE / 0 CU): Running Amazon Egypt 5 department shards sequentially -> $AmazonArtifactPath ..."
+        & $PythonExe @AmazonArgs 2>&1 | ForEach-Object {
+            $text = $_.ToString()
+            Write-Output $text
+            Add-Content -Path $LogFile -Value $text -Encoding UTF8
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "WARNING: Amazon Egypt sequential shard exited with code $LASTEXITCODE."
+            $FinalExit = $LASTEXITCODE
+        }
 
-    Write-Log "PHASE 1 (OFFLINE / 0 CU): Starting parallel scrape-shard -> $ArtifactPath ..."
-    & $PythonExe @ScrapeArgs 2>&1 | ForEach-Object {
-        $text = $_.ToString()
-        Write-Output $text
-        Add-Content -Path $LogFile -Value $text -Encoding UTF8
-    }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Log "WARNING: Offline scrape-shard exited with code $LASTEXITCODE."
-        $FinalExit = $LASTEXITCODE
+        # PHASE 1B: Remaining enabled local_only stores in parallel (excluding amazon_eg)
+        $ScrapeArgs = @(
+            $PipelineScript, "scrape-shard",
+            "--shard", "local_only",
+            "--priority", "p1_major_brands",
+            "--mode", $Mode,
+            "--workers", "$Workers",
+            "--delay", "$Delay",
+            "--local-only",
+            "--exclude-stores", "amazon_eg",
+            "--out", $ArtifactPath
+        )
+        if ($Limit -gt 0) {
+            $ScrapeArgs += @("--limit", "$Limit")
+        }
+        Write-Log "PHASE 1B (OFFLINE / 0 CU): Starting remaining local_only stores -> $ArtifactPath ..."
+        & $PythonExe @ScrapeArgs 2>&1 | ForEach-Object {
+            $text = $_.ToString()
+            Write-Output $text
+            Add-Content -Path $LogFile -Value $text -Encoding UTF8
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "WARNING: Offline local_only scrape-shard exited with code $LASTEXITCODE."
+            $FinalExit = $LASTEXITCODE
+        }
     }
 
     # PHASE 2: SINGLE NEON BULK-COPY SESSION -> DBT -> TRUNCATE RAW -> DISCONNECT
-    if (Test-Path $ArtifactPath) {
+    $StagedFiles = @(Get-ChildItem -Path $StagingDir -Filter "*.jsonl.gz" -File -ErrorAction SilentlyContinue)
+    if ($StagedFiles.Count -gt 0) {
         $LoadArgs = @(
             $PipelineScript, "load-and-transform",
             "--artifacts-dir", $StagingDir,

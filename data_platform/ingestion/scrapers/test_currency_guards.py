@@ -346,15 +346,14 @@ class TestIngestionCurrencyFlipCircuitBreaker(unittest.TestCase):
         from data_platform.ingestion.scrapers.registry_loader import load_stores_registry
 
         entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
-        for key in ("okhtein", "azza_fahmy", "egyptlaptop", "dubaiphone", "spinneys", "elaraby"):
+        for key in ("okhtein", "azza_fahmy", "amazon_eg", "egyptlaptop", "dubaiphone", "spinneys", "elaraby"):
             self.assertIn(key, entries)
             self.assertEqual(
                 entries[key].region_mode,
                 "local_only",
                 f"{key} blocks or geo-redirects US cloud IPs and must remain local_only",
             )
-        # Amazon Egypt is promoted to Priority #1 cloud with 5 parallel department shards
-        self.assertEqual(entries["amazon_eg"].region_mode, "cloud")
+        # Amazon Egypt is Priority #1 (local_only residential execution with 5 sequential department shards)
         self.assertEqual(entries["amazon_eg"].tier, 1)
         self.assertEqual(entries["amazon_eg"].priority_group, "major_brands")
 

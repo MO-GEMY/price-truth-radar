@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import logging
 import math
+import random
 import re
+import time
 from decimal import Decimal
 from typing import Any, Optional
 from urllib.parse import urlencode
@@ -475,6 +477,60 @@ class AmazonEgScraper(BaseScraper):
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 3.0
     request_timeout = 30.0
+    max_consecutive_throttles = 4
+    throttle_cooldown_range: tuple[float, float] = (10.0, 18.0)
+    page_delay_range: tuple[float, float] = (1.5, 3.5)
+
+    _SESSION_HEADER_PROFILES: tuple[dict[str, str], ...] = (
+        {
+            "Accept-Language": "en-US,en;q=0.9,ar-EG;q=0.8",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+        },
+        {
+            "Accept-Language": "en-GB,en;q=0.9,ar;q=0.7",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            ),
+        },
+        {
+            "Accept-Language": "en-US,en;q=0.9",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+        },
+        {
+            "Accept-Language": "en-EG,en;q=0.9,ar-EG;q=0.8",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+            ),
+        },
+    )
+
+    def _open_client(self, effective_delay: float, session_idx: int) -> ImpersonatedHttpClient:
+        headers = dict(self._SESSION_HEADER_PROFILES[session_idx % len(self._SESSION_HEADER_PROFILES)])
+        return ImpersonatedHttpClient(
+            impersonate="chrome",
+            timeout=self.request_timeout or 30.0,
+            max_retries=3,
+            backoff_base=2.5,
+            min_delay_seconds=effective_delay,
+            jitter_range=(0.5, 1.5),
+            headers=headers,
+        )
+
+    def _prime_client(self, client: ImpersonatedHttpClient) -> bool:
+        try:
+            client.get(f"{self.base_url}/-/en/", check_throttle=True, min_html_bytes=5120)
+            return True
+        except Exception as exc:
+            logger.warning("[amazon_eg] Session prime attempt failed: %s", exc)
+            return False
 
     def __init__(
         self,
@@ -564,25 +620,29 @@ class AmazonEgScraper(BaseScraper):
             max_pages = 2 if target_limit <= 120 else (4 if self.department_group else 3)
         throttled = False
         consecutive_throttles = 0
-
-        with ImpersonatedHttpClient(
-            impersonate="chrome",
-            timeout=self.request_timeout or 30.0,
-            max_retries=3,
-            backoff_base=2.5,
-            min_delay_seconds=effective_delay,
-            jitter_range=(0.5, 1.5),
-            headers={"Accept-Language": "en-US,en;q=0.9"},
-        ) as client:
-            # Prime session cookies on the English storefront before hitting /s?k=
+        session_idx = 0
+        client = self._open_client(effective_delay, session_idx)
+        try:
+            # Prime session cookies on the English storefront with transient-503 retry & rotation
             logger.info("[amazon_eg] Priming session on %s/-/en/", self.base_url)
-            try:
-                client.get(f"{self.base_url}/-/en/", check_throttle=True, min_html_bytes=5120)
-            except ThrottledResponseError as exc:
-                logger.warning("[amazon_eg] Throttled during session priming: %s; exiting gracefully.", exc)
-                return snapshots
-            except Exception as exc:
-                logger.warning("[amazon_eg] Failed to prime session: %s; exiting gracefully.", exc)
+            primed = False
+            for attempt in range(3):
+                if self._prime_client(client):
+                    primed = True
+                    break
+                if attempt < 2:
+                    cooldown = random.uniform(*self.throttle_cooldown_range)
+                    logger.warning(
+                        "[amazon_eg] Prime strike %d/3; cooling down %.1fs and rotating session.",
+                        attempt + 1,
+                        cooldown,
+                    )
+                    time.sleep(cooldown)
+                    client.close()
+                    session_idx += 1
+                    client = self._open_client(effective_delay, session_idx)
+            if not primed:
+                logger.warning("[amazon_eg] Failed to prime session after retries; exiting gracefully.")
                 return snapshots
 
             for default_sub, top_category, query in queries:
@@ -594,6 +654,9 @@ class AmazonEgScraper(BaseScraper):
                     if len(snapshots) >= target_limit or query_collected >= per_query_cap:
                         break
 
+                    if page > 1 and self.page_delay_range[1] > 0:
+                        time.sleep(random.uniform(*self.page_delay_range))
+
                     qs = urlencode({"k": query, "page": page})
                     search_url = f"{self.base_url}/-/en/s?{qs}"
                     logger.info("[amazon_eg] Fetching query=%r (%s) page %d", query, top_category, page)
@@ -603,18 +666,27 @@ class AmazonEgScraper(BaseScraper):
                     except ThrottledResponseError as exc:
                         consecutive_throttles += 1
                         logger.warning(
-                            "[amazon_eg] Throttled on query=%r page %d (%s; strike=%d); %d snapshots so far.",
+                            "[amazon_eg] Throttled on query=%r page %d (%s; strike=%d/%d); %d snapshots so far.",
                             query,
                             page,
                             exc,
                             consecutive_throttles,
+                            self.max_consecutive_throttles,
                             len(snapshots),
                         )
-                        if self.mode == "expand" and consecutive_throttles < 3:
-                            import time as _time
-                            _time.sleep(10.0 * consecutive_throttles)
+                        if consecutive_throttles >= self.max_consecutive_throttles:
+                            throttled = True
                             break
-                        throttled = True
+                        cooldown = random.uniform(*self.throttle_cooldown_range)
+                        logger.info(
+                            "[amazon_eg] Cooling down %.1fs, resetting session/cookies, and advancing to next query.",
+                            cooldown,
+                        )
+                        time.sleep(cooldown)
+                        client.close()
+                        session_idx += 1
+                        client = self._open_client(effective_delay, session_idx)
+                        self._prime_client(client)
                         break
                     except Exception as exc:
                         logger.warning("[amazon_eg] Failed query=%r page %d: %s", query, page, exc)
@@ -700,5 +772,7 @@ class AmazonEgScraper(BaseScraper):
 
                     if page_added == 0:
                         break
+        finally:
+            client.close()
 
         return snapshots

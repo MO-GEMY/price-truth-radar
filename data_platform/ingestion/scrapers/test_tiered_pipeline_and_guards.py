@@ -151,10 +151,16 @@ class TestTieredRegistryAndWavePlanning(unittest.TestCase):
         from data_platform.ingestion.scrapers.amazon_eg import (
             AMAZON_EG_DEPARTMENT_QUERIES,
             AMAZON_EG_DEPARTMENT_SHARD_ORDER,
+            AmazonEgScraper,
         )
-        from data_platform.ingestion.scrapers.base import CANONICAL_CATEGORIES
+        from data_platform.ingestion.scrapers.base import CANONICAL_CATEGORIES, ThrottledResponseError
 
-        plan = plan_tiered_waves_for_day(1, region_mode="cloud", tier2_cadence_days=3, tier3_cadence_days=5)
+        # Cloud plan MUST exclude amazon_eg (local_only residential execution avoids Azure 503s)
+        cloud_plan = plan_tiered_waves_for_day(1, region_mode="cloud", tier2_cadence_days=3, tier3_cadence_days=5)
+        self.assertNotIn("amazon_eg", cloud_plan["priority_1_stores"])
+
+        # Local-included plan MUST put amazon_eg #1 in Priority 1 with all 5 department shards
+        plan = plan_tiered_waves_for_day(1, region_mode=None, tier2_cadence_days=3, tier3_cadence_days=5)
         self.assertEqual(plan["priority_1_stores"][0], "amazon_eg")
         first_five = [s["shard"] for s in plan["shards"][:5]]
         self.assertEqual(
@@ -174,6 +180,41 @@ class TestTieredRegistryAndWavePlanning(unittest.TestCase):
         }
         self.assertEqual(covered_cats, set(CANONICAL_CATEGORIES))
         self.assertIn("super_supplements", SCRAPER_REGISTRY)
+
+        # Verify AmazonEgScraper recovers from transient 503s (does NOT abort on strike=1)
+        class _FakeResp:
+            def __init__(self, text: str) -> None:
+                self.text = text
+
+        sample_html = (
+            '<div data-component-type="s-search-result" data-asin="B0TEST1234">'
+            '<h2>Samsung</h2><h2>Galaxy A55 5G Smartphone</h2>'
+            '<span class="a-price"><span class="a-offscreen">EGP 18,999.00</span></span>'
+            '</div>'
+        )
+        calls = {"search": 0, "opened": 0}
+
+        class _FakeClient:
+            def get(self, url: str, **kwargs):
+                if "/-/en/s?" in url:
+                    calls["search"] += 1
+                    if calls["search"] == 1:
+                        raise ThrottledResponseError("HTTP 503 transient")
+                    return _FakeResp(sample_html)
+                return _FakeResp("<html><title>Amazon.eg</title>" + ("x" * 6000) + "</html>")
+
+            def close(self) -> None:
+                pass
+
+        with PoliteHttpClient(min_delay_seconds=0.0) as http:
+            scraper = AmazonEgScraper(http, department_group="electronics")
+            scraper.throttle_cooldown_range = (0.0, 0.0)
+            scraper.page_delay_range = (0.0, 0.0)
+            with patch.object(scraper, "_open_client", side_effect=lambda *a, **k: (calls.__setitem__("opened", calls["opened"] + 1) or _FakeClient())):
+                recs = scraper.scrape(limit=1)
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0].external_id, "B0TEST1234")
+        self.assertGreaterEqual(calls["opened"], 2, "Expected session rotation after transient 503")
 
     def test_strict_priority_order_and_tier2_tier3_rotation(self) -> None:
         plan_d1 = plan_tiered_waves_for_day(1, region_mode="cloud", tier2_cadence_days=3, tier3_cadence_days=5)
