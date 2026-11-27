@@ -31,7 +31,7 @@ export function ProductCard({
   product,
   from,
   source,
-  view = "list",
+  view = "grid",
   tourTarget = false,
 }: {
   product: Product;

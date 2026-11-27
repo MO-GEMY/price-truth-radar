@@ -23,7 +23,7 @@ import {
   setBrowseParams,
   useBrowseParams,
 } from "@/lib/browse-state";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatSubCategory } from "@/lib/format";
 import { observedTimestamp } from "@/lib/highlights";
 import { useLanguage } from "@/lib/i18n";
 import {
@@ -46,40 +46,9 @@ import { OnboardingTour } from "@/components/OnboardingTour";
 import { Pagination } from "@/components/Pagination";
 import { ProductCard } from "@/components/ProductCard";
 import { SearchBar, useProductSearch } from "@/components/SearchBar";
-import { ErrorState } from "@/components/states";
+import { ErrorState, FeedResultSkeleton } from "@/components/states";
 
 const PAGE_LIMIT = 12;
-
-function ResultSkeleton({ view }: { view: "list" | "grid" }) {
-  const { t } = useLanguage();
-  if (view === "grid") {
-    return (
-      <div className="asarak-product-grid" role="status">
-        <span className="sr-only">{t("common.loading")}</span>
-        {[0, 1, 2, 3, 4, 5].map((item) => (
-          <div key={item} className="surface p-4 space-y-3" aria-hidden="true">
-            <div className="skeleton aspect-[4/3] w-full rounded-xl" />
-            <div className="skeleton h-4 w-3/4" />
-            <div className="skeleton h-4 w-1/2" />
-            <div className="skeleton h-6 w-1/3" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div className="surface ptr-list" role="status">
-      <span className="sr-only">{t("common.loading")}</span>
-      {[0, 1, 2, 3].map((item) => (
-        <div key={item} className="ptr-list-skeleton" aria-hidden="true">
-          <span className="skeleton" />
-          <span className="skeleton" />
-          <span className="skeleton" />
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default function HomePage() {
   const { lang, t } = useLanguage();
@@ -125,7 +94,7 @@ export default function HomePage() {
   } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [view, setView] = useState<"list" | "grid">("list");
+  const [view, setView] = useState<"list" | "grid">("grid");
   const [storesOpen, setStoresOpen] = useState(false);
 
   const hasActiveTextSearch = Boolean(urlQuery.trim() || search.state);
@@ -245,7 +214,7 @@ export default function HomePage() {
       ? activeSubcatObj.label_ar
       : activeSubcatObj.label_en
     : subcategory
-      ? subcategory.replace(/_/g, " ")
+      ? formatSubCategory(subcategory, lang)
       : null;
 
   function updateFilters(next: FeedFilterState) {
@@ -487,7 +456,7 @@ export default function HomePage() {
               {failed === key && (
                 <ErrorState onRetry={() => setAttempt((value) => value + 1)} />
               )}
-              {loading && <ResultSkeleton view={view} />}
+              {loading && <FeedResultSkeleton view={view} />}
               {current && current.data.items.length === 0 && (
                 <div className="surface ptr-empty">
                   <p className="font-semibold">{t("feed.empty")}</p>
@@ -543,7 +512,7 @@ export default function HomePage() {
             </>
           )}
 
-          {searchState?.status === "loading" && <ResultSkeleton view={view} />}
+          {searchState?.status === "loading" && <FeedResultSkeleton view={view} />}
           {searchState?.status === "error" && (
             <ErrorState
               message={t("search.error")}

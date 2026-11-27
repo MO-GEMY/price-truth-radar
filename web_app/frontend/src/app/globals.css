@@ -1379,6 +1379,25 @@ html[dir="rtl"] .asarak-spotlight-card__title {
   border-color: var(--asarak-emerald-border);
 }
 
+.ptr-badge-link {
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.ptr-badge-link:hover,
+.ptr-badge-link:focus-visible {
+  border-color: var(--asarak-emerald);
+  background: var(--asarak-emerald-soft);
+  color: var(--asarak-emerald-aaa);
+  text-decoration: none;
+}
+
+[data-theme="dark"] .ptr-badge-link:hover,
+[data-theme="dark"] .ptr-badge-link:focus-visible {
+  color: #6ee7b7;
+}
+
 /* Variant Selector */
 .ptr-variant-range {
   font-family: var(--asarak-font-mono);
@@ -1485,6 +1504,31 @@ html[dir="rtl"] .asarak-spotlight-card__title {
   font-weight: 650;
   overflow-wrap: break-word;
   word-break: normal;
+}
+
+.ptr-tag-link {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 7px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ptr-tag-link .ptr-store {
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.ptr-tag-link:hover .ptr-store,
+.ptr-tag-link:focus-visible .ptr-store {
+  border-color: var(--asarak-emerald);
+  background: var(--asarak-emerald-soft);
+  color: var(--asarak-emerald-aaa);
+}
+
+[data-theme="dark"] .ptr-tag-link:hover .ptr-store,
+[data-theme="dark"] .ptr-tag-link:focus-visible .ptr-store {
+  color: #6ee7b7;
 }
 
 /* Notice & Empty States */

@@ -79,7 +79,10 @@ export function setBrowseParams(values: Record<string, string | number | undefin
   window.dispatchEvent(new Event(changeEvent));
 }
 
-export function browseHref(path: "/" | "/deals" | "/compare", params: URLSearchParams): string {
+export function browseHref(
+  path: "/" | "/deals" | "/compare" | "/tags",
+  params: URLSearchParams,
+): string {
   const query = params.toString();
   return query ? `${path}?${query}` : path;
 }
@@ -87,9 +90,32 @@ export function browseHref(path: "/" | "/deals" | "/compare", params: URLSearchP
 export function safeBrowseHref(value: string | null | undefined): string | null {
   if (!value?.startsWith("/") || value.startsWith("//")) return null;
   const url = new URL(value, "https://local.invalid");
-  return url.origin === "https://local.invalid" && ["/", "/deals", "/compare"].includes(url.pathname)
+  return url.origin === "https://local.invalid" &&
+    ["/", "/deals", "/compare", "/tags"].includes(url.pathname)
     ? url.pathname + url.search
     : null;
+}
+
+export function tagBrowseHref(filters: {
+  category?: FeedCategoryFilter | string | null;
+  subcategory?: string | null;
+  store?: string | null;
+  brand?: string | null;
+  verdict?: string | null;
+}): string {
+  const query = new URLSearchParams();
+  const cat = filters.category ? parseCategory(filters.category) : "all";
+  if (cat !== "all") query.set("category", cat);
+  const sub = filters.subcategory?.trim().toLowerCase();
+  if (sub) query.set("subcategory", sub);
+  const store = filters.store?.trim().toLowerCase();
+  if (store) query.set("store", store);
+  const brand = filters.brand?.trim();
+  if (brand) query.set("brand", brand);
+  const verdict = filters.verdict?.trim();
+  if (verdict) query.set("verdict", verdict);
+  const qs = query.toString();
+  return qs ? `/tags?${qs}` : "/tags";
 }
 
 export function productHref(id: string, from?: string, sample = false): string {
