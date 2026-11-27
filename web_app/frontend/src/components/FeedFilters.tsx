@@ -21,7 +21,7 @@ import type {
   StatsOverview,
 } from "@/types/contract";
 import { categoryLabels, visibleCategories } from "@/lib/browse-state";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatSubCategory } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
 
@@ -74,7 +74,7 @@ export function FeedFilters({
   categoryCounts,
   facets,
   facetsLoading = false,
-  view = "list",
+  view = "grid",
   onViewChange,
   onChange,
 }: {
@@ -132,7 +132,7 @@ export function FeedFilters({
       ? activeSubcatObj.label_ar
       : activeSubcatObj.label_en
     : value.subcategory
-      ? value.subcategory.replace(/_/g, " ")
+      ? formatSubCategory(value.subcategory, lang)
       : "";
 
   // Guaranteed non-empty quick verdict tabs based on live snapshot counts
@@ -530,16 +530,7 @@ export function FeedFilters({
           </label>
 
           {onViewChange && (
-            <div className="asarak-segmented" role="group" aria-label={t("view.list")}>
-              <button
-                type="button"
-                aria-pressed={view === "list"}
-                aria-label={t("view.list")}
-                title={t("view.list")}
-                onClick={() => onViewChange("list")}
-              >
-                <List size={15} aria-hidden="true" />
-              </button>
+            <div className="asarak-segmented" role="group" aria-label={t("view.toggle")}>
               <button
                 type="button"
                 aria-pressed={view === "grid"}
@@ -548,6 +539,15 @@ export function FeedFilters({
                 onClick={() => onViewChange("grid")}
               >
                 <LayoutGrid size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "list"}
+                aria-label={t("view.list")}
+                title={t("view.list")}
+                onClick={() => onViewChange("list")}
+              >
+                <List size={15} aria-hidden="true" />
               </button>
             </div>
           )}

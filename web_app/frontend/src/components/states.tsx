@@ -28,6 +28,37 @@ export function DetailSkeleton() {
   </div>;
 }
 
+export function FeedResultSkeleton({ view = "grid" }: { view?: "list" | "grid" }) {
+  const { t } = useLanguage();
+  if (view === "grid") {
+    return (
+      <div className="asarak-product-grid" role="status">
+        <span className="sr-only">{t("common.loading")}</span>
+        {[0, 1, 2, 3, 4, 5].map((item) => (
+          <div key={item} className="surface p-4 space-y-3" aria-hidden="true">
+            <div className="skeleton aspect-[4/3] w-full rounded-xl" />
+            <div className="skeleton h-4 w-3/4" />
+            <div className="skeleton h-4 w-1/2" />
+            <div className="skeleton h-6 w-1/3" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="surface ptr-list" role="status">
+      <span className="sr-only">{t("common.loading")}</span>
+      {[0, 1, 2, 3].map((item) => (
+        <div key={item} className="ptr-list-skeleton" aria-hidden="true">
+          <span className="skeleton" />
+          <span className="skeleton" />
+          <span className="skeleton" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ErrorState({ onRetry, message }: { onRetry?: () => void; message?: string }) {
   const { t } = useLanguage();
   return (
