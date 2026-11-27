@@ -195,6 +195,12 @@ export const STORE_META: Record<string, StoreMeta> = {
     accent: "#db2777",
     urlLookup: true,
   },
+  aswaq_mozhela: {
+    name: { en: "Aswaq Mozhela", ar: "أسواق مذهلة" },
+    domain: "play.google.com",
+    accent: "#f59e0b",
+    urlLookup: false,
+  },
 };
 
 /** Stores highlighted in the direct-link guidance (largest catalogs first). */

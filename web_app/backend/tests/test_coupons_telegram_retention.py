@@ -231,13 +231,14 @@ class TestCouponsSystem(unittest.TestCase):
             with patch("app.coupons_service.httpx.get", side_effect=RuntimeError("timeout")):
                 res = store.refresh(force=True)
             self.assertEqual((res["source"], res["count"]), ("local_fallback", len(raw_seed)))
-            self.assertEqual(store.get_coupons(now=NOW)[0], [])
+            self.assertEqual(len(store.get_coupons(now=NOW)[0]), len(raw_seed))
 
-            # The pre-verification sheet (single unverified sample row) -> nothing is served
+            # The pre-verification sheet (unverified legacy CSV) is rejected -> falls back to verified local seed only
             client = TestClient(app)
             with patch("app.coupons_service.httpx.get", return_value=_http_mock(200, LEGACY_CSV)):
                 body = client.get("/api/v1/coupons").json()
-        self.assertEqual((body["total"], body["items"]), (0, []))
+        self.assertEqual(body["total"], len(raw_seed))
+        self.assertNotIn("SAVE10", [item["code"] for item in body["items"]])
 
     def test_compute_coupon_price_percent_fixed_min_order_and_max_discount(self) -> None:
         pct_coupon = CouponRecord(

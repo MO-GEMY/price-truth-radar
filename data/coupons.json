@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "store_id": "aswaq_mozhela",
+    "store_name_ar": "أسواق مذهلة",
+    "code": "MOZHELA15",
+    "title_ar": "خصم إضافي 15% على منتجات كتير — عروض الجمعة السوداء في أسواق مذهلة",
+    "discount_type": "percent",
+    "value": 15,
+    "max_discount": null,
+    "min_order": null,
+    "scope": "seasonal",
+    "category": "all",
+    "affiliate_url": "https://play.google.com/store/apps/details?id=com.herokuapp.aswaqmozhela",
+    "expires_at": "2026-12-31",
+    "active": true,
+    "notes_ar": "Extra 15% off on selected items — Black Friday deals at Aswaq Mozhela",
+    "verified": true,
+    "verified_at": "2026-11-24"
+  }
+]
