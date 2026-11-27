@@ -11,7 +11,6 @@ import {
   categoryLabelKey,
   productHref,
   safeBrowseHref,
-  tagBrowseHref,
   useBrowseParams,
 } from "@/lib/browse-state";
 import {
@@ -283,29 +282,6 @@ export function ProductReceipt({
       : median !== null && product.discount_verdict === "PRESALE_HIKE"
         ? "ptr-decision--hike"
         : "";
-  const categoryKey = categoryLabelKey(product.category);
-  const categoryLabel = categoryKey ? t(categoryKey) : null;
-  const subCategorySlug = (product.sub_category ?? "").trim();
-  const subCategoryLabel = subCategorySlug
-    ? formatSubCategory(subCategorySlug, lang)
-    : "";
-  const trimmedBrand = (product.brand ?? "").trim();
-  const ignoredBrands = new Set([
-    "unknown",
-    "generic",
-    "unbranded",
-    "other",
-    "n/a",
-    "none",
-    "no brand",
-    "null",
-    "-",
-    "na",
-  ]);
-  const filterableBrand =
-    trimmedBrand && !ignoredBrands.has(trimmedBrand.toLowerCase())
-      ? trimmedBrand
-      : null;
 
   return (
     <div className="ptr-wrap ptr-page">
@@ -334,98 +310,37 @@ export function ProductReceipt({
         />
         <div className="min-w-0">
           <div className="ptr-controls text-sm ptr-muted">
-            <Link
-              href={tagBrowseHref({ store: product.store_name })}
-              className="ptr-tag-link"
-              aria-label={t("tags.browseTag", { tag: label })}
-              title={t("tags.browseTag", { tag: label })}
-            >
-              <StoreBadge name={product.store_name} size="sm" />
-            </Link>
-            {categoryLabel && (
-              <Link
-                href={tagBrowseHref({ category: product.category })}
-                className="ptr-badge ptr-badge-link"
-                aria-label={t("tags.browseTag", { tag: categoryLabel })}
-                title={t("tags.browseTag", { tag: categoryLabel })}
-              >
-                {categoryLabel}
-              </Link>
+            <StoreBadge name={product.store_name} size="sm" />
+            {categoryLabelKey(product.category) && (
+              <span className="ptr-badge">
+                {t(categoryLabelKey(product.category)!)}
+              </span>
             )}
-            {product.variant_label &&
-              (showVariantSelector ? (
-                <a
-                  href="#product-variants"
-                  className="ptr-badge ptr-badge-variant ptr-badge-link"
-                >
-                  <bdi>{product.variant_label}</bdi>
-                </a>
-              ) : (
-                <span className="ptr-badge ptr-badge-variant">
-                  <bdi>{product.variant_label}</bdi>
-                </span>
-              ))}
-            {hasMultipleVariants &&
-              !product.variant_label &&
-              (showVariantSelector ? (
-                <a
-                  href="#product-variants"
-                  className="ptr-badge ptr-badge-variant ptr-badge-link"
-                >
-                  <bdi>
-                    {t(
-                      variantCount >= 11
-                        ? "variant.optionsCountMany"
-                        : "variant.optionsCount",
-                      { count: formatNumber(variantCount, lang) },
-                    )}
-                  </bdi>
-                </a>
-              ) : (
-                <span className="ptr-badge ptr-badge-variant">
-                  <bdi>
-                    {t(
-                      variantCount >= 11
-                        ? "variant.optionsCountMany"
-                        : "variant.optionsCount",
-                      { count: formatNumber(variantCount, lang) },
-                    )}
-                  </bdi>
-                </span>
-              ))}
-            {subCategorySlug && (
-              <Link
-                href={tagBrowseHref({
-                  category: product.category,
-                  subcategory: subCategorySlug,
-                })}
-                className="ptr-badge ptr-badge-link"
-                aria-label={t("tags.browseTag", { tag: subCategoryLabel })}
-                title={t("tags.browseTag", { tag: subCategoryLabel })}
-              >
-                {subCategoryLabel}
-              </Link>
+            {product.variant_label && (
+              <span className="ptr-badge ptr-badge-variant">
+                <bdi>{product.variant_label}</bdi>
+              </span>
             )}
+            {hasMultipleVariants && !product.variant_label && (
+              <span className="ptr-badge ptr-badge-variant">
+                <bdi>
+                  {t(
+                    variantCount >= 11
+                      ? "variant.optionsCountMany"
+                      : "variant.optionsCount",
+                    { count: formatNumber(variantCount, lang) },
+                  )}
+                </bdi>
+              </span>
+            )}
+            <span>{formatSubCategory(product.sub_category, lang)}</span>
           </div>
           <h1>
             <bdi>{product.product_title}</bdi>
           </h1>
           {(product.brand || pack) && (
-            <p className="ptr-muted text-sm flex flex-wrap items-center gap-1.5">
-              {filterableBrand ? (
-                <Link
-                  href={tagBrowseHref({ brand: filterableBrand })}
-                  className="ptr-link font-semibold"
-                  aria-label={t("tags.browseTag", { tag: filterableBrand })}
-                  title={t("tags.browseTag", { tag: filterableBrand })}
-                >
-                  <bdi>{filterableBrand}</bdi>
-                </Link>
-              ) : product.brand ? (
-                <bdi>{product.brand}</bdi>
-              ) : null}
-              {product.brand && pack && <span aria-hidden="true">·</span>}
-              {pack && <bdi>{pack}</bdi>}
+            <p className="ptr-muted text-sm">
+              <bdi>{[product.brand, pack].filter(Boolean).join(" · ")}</bdi>
             </p>
           )}
         </div>
@@ -433,7 +348,6 @@ export function ProductReceipt({
 
       {showVariantSelector && (
         <section
-          id="product-variants"
           className="surface ptr-section ptr-variant-section"
           aria-label={t("variant.selectorTitle")}
         >
