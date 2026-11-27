@@ -218,9 +218,15 @@ class TestCouponsSystem(unittest.TestCase):
         self.assertEqual(codes(datetime(2026, 12, 21, 15, 0, tzinfo=CAIRO_TZ)), [])
 
     def test_bundled_seed_and_unverified_sheet_never_publish_a_coupon(self) -> None:
-        # data/coupons.json is the cold-start fallback: every row in it must pass the same gate
-        raw_seed = json.loads((_REPO_ROOT / "data" / "coupons.json").read_text(encoding="utf-8"))
-        self.assertEqual(len(load_local_coupons(now=NOW)), len(raw_seed))
+        # web_app/backend/data/coupons.json is packaged by Railway and mirrored at repo data/coupons.json
+        backend_seed_path = _BACKEND_DIR / "data" / "coupons.json"
+        repo_seed_path = _REPO_ROOT / "data" / "coupons.json"
+        self.assertTrue(backend_seed_path.is_file(), "web_app/backend/data/coupons.json must exist for Railway deploys")
+        raw_seed = json.loads(backend_seed_path.read_text(encoding="utf-8"))
+        self.assertEqual(raw_seed, json.loads(repo_seed_path.read_text(encoding="utf-8")))
+        loaded_local = load_local_coupons(now=NOW)
+        self.assertEqual(len(loaded_local), len(raw_seed))
+        self.assertIn("MOZHELA15", [c.code for c in loaded_local])
 
         store = CouponStore(refresh_interval_seconds=1800.0)
         with patch.dict(

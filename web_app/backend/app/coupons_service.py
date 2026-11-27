@@ -71,8 +71,10 @@ def _candidate_local_paths() -> list[Path]:
     override = os.getenv("COUPONS_LOCAL_FILE", "").strip()
     if override:
         paths.append(Path(override))
-    paths.append(_resolve_repo_root() / "data" / "coupons.json")
+    # Prefer the backend-local copy first so Railway (root = web_app/backend) always packages it
+    # and edits trigger automatic Railway redeploys; fall back to repo-root data/coupons.json.
     paths.append(Path(__file__).resolve().parents[1] / "data" / "coupons.json")
+    paths.append(_resolve_repo_root() / "data" / "coupons.json")
     return paths
 
 
