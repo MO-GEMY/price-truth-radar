@@ -3618,3 +3618,20 @@ stores:
     override_brand: true
     use_impersonation: true
   notes: Priority 1 official haircare & styling tools brand store (live EGP verified 37/41 in-stock)
+- store_key: madiesta
+  display_name: Madiesta
+  platform: sllr
+  base_url: https://sllr.co/madiesta
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: fashion_2
+  tier: 2
+  priority_group: mid_specialty
+  config:
+    slug: madiesta
+    default_brand: Madiesta
+    override_brand: true
+  notes: Verified live Sllr storefront (api.sllr.co EGP football jerseys & fanwear, no WAF)

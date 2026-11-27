@@ -180,6 +180,11 @@ class TestTieredRegistryAndWavePlanning(unittest.TestCase):
         }
         self.assertEqual(covered_cats, set(CANONICAL_CATEGORIES))
         self.assertIn("super_supplements", SCRAPER_REGISTRY)
+        self.assertIn("madiesta", SCRAPER_REGISTRY)
+        madiesta_entry = {e.store_key: e for e in load_stores_registry(enabled_only=True)}["madiesta"]
+        self.assertEqual(madiesta_entry.platform, "sllr")
+        self.assertEqual(madiesta_entry.region_mode, "cloud")
+        self.assertEqual(madiesta_entry.category, "fashion")
 
         # Verify AmazonEgScraper recovers from transient 503s (does NOT abort on strike=1)
         class _FakeResp:

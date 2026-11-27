@@ -18,6 +18,7 @@ import yaml
 from .adapters import (
     MagentoGraphQLBaseScraper,
     ShopifyBaseScraper,
+    SllrBaseScraper,
     WooCommerceBaseScraper,
 )
 from .base import BaseScraper, Category, ScrapeVertical
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_REGISTRY_PATH = Path(__file__).resolve().parents[1] / "stores_registry.yaml"
 
-PlatformType = Literal["shopify", "woocommerce", "magento_graphql", "custom"]
+PlatformType = Literal["shopify", "woocommerce", "magento_graphql", "sllr", "custom"]
 RegionMode = Literal["cloud", "local_only"]
 
 # Map registry categories (and legacy aliases) onto canonical top-level categories
@@ -225,6 +226,13 @@ def build_platform_scraper_class(entry: StoreRegistryEntry) -> Optional[type[Bas
         if cfg.get("search_queries"):
             common_attrs["search_queries"] = tuple(tuple(q) for q in cfg["search_queries"])
         return type(cls_name, (MagentoGraphQLBaseScraper,), common_attrs)
+
+    if entry.platform == "sllr":
+        if cfg.get("slug"):
+            common_attrs["store_slug"] = str(cfg["slug"]).strip()
+        if "per_page" in cfg:
+            common_attrs["per_page"] = int(cfg["per_page"])
+        return type(cls_name, (SllrBaseScraper,), common_attrs)
 
     return None
 

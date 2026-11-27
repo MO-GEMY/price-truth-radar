@@ -5,6 +5,7 @@ from __future__ import annotations
 from .adapters import (
     MagentoGraphQLBaseScraper,
     ShopifyBaseScraper,
+    SllrBaseScraper,
     WooCommerceBaseScraper,
 )
 from .amazon_eg import AmazonEgScraper

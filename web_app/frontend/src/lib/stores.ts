@@ -201,6 +201,12 @@ export const STORE_META: Record<string, StoreMeta> = {
     accent: "#f59e0b",
     urlLookup: false,
   },
+  madiesta: {
+    name: { en: "Madiesta", ar: "ماديستا" },
+    domain: "sllr.co",
+    accent: "#16a34a",
+    urlLookup: true,
+  },
 };
 
 /** Stores highlighted in the direct-link guidance (largest catalogs first). */
