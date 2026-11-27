@@ -1,0 +1,74 @@
+/* ==========================================================================
+   Asarak (أسعارك) — Official Brand Design Tokens
+   Version: 1.0 | Bilingual Arabic (RTL) & English (LTR)
+   ========================================================================== */
+
+:root {
+  /* Core Brand Palette */
+  --asarak-navy: #0B192E;          /* Primary wordmark, emblem frame, dark surfaces */
+  --asarak-emerald: #0CAE79;       /* Primary accent: verified discounts, checkmark */
+  --asarak-emerald-deep: #0E7D60;  /* Emblem fold depth, hover states */
+  --asarak-emerald-text: #067A54;  /* Accessible emerald text on white (WCAG AA 5.4:1) */
+  --asarak-emerald-aaa: #046243;   /* Accessible emerald text on white (WCAG AAA 7.4:1) */
+
+  /* Neutral Surfaces & Ink (Light Mode) */
+  --asarak-bg: #FFFFFF;
+  --asarak-surface: #F8FAFC;
+  --asarak-border: #E2E8F0;
+  --asarak-ink: #0B192E;
+  --asarak-ink-muted: #475569;
+
+  /* Semantic Price-Comparison States */
+  --asarak-verified-deal: #0CAE79;
+  --asarak-fake-discount: #DC2626;
+  --asarak-price-neutral: #64748B;
+
+  /* Typography */
+  --asarak-font-ar: 'IBM Plex Sans Arabic', 'Cairo', system-ui, -apple-system, sans-serif;
+  --asarak-font-en: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --asarak-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Logo Sizing & Clear-Space Rules */
+  --asarak-logo-min-height: 32px;
+  --asarak-logo-header-height: 40px;
+  --asarak-logo-clearspace: 0.5em; /* Minimum clear space = 1x cap height of "Asarak" */
+}
+
+[data-theme="dark"] {
+  --asarak-bg: #0B192E;
+  --asarak-surface: #11223D;
+  --asarak-border: #1E3557;
+  --asarak-ink: #FFFFFF;
+  --asarak-ink-muted: #94A3B8;
+  --asarak-emerald-text: #34D399;
+}
+
+/* Bilingual Header Lockup Helper */
+.asarak-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  color: var(--asarak-ink);
+}
+
+.asarak-brand__icon {
+  height: var(--asarak-logo-header-height);
+  width: auto;
+  flex-shrink: 0;
+}
+
+.asarak-brand__wordmark-ar {
+  font-family: var(--asarak-font-ar);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.asarak-brand__wordmark-en {
+  font-family: var(--asarak-font-en);
+  font-weight: 600;
+  font-size: 1.3rem;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}

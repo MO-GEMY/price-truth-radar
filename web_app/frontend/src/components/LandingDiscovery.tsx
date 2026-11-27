@@ -31,10 +31,11 @@ import {
 } from "lucide-react";
 import type {
   CrossStoreMatch,
-  DiscountVerdict,
   FeedCategoryFilter,
   StatsOverview,
+  VerdictFilter,
 } from "@/types/contract";
+import { getAllDealsCount, getAllHikesCount } from "@/lib/verdicts";
 import {
   categoryLabels,
   productHref,
@@ -106,31 +107,25 @@ export function ShopperActionDeck({
   stats: StatsOverview;
   statsSource: "api" | "mock" | null;
   checkedAt: string | null;
-  activeVerdict: DiscountVerdict | "";
+  activeVerdict: VerdictFilter | "";
   activeStore: string;
   drawerStores: string[];
   storesOpen: boolean;
   onToggleStores: () => void;
-  onSelectDrops: (verdict: DiscountVerdict) => void;
-  onSelectFake: (verdict: DiscountVerdict) => void;
+  onSelectDrops: (verdict: VerdictFilter) => void;
+  onSelectFake: (verdict: VerdictFilter) => void;
   onSelectStore: (storeSlug: string) => void;
 }) {
   const { lang, dir, t } = useLanguage();
   const [storeQuery, setStoreQuery] = useState("");
   const ForwardArrow = dir === "rtl" ? ArrowLeft : ArrowRight;
 
-  const hasGenuineDeals = stats.genuine_deals_today > 0;
-  const dropsVerdict: DiscountVerdict = hasGenuineDeals ? "GENUINE_DEAL" : "RECENT_DROP";
-  const dropsCount = hasGenuineDeals
-    ? stats.genuine_deals_today
-    : (stats.recent_drops_today ?? 0);
+  const dropsVerdict: VerdictFilter = "ALL_DEALS";
+  const dropsCount = getAllDealsCount(stats);
   const dropsActive = activeVerdict === dropsVerdict;
 
-  const hasFakeDiscounts = stats.fake_discounts_today > 0;
-  const fakeVerdict: DiscountVerdict = hasFakeDiscounts ? "FAKE_DISCOUNT" : "RECENT_HIKE";
-  const fakeCount = hasFakeDiscounts
-    ? stats.fake_discounts_today
-    : (stats.recent_hikes_today ?? 0);
+  const fakeVerdict: VerdictFilter = "ALL_HIKES";
+  const fakeCount = getAllHikesCount(stats);
   const fakeActive = activeVerdict === fakeVerdict;
 
   const storeCount = stats.available_stores.length;

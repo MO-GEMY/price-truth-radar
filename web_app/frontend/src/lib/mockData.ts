@@ -871,12 +871,38 @@ export function getMockStatsOverview(): StatsOverview {
     canonStores.set(p.canonical_product_key, set);
   }
   const crossStoreMatchesCount = Array.from(canonStores.values()).filter((s) => s.size >= 2).length;
+  const inStockDealParents = new Set(
+    products
+      .filter(
+        (p) =>
+          p.in_stock &&
+          (p.discount_verdict === "ALL_TIME_LOW" ||
+            p.discount_verdict === "GENUINE_DEAL" ||
+            p.discount_verdict === "RECENT_DROP"),
+      )
+      .map((p) => p.parent_product_key ?? `${p.store_name}::${p.product_sk}`),
+  );
+  const inStockHikeParents = new Set(
+    products
+      .filter(
+        (p) =>
+          p.in_stock &&
+          (p.discount_verdict === "FAKE_DISCOUNT" ||
+            p.discount_verdict === "PRESALE_HIKE" ||
+            p.discount_verdict === "RECENT_HIKE"),
+      )
+      .map((p) => p.parent_product_key ?? `${p.store_name}::${p.product_sk}`),
+  );
   return {
     total_tracked: products.length,
     fake_discounts_today: count("FAKE_DISCOUNT"),
     genuine_deals_today: count("GENUINE_DEAL"),
     all_time_lows_today: count("ALL_TIME_LOW"),
     presale_hikes_today: count("PRESALE_HIKE"),
+    recent_drops_today: count("RECENT_DROP"),
+    recent_hikes_today: count("RECENT_HIKE"),
+    all_deals_count: inStockDealParents.size,
+    all_hikes_count: inStockHikeParents.size,
     avg_fake_inflation_pct: avgInflation,
     last_pipeline_run_at: MOCK_NOW,
     available_stores: getMockStoreNames(),
@@ -952,7 +978,27 @@ export function mockRadarFeed(params: RadarFeedParams): RadarFeedResponse {
     if (params.category !== "all" && p.category !== params.category) return false;
     if (normSub && p.sub_category.toLowerCase() !== normSub) return false;
     if (normBrand && p.brand.trim().toLowerCase() !== normBrand) return false;
-    if (params.verdict && p.discount_verdict !== params.verdict) return false;
+    if (params.verdict === "ALL_DEALS") {
+      if (
+        !p.in_stock ||
+        (p.discount_verdict !== "ALL_TIME_LOW" &&
+          p.discount_verdict !== "GENUINE_DEAL" &&
+          p.discount_verdict !== "RECENT_DROP")
+      ) {
+        return false;
+      }
+    } else if (params.verdict === "ALL_HIKES") {
+      if (
+        !p.in_stock ||
+        (p.discount_verdict !== "FAKE_DISCOUNT" &&
+          p.discount_verdict !== "PRESALE_HIKE" &&
+          p.discount_verdict !== "RECENT_HIKE")
+      ) {
+        return false;
+      }
+    } else if (params.verdict && p.discount_verdict !== params.verdict) {
+      return false;
+    }
     if (params.store && p.store_name !== params.store) return false;
     return true;
   });

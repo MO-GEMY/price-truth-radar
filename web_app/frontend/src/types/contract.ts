@@ -32,6 +32,8 @@ export type DiscountVerdict =
   | "RECENT_DROP"
   | "RECENT_HIKE";
 
+export type VerdictFilter = DiscountVerdict | "ALL_DEALS" | "ALL_HIKES";
+
 export type HistoryMaturity = "EARLY" | "GROWING" | "MATURE";
 
 export type MarketBenchmarkStatus =
@@ -148,6 +150,8 @@ export interface StatsOverview {
   recent_hikes_today?: number;
   newly_tracked_today?: number;
   mature_tracked_count?: number;
+  all_deals_count?: number;
+  all_hikes_count?: number;
 }
 
 export interface CategoryFacetItem {
@@ -197,7 +201,7 @@ export interface RadarFeedParams {
   category: FeedCategoryFilter;
   subcategory?: string;
   brand?: string;
-  verdict?: DiscountVerdict;
+  verdict?: VerdictFilter;
   store?: string;
   sort: FeedSort;
   page: number;

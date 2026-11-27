@@ -13,7 +13,44 @@ import type {
   MarketBenchmark,
   PriceHistoryPoint,
   Product,
+  StatsOverview,
 } from "@/types/contract";
+
+export const ALL_DEAL_VERDICTS: ReadonlySet<DiscountVerdict> = new Set([
+  "ALL_TIME_LOW",
+  "GENUINE_DEAL",
+  "RECENT_DROP",
+]);
+
+export const ALL_HIKE_VERDICTS: ReadonlySet<DiscountVerdict> = new Set([
+  "FAKE_DISCOUNT",
+  "PRESALE_HIKE",
+  "RECENT_HIKE",
+]);
+
+/** Unified catalog-wide in-stock deals count (ALL_TIME_LOW + GENUINE_DEAL + RECENT_DROP). */
+export function getAllDealsCount(stats: StatsOverview): number {
+  if (typeof stats.all_deals_count === "number" && Number.isFinite(stats.all_deals_count)) {
+    return stats.all_deals_count;
+  }
+  return (
+    (stats.all_time_lows_today ?? 0) +
+    (stats.genuine_deals_today ?? 0) +
+    (stats.recent_drops_today ?? 0)
+  );
+}
+
+/** Unified catalog-wide in-stock hikes/fake discounts count (FAKE_DISCOUNT + PRESALE_HIKE + RECENT_HIKE). */
+export function getAllHikesCount(stats: StatsOverview): number {
+  if (typeof stats.all_hikes_count === "number" && Number.isFinite(stats.all_hikes_count)) {
+    return stats.all_hikes_count;
+  }
+  return (
+    (stats.fake_discounts_today ?? 0) +
+    (stats.presale_hikes_today ?? 0) +
+    (stats.recent_hikes_today ?? 0)
+  );
+}
 
 export interface VerdictTone {
   icon: LucideIcon;

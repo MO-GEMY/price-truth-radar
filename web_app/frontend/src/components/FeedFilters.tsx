@@ -10,22 +10,24 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   TrendingDown,
-  TrendingUp,
   X,
 } from "lucide-react";
 import type {
   CategoryFacetsResponse,
-  DiscountVerdict,
   FeedCategoryFilter,
   FeedSort,
   StatsOverview,
+  VerdictFilter,
 } from "@/types/contract";
 import { categoryLabels, visibleCategories } from "@/lib/browse-state";
 import { formatNumber, formatSubCategory } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
+import { getAllDealsCount, getAllHikesCount } from "@/lib/verdicts";
 
-export const verdictOptions: DiscountVerdict[] = [
+export const verdictOptions: VerdictFilter[] = [
+  "ALL_DEALS",
+  "ALL_HIKES",
   "FAKE_DISCOUNT",
   "ALL_TIME_LOW",
   "GENUINE_DEAL",
@@ -47,7 +49,7 @@ export interface FeedFilterState {
   category: FeedCategoryFilter;
   subcategory: string;
   brand: string;
-  verdict: DiscountVerdict | "";
+  verdict: VerdictFilter | "";
   store: string;
   sort: FeedSort;
 }
@@ -135,25 +137,11 @@ export function FeedFilters({
       ? formatSubCategory(value.subcategory, lang)
       : "";
 
-  // Guaranteed non-empty quick verdict tabs based on live snapshot counts
-  const dropVerdict: DiscountVerdict =
-    stats && stats.genuine_deals_today > 0 ? "GENUINE_DEAL" : "RECENT_DROP";
-  const dropCount = stats
-    ? stats.genuine_deals_today > 0
-      ? stats.genuine_deals_today
-      : (stats.recent_drops_today ?? 0)
-    : null;
-  const hasFakeDiscounts = Boolean(stats && stats.fake_discounts_today > 0);
-  const reviewVerdict: DiscountVerdict | null = hasFakeDiscounts
-    ? "FAKE_DISCOUNT"
-    : stats && (stats.recent_hikes_today ?? 0) > 0
-      ? "RECENT_HIKE"
-      : null;
-  const reviewCount = stats
-    ? hasFakeDiscounts
-      ? stats.fake_discounts_today
-      : (stats.recent_hikes_today ?? 0)
-    : null;
+  // Unified catalog-wide quick verdict tabs (never collapse to a narrow mature-only subset)
+  const dropVerdict: VerdictFilter = "ALL_DEALS";
+  const dropCount = stats ? getAllDealsCount(stats) : null;
+  const reviewVerdict: VerdictFilter = "ALL_HIKES";
+  const reviewCount = stats ? getAllHikesCount(stats) : null;
 
   const modalActiveCount = [
     value.brand,
@@ -460,12 +448,14 @@ export function FeedFilters({
               type="button"
               className="is-deal"
               aria-pressed={value.verdict === dropVerdict}
-              onClick={() =>
+              onClick={() => {
+                const togglingOff = value.verdict === dropVerdict;
                 onChange({
                   ...value,
-                  verdict: value.verdict === dropVerdict ? "" : dropVerdict,
-                })
-              }
+                  verdict: togglingOff ? "" : dropVerdict,
+                  sort: togglingOff ? value.sort : "real_discount_pct_desc",
+                });
+              }}
             >
               <TrendingDown size={14} aria-hidden="true" />
               <span>{t("feed.quickDrops")}</span>
@@ -477,26 +467,22 @@ export function FeedFilters({
             </button>
           )}
 
-          {reviewVerdict && (
+          {(reviewCount === null || reviewCount > 0) && (
             <button
               type="button"
               className="is-scandal"
               aria-pressed={value.verdict === reviewVerdict}
-              onClick={() =>
+              onClick={() => {
+                const togglingOff = value.verdict === reviewVerdict;
                 onChange({
                   ...value,
-                  verdict: value.verdict === reviewVerdict ? "" : reviewVerdict,
-                })
-              }
+                  verdict: togglingOff ? "" : reviewVerdict,
+                  sort: togglingOff ? value.sort : "claimed_vs_real_gap_desc",
+                });
+              }}
             >
-              {hasFakeDiscounts ? (
-                <ShieldAlert size={14} aria-hidden="true" />
-              ) : (
-                <TrendingUp size={14} aria-hidden="true" />
-              )}
-              <span>
-                {t(hasFakeDiscounts ? "feed.quickReview" : "feed.quickHikes")}
-              </span>
+              <ShieldAlert size={14} aria-hidden="true" />
+              <span>{t("feed.quickHikes")}</span>
               {typeof reviewCount === "number" && reviewCount > 0 && (
                 <span className="ptr-chip-count">
                   <bdi>{formatNumber(reviewCount, lang)}</bdi>

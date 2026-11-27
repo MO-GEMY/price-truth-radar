@@ -1,0 +1,169 @@
+/* ==========================================================================
+   أسعارك | Asarak — Social Media Branding Kit · shared brand layer
+   --------------------------------------------------------------------------
+   Every colour / font token below is copied 1:1 from the official identity:
+   • brand/asarak-brand-tokens.css (v1.0)
+   • the official UI/UX implementation preview (dark theme + alpha recipes)
+   The emblem geometry is the unmodified path data of brand/asarak-icon-*.svg.
+   No off-brand colours are introduced anywhere in this kit.
+   ========================================================================== */
+
+/* ---- Official typography (bundled locally, SIL OFL) ---------------------- */
+@font-face{font-family:"IBM Plex Sans Arabic";src:url("../fonts/IBMPlexSansArabic-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:block}
+@font-face{font-family:"IBM Plex Sans Arabic";src:url("../fonts/IBMPlexSansArabic-Medium.ttf") format("truetype");font-weight:500;font-style:normal;font-display:block}
+@font-face{font-family:"IBM Plex Sans Arabic";src:url("../fonts/IBMPlexSansArabic-SemiBold.ttf") format("truetype");font-weight:600;font-style:normal;font-display:block}
+@font-face{font-family:"IBM Plex Sans Arabic";src:url("../fonts/IBMPlexSansArabic-Bold.ttf") format("truetype");font-weight:700;font-style:normal;font-display:block}
+@font-face{font-family:"Plus Jakarta Sans";src:url("../fonts/PlusJakartaSans-Variable.ttf") format("truetype");font-weight:200 800;font-style:normal;font-display:block}
+@font-face{font-family:"IBM Plex Mono";src:url("../fonts/IBMPlexMono-Medium.ttf") format("truetype");font-weight:500;font-style:normal;font-display:block}
+@font-face{font-family:"IBM Plex Mono";src:url("../fonts/IBMPlexMono-SemiBold.ttf") format("truetype");font-weight:600;font-style:normal;font-display:block}
+
+/* ---- Official design tokens --------------------------------------------- */
+:root{
+  /* Core Brand Palette */
+  --asarak-navy:#0B192E;               /* Primary wordmark, emblem frame, dark surfaces */
+  --asarak-emerald:#0CAE79;            /* Primary accent: verified discounts, checkmark */
+  --asarak-emerald-deep:#0E7D60;       /* Emblem fold depth, hover states */
+  --asarak-emerald-text:#067A54;       /* Accessible emerald text on white (WCAG AA 5.4:1) */
+  --asarak-emerald-aaa:#046243;        /* Accessible emerald text on white (WCAG AAA 7.4:1) */
+
+  /* Neutral Surfaces & Ink (Light Mode) */
+  --asarak-bg:#FFFFFF;
+  --asarak-surface:#F8FAFC;
+  --asarak-border:#E2E8F0;
+  --asarak-ink:#0B192E;
+  --asarak-ink-muted:#475569;
+
+  /* Semantic Price-Comparison States */
+  --asarak-verified-deal:#0CAE79;
+  --asarak-fake-discount:#DC2626;
+  --asarak-price-neutral:#64748B;
+
+  /* Typography */
+  --asarak-font-ar:'IBM Plex Sans Arabic','Cairo',system-ui,-apple-system,sans-serif;
+  --asarak-font-en:'Plus Jakarta Sans','Inter',system-ui,-apple-system,sans-serif;
+  --asarak-font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;
+
+  /* Official dark theme */
+  --asarak-dark-surface:#11223D;
+  --asarak-dark-card:#132746;
+  --asarak-dark-border:#1E3557;
+  --asarak-dark-muted:#94A3B8;
+  --asarak-dark-emerald-text:#34D399;
+
+  /* Official alpha recipes (hero glow / verified badge) */
+  --asarak-hero-glow:rgba(12,174,121,.13);
+  --asarak-emerald-soft:rgba(12,174,121,.16);
+}
+
+/* ---- Canvas reset -------------------------------------------------------- */
+html,body{margin:0;padding:0;background:var(--asarak-navy)}
+.asset{position:relative;overflow:hidden;isolation:isolate;color:var(--asarak-bg);font-kerning:normal}
+.asset *,.asset *::before,.asset *::after{box-sizing:border-box}
+.bg,.fg{position:absolute;inset:0}
+.bg{overflow:hidden;z-index:0}
+.layer{position:absolute;inset:0}
+/* fade a background layer out before it reaches the copy (RTL: copy sits on the right) */
+.fade-x{-webkit-mask-image:linear-gradient(to left,transparent var(--f0,34%),#000 var(--f1,72%));
+  mask-image:linear-gradient(to left,transparent var(--f0,34%),#000 var(--f1,72%))}
+.fg{z-index:2}
+
+/* ==========================================================================
+   EMBLEM — official mark, two official frame variants
+   (120-unit viewBox; ink occupies x 10–98 · y 14–106)
+   ========================================================================== */
+.emblem{flex:none;display:block;width:var(--e,120px);height:var(--e,120px);background-position:center;background-size:contain;background-repeat:no-repeat}
+/* navy frame — for light surfaces (official asarak-icon-light.svg) */
+.emblem--navy{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d=%22M48 103 L98 53 V95 C98 101 93 106 87 106 H55 C52 106 50 105 48 103 Z%22 fill=%22%230CAE79%22/%3E%3Cpath d=%22M48 103 L98 53 L98 65 L58 105 C54 106 50 105 48 103 Z%22 fill=%22%230E7D60%22 opacity=%220.45%22/%3E%3Cpath d=%22M98 14 H58 C54 14 50 16 47 19 L14 52 C10 56 10 62 14 66 L41 93 L49 85 L23 59 L56 26 H90 Z%22 fill=%22%230B192E%22/%3E%3Cpath d=%22M41 93 L47 99 C51 103 57 103 61 99 L98 62 V14 L87 25 V57 L54 90 L49 85 Z%22 fill=%22%230CAE79%22/%3E%3Cpath d=%22M36 62 L51 77 L98 30 V14 L51 61 L44 54 Z%22 fill=%22%230CAE79%22/%3E%3C/svg%3E")}
+/* white frame — for dark surfaces (official asarak-icon-dark.svg) */
+.emblem--white{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d=%22M48 103 L98 53 V95 C98 101 93 106 87 106 H55 C52 106 50 105 48 103 Z%22 fill=%22%230CAE79%22/%3E%3Cpath d=%22M48 103 L98 53 L98 65 L58 105 C54 106 50 105 48 103 Z%22 fill=%22%230E7D60%22 opacity=%220.45%22/%3E%3Cpath d=%22M98 14 H58 C54 14 50 16 47 19 L14 52 C10 56 10 62 14 66 L41 93 L49 85 L23 59 L56 26 H90 Z%22 fill=%22%23FFFFFF%22/%3E%3Cpath d=%22M41 93 L47 99 C51 103 57 103 61 99 L98 62 V14 L87 25 V57 L54 90 L49 85 Z%22 fill=%22%230CAE79%22/%3E%3Cpath d=%22M36 62 L51 77 L98 30 V14 L51 61 L44 54 Z%22 fill=%22%230CAE79%22/%3E%3C/svg%3E")}
+
+/* ==========================================================================
+   LOCKUP — bilingual, RTL (official rule: in Arabic the emblem sits to the
+   RIGHT of the wordmark). Set in the official type spec:
+     Arabic  = IBM Plex Sans Arabic 700          (tokens: --asarak-font-ar, wt 700)
+     English = Plus Jakarta Sans 600 · .04em     (tokens: .asarak-brand__wordmark-en)
+   Sizing follows the official primary logo: the two lines come out justified
+   to one width; ink gap emblem→wordmark = 0.15 × emblem box.
+   Negative margins trim the emblem viewBox padding so the *ink* aligns.
+   ========================================================================== */
+.lockup{--lk-e:120px;display:flex;align-items:center;gap:calc(var(--lk-e) * .067);color:var(--asarak-bg);
+  margin:calc(var(--lk-e) * -.048) calc(var(--lk-e) * -.1833) calc(var(--lk-e) * -.1167) 0}
+.lockup .emblem{--e:var(--lk-e)}
+.lockup .wordmark{display:flex;flex-direction:column;align-items:flex-start;position:relative;top:calc(var(--lk-e) * .004)}
+.wordmark-ar{font:700 calc(var(--lk-e) * .44)/1 var(--asarak-font-ar);white-space:nowrap}
+.wordmark-en{font:600 calc(var(--lk-e) * .368)/1 var(--asarak-font-en);letter-spacing:.04em;margin-left:-.04em;white-space:nowrap;
+  margin-top:calc(var(--lk-e) * .0245)}
+
+/* ==========================================================================
+   COPY ATOMS
+   ========================================================================== */
+/* Primary tagline — IBM Plex Sans Arabic 700, accent on "السعر الحقيقي" */
+.headline{font:700 var(--hl,40px)/1.28 var(--asarak-font-ar);color:var(--asarak-bg);margin:0}
+.headline .hl{color:var(--asarak-emerald)}
+
+/* Trust pills — official dark card/border tokens */
+.pills{display:flex;flex-wrap:wrap;gap:10px}
+.pill{display:inline-flex;align-items:center;gap:.45em;padding:.62em 1.05em .66em;border-radius:999px;
+  background:var(--asarak-dark-card);border:1px solid var(--asarak-dark-border);
+  font:600 var(--pl,14px)/1 var(--asarak-font-ar);color:var(--asarak-bg);white-space:nowrap}
+.pill .num{font:700 1.2em/1 var(--asarak-font-en);color:var(--asarak-dark-emerald-text);letter-spacing:0;transform:translateY(.02em)}
+
+/* asarak.com — light-surface pill (official white / navy pairing) */
+.url{display:inline-flex;align-items:center;gap:.5em;padding:.6em 1.1em .64em;border-radius:999px;
+  background:var(--asarak-bg);color:var(--asarak-ink);
+  font:700 var(--url,15px)/1 var(--asarak-font-en);letter-spacing:.02em;white-space:nowrap}
+
+/* ==========================================================================
+   PRICE-COMPARISON CARD — subtle product UI (lowest-price badge)
+   ========================================================================== */
+.compare{width:var(--cmp-w,250px);padding:18px 18px 16px;border-radius:22px;color:var(--asarak-bg);
+  background:rgba(19,39,70,.80);                 /* --asarak-dark-card over the radar */
+  border:1px solid var(--asarak-dark-border);
+  box-shadow:0 22px 48px rgba(11,25,46,.5)}
+.compare__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;
+  font:600 13px/1 var(--asarak-font-ar)}
+.compare__count{font:600 11px/1 var(--asarak-font-ar);color:var(--asarak-dark-muted);
+  border:1px solid var(--asarak-dark-border);border-radius:999px;padding:5px 9px}
+.compare__row{display:flex;align-items:center;gap:9px;height:36px}
+.compare__bar{flex:0 0 var(--w);height:12px;border-radius:999px;background:rgba(100,116,139,.55)} /* price-neutral */
+.compare__price{font:600 14px/1 var(--asarak-font-ar);color:var(--asarak-bg);opacity:.78;white-space:nowrap}
+.compare__row--low .compare__bar{background:var(--asarak-emerald)}            /* verified-deal */
+.compare__row--low .compare__price{font-weight:700;font-size:15px;color:var(--asarak-dark-emerald-text);opacity:1}
+.lowest{display:inline-flex;align-items:center;gap:4px;padding:4px 9px 4px 7px;border-radius:999px;white-space:nowrap;
+  background:var(--asarak-emerald-soft);border:1px solid rgba(12,174,121,.4);
+  font:600 11px/1 var(--asarak-font-ar);color:var(--asarak-dark-emerald-text)}
+.lowest svg{width:11px;height:11px;flex:none}
+
+/* Compact stacked price pills (tight canvases) */
+.price-stack{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.price-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:14px;white-space:nowrap;
+  background:rgba(19,39,70,.80);border:1px solid var(--asarak-dark-border);
+  font:600 13px/1 var(--asarak-font-ar);color:var(--asarak-bg);opacity:.72}
+.price-chip--low{opacity:1;border-color:rgba(12,174,121,.45);box-shadow:0 14px 30px rgba(11,25,46,.5);
+  background:var(--asarak-emerald);color:var(--asarak-navy);font-weight:700;font-size:14px}
+.price-chip--low .dot{background:var(--asarak-navy)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--asarak-emerald);flex:none}
+
+/* ==========================================================================
+   RADAR BACKGROUND ATOMS — grid glow, hero glow, rings, sweep, blips
+   ========================================================================== */
+.bg__base{position:absolute;inset:0;background:var(--asarak-navy)}
+.bg__grid{position:absolute;inset:-1px;
+  background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+  background-size:var(--cell,40px) var(--cell,40px);
+  -webkit-mask-image:radial-gradient(ellipse var(--gm,75% 90%) at var(--gx,50%) var(--gy,50%),#000 5%,transparent 72%);
+  mask-image:radial-gradient(ellipse var(--gm,75% 90%) at var(--gx,50%) var(--gy,50%),#000 5%,transparent 72%)}
+.bg__glow{position:absolute;inset:0;
+  background:radial-gradient(ellipse var(--gs,60% 60%) at var(--gx,50%) var(--gy,0%),var(--ga,var(--asarak-hero-glow)) 0%,rgba(12,174,121,0) 70%)}
+/* rings: .radar-set is the focal point; each <i> is one ring of radius --r */
+.radar-set{position:absolute;left:var(--cx);top:var(--cy);width:0;height:0}
+.radar-set i{position:absolute;left:calc(var(--r) * -1);top:calc(var(--r) * -1);width:calc(var(--r) * 2);height:calc(var(--r) * 2);
+  border-radius:50%;border:1.5px solid rgba(12,174,121,var(--o,.14))}
+.radar-set i.cross-h{left:calc(var(--r) * -1);top:-.75px;width:calc(var(--r) * 2);height:1.5px;border:0;background:linear-gradient(90deg,rgba(12,174,121,0),rgba(12,174,121,.14),rgba(12,174,121,0))}
+.radar-set i.cross-v{top:calc(var(--r) * -1);left:-.75px;height:calc(var(--r) * 2);width:1.5px;border:0;background:linear-gradient(180deg,rgba(12,174,121,0),rgba(12,174,121,.14),rgba(12,174,121,0))}
+.sweep{position:absolute;left:calc(var(--cx) - var(--r));top:calc(var(--cy) - var(--r));width:calc(var(--r) * 2);height:calc(var(--r) * 2);border-radius:50%;
+  background:conic-gradient(from -52deg at 50% 50%,rgba(12,174,121,0) 0deg,rgba(12,174,121,.16) 80deg,rgba(12,174,121,0) 89deg 360deg);
+  -webkit-mask-image:radial-gradient(circle at 50% 50%,transparent 0 17%,#000 17.5% 100%);
+  mask-image:radial-gradient(circle at 50% 50%,transparent 0 17%,#000 17.5% 100%)}
+.blip{position:absolute;left:var(--x);top:var(--y);width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;
+  background:var(--asarak-emerald);box-shadow:0 0 0 5px rgba(12,174,121,.2),0 0 18px rgba(12,174,121,.7)}

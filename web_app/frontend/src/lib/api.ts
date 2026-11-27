@@ -315,8 +315,22 @@ export interface HighlightsView {
 function highlightsFromFeed(result: ApiResult<RadarFeedResponse>, kind: "scandals" | "deals"): HighlightsBucket {
   const products = result.data.items.filter((product) => product.in_stock && product.current_price >= 10);
   const candidates = kind === "scandals"
-    ? products.filter((p) => p.discount_verdict === "FAKE_DISCOUNT" || p.discount_verdict === "PRESALE_HIKE")
-    : products.filter((p) => p.real_discount_pct >= 5 && p.discount_verdict !== "PRESALE_HIKE" && p.discount_verdict !== "FAKE_DISCOUNT");
+    ? products.filter(
+        (p) =>
+          p.discount_verdict === "FAKE_DISCOUNT" ||
+          p.discount_verdict === "PRESALE_HIKE" ||
+          p.discount_verdict === "RECENT_HIKE",
+      )
+    : products.filter(
+        (p) =>
+          (p.discount_verdict === "ALL_TIME_LOW" ||
+            p.discount_verdict === "GENUINE_DEAL" ||
+            p.discount_verdict === "RECENT_DROP" ||
+            p.real_discount_pct >= 5) &&
+          p.discount_verdict !== "PRESALE_HIKE" &&
+          p.discount_verdict !== "FAKE_DISCOUNT" &&
+          p.discount_verdict !== "RECENT_HIKE",
+      );
   const timestamps = candidates
     .map((item) => observedTimestamp(item.last_updated_at))
     .filter((value): value is string => value !== null);

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>أسعارك | Asarak — Social Brand Kit · معاينة ومناطق آمنة</title>
+<link rel="stylesheet" href="src/brand.css">
+<style>
+/* ── page chrome (brand dark theme only) ─────────────────────────────── */
+*{box-sizing:border-box}
+body{background:var(--asarak-navy);color:var(--asarak-bg);font-family:var(--asarak-font-ar);line-height:1.6}
+[lang="en"],[dir="ltr"]{font-family:var(--asarak-font-en)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px 72px}
+a{color:inherit}
+
+/* toolbar */
+.toolbar{position:sticky;top:0;z-index:20;background:rgba(11,25,46,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--asarak-dark-border)}
+.toolbar .wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-top:12px;padding-bottom:12px}
+.toolbar .lockup{--lk-e:30px;color:var(--asarak-bg)}
+.toolbar h1{font:700 18px/1.3 var(--asarak-font-ar);margin:0}
+.toolbar .sub{font:500 11.5px/1.3 var(--asarak-font-en);color:var(--asarak-dark-muted);letter-spacing:.02em;margin:0}
+.toggles{display:flex;gap:8px;flex-wrap:wrap;margin-inline-start:auto}
+.tgl{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;border:1px solid var(--asarak-dark-border);
+  background:var(--asarak-dark-card);font:600 12.5px/1 var(--asarak-font-ar);color:var(--asarak-dark-muted);cursor:pointer;user-select:none;transition:.15s}
+.tgl i{width:9px;height:9px;border-radius:50%;background:var(--asarak-dark-muted);flex:none;transition:.15s}
+.tgl:has(:checked){color:var(--asarak-bg);border-color:var(--asarak-dark-emerald-text)}
+.tgl:has(:checked) i{background:var(--asarak-emerald);box-shadow:0 0 0 4px var(--asarak-emerald-soft)}
+.tgl input{position:absolute;opacity:0;pointer-events:none}
+.tgl--safe i{background:#0CAE79}.tgl--avoid i{background:#DC2626}.tgl--crop i{background:#94A3B8}
+.tgl:has(:checked).tgl--avoid{border-color:#DC2626}
+.tgl kbd{font:600 10px/1 var(--asarak-font-en);color:var(--asarak-dark-muted);border:1px solid var(--asarak-dark-border);border-radius:4px;padding:2px 5px}
+.btn{border:1px solid var(--asarak-dark-border);background:transparent;color:var(--asarak-bg);border-radius:999px;padding:8px 14px;font:600 12.5px/1 var(--asarak-font-ar);cursor:pointer}
+.btn:hover{border-color:var(--asarak-dark-emerald-text)}
+
+/* intro + legend */
+.intro{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:24px 0 4px;font:500 13px/1.7 var(--asarak-font-ar);color:var(--asarak-dark-muted)}
+.key{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--asarak-dark-surface);border:1px solid var(--asarak-dark-border);font:600 12px/1 var(--asarak-font-ar);color:var(--asarak-bg)}
+.key b{width:22px;height:0;border-top:3px dashed}
+.key--safe b{border-color:#0CAE79}.key--avoid b{border-color:#DC2626}.key--crop b{border-color:#94A3B8}
+
+/* asset cards */
+.card{background:var(--asarak-dark-surface);border:1px solid var(--asarak-dark-border);border-radius:22px;padding:22px;margin-top:26px}
+.card__head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.card__num{font:700 13px/1 var(--asarak-font-en);color:var(--asarak-dark-emerald-text);background:var(--asarak-emerald-soft);border-radius:10px;padding:9px 10px}
+.card__titles{flex:1 1 260px}
+.card__titles h2{font:700 21px/1.35 var(--asarak-font-ar);margin:0}
+.card__titles p{font:500 12.5px/1.4 var(--asarak-font-en);color:var(--asarak-dark-muted);margin:4px 0 0;letter-spacing:.01em}
+.card__meta{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font:600 12px/1 var(--asarak-font-en);padding:8px 11px;border-radius:9px;background:var(--asarak-dark-card);border:1px solid var(--asarak-dark-border);color:var(--asarak-bg);text-decoration:none}
+.chip--file{font-family:var(--asarak-font-mono);font-weight:500;color:var(--asarak-dark-muted)}
+a.chip:hover{border-color:var(--asarak-dark-emerald-text);color:var(--asarak-bg)}
+.stage{position:relative;border-radius:14px;overflow:hidden;line-height:0;background:var(--asarak-navy);border:1px solid var(--asarak-dark-border)}
+.stage img{width:100%;height:auto;display:block;user-select:none}
+.ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.lyr--safe,.lyr--avoid,.lyr--crops{transition:opacity .15s}
+body:not(.s-safe) .lyr--safe,body:not(.s-safe) .lbl--safe{display:none}
+body:not(.s-avoid) .lyr--avoid,body:not(.s-avoid) .lbl--avoid{display:none}
+body:not(.s-crops) .lyr--crops,body:not(.s-crops) .lbl--crop{display:none}
+.lbl{position:absolute;line-height:1;font:600 12px/1 var(--asarak-font-ar);padding:6px 9px;border-radius:7px;white-space:nowrap;pointer-events:none;
+  direction:rtl;box-shadow:0 2px 10px rgba(11,25,46,.5)}
+.lbl--safe{background:#0CAE79;color:var(--asarak-navy)}
+.lbl--avoid{background:#DC2626;color:#fff}
+.lbl--crop{background:#94A3B8;color:var(--asarak-navy)}
+
+/* crop previews */
+.crops{display:flex;gap:18px;overflow-x:auto;padding:22px 2px 6px;scrollbar-width:thin}
+.crop{margin:0;flex:none}
+.crop--sim{padding-bottom:74px}
+.crop__box{position:relative;border-radius:10px;background:var(--asarak-navy) repeat-x;border:1px solid var(--asarak-dark-border);box-shadow:0 14px 34px rgba(11,25,46,.45)}
+.crop--circle .crop__box{border-radius:50%;border:0}
+.crop figcaption{font:600 12px/1.4 var(--asarak-font-ar);color:var(--asarak-dark-muted);margin-top:10px;text-align:center}
+.sim{position:absolute;background:center/cover no-repeat;border:4px solid var(--asarak-navy);box-shadow:0 -6px 20px rgba(11,25,46,.6)}
+.sim--circle{border-radius:50%}
+.sim--square{border-radius:14%}
+body:not(.s-avatar) .sim{display:none}
+.note{font:500 13px/1.8 var(--asarak-font-ar);color:var(--asarak-dark-muted);margin:14px 2px 0;border-top:1px solid var(--asarak-dark-border);padding-top:14px}
+
+/* real-size test */
+.test{margin-top:34px}
+.test h2{font:700 20px/1.4 var(--asarak-font-ar);margin:0 0 4px}
+.test p{font:500 13px/1.7 var(--asarak-font-ar);color:var(--asarak-dark-muted);margin:0 0 18px}
+.row{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-end}
+.avset{display:flex;gap:14px;align-items:flex-end}
+.avset img{display:block;background:var(--asarak-navy)}
+.avset figcaption{text-align:center}
+.phone{background:var(--asarak-dark-surface);border:1px solid var(--asarak-dark-border);border-radius:22px;padding:20px}
+.phone h3{font:600 13px/1.4 var(--asarak-font-ar);margin:0 0 14px;color:var(--asarak-bg)}
+.comment{display:flex;gap:10px;align-items:center;background:var(--asarak-dark-card);border-radius:14px;padding:10px 12px}
+.comment img{border-radius:50%;flex:none}
+.comment b{font:700 13px/1.4 var(--asarak-font-ar);display:block}
+.comment span{font:500 12px/1.5 var(--asarak-font-ar);color:var(--asarak-dark-muted)}
+</style>
+</head>
+<body class="s-safe s-avoid s-circle s-avatar">
+
+<header class="toolbar">
+  <div class="wrap">
+    <div class="lockup" dir="rtl"><span class="emblem emblem--white"></span>
+      <span class="wordmark"><span class="wordmark-ar">أسعارك</span><span class="wordmark-en" dir="ltr">Asarak</span></span></div>
+    <div><h1>حزمة الهوية للسوشيال ميديا — معاينة ومناطق آمنة</h1>
+      <p class="sub" dir="ltr" lang="en">Social Brand Kit · safe-zone &amp; crop check</p></div>
+    <div class="toggles">
+      <label class="tgl tgl--safe"><input type="checkbox" data-k="safe" checked><i></i>المناطق الآمنة <kbd>S</kbd></label>
+      <label class="tgl tgl--avoid"><input type="checkbox" data-k="avoid" checked><i></i>مناطق التجنّب <kbd>X</kbd></label>
+      <label class="tgl tgl--crop"><input type="checkbox" data-k="crops"><i></i>قصّ المنصّة <kbd>C</kbd></label>
+      <label class="tgl tgl--crop"><input type="checkbox" data-k="circle" checked><i></i>القصّ الدائري <kbd>O</kbd></label>
+      <label class="tgl"><input type="checkbox" data-k="avatar" checked><i></i>محاكاة الصورة الشخصية <kbd>A</kbd></label>
+      <button class="btn" id="all" type="button">الكل</button>
+      <button class="btn" id="none" type="button">إخفاء الكل</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="intro">فعّل الطبقات لفحص كل عنصر. الأرقام بإحداثيات البكسل الأصلية للملف.
+    <span class="key key--safe"><b></b>منطقة آمنة: يجب أن يبقى داخلها كل المحتوى</span>
+    <span class="key key--avoid"><b></b>منطقة تجنّب: تظهر فوقها صورة الملف الشخصي</span>
+    <span class="key key--crop"><b></b>قصّ المنصّة: ما يُعرض فعلًا</span>
+  </p>
+  <div id="gallery"></div>
+
+  <section class="test">
+    <h2>اختبار الأحجام الحقيقية</h2>
+    <p>هل يبقى الشعار مقروءًا في أصغر مواضع الظهور؟ (مقاسات العرض الفعلية على المنصّات)</p>
+    <div class="row" id="avatars"></div>
+    <div class="row" id="realsize" style="margin-top:22px"></div>
+  </section>
+</main>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     SAFE-ZONE SPEC  ·  single source of truth (device px)
+     read by this page's overlays AND by src/verify.py
+     ══════════════════════════════════════════════════════════════════════════ -->
+<script type="application/json" id="safe-zones">
+{
+ "assets": [
+  {
+   "file": "01_profile_avatar_primary.png", "w": 1080, "h": 1080,
+   "title": "الصورة الشخصية — الأساسية", "en": "Profile Avatar · Primary", "platform": "FB · IG · TikTok · YouTube · X · Telegram",
+   "safe": [ { "type": "circle", "cx": 540, "cy": 540, "r": 378, "label": "الدائرة الآمنة 70%" } ],
+   "avoid": [],
+   "crops": [ { "type": "circle", "cx": 540, "cy": 540, "r": 540, "label": "القصّ الدائري للمنصّات", "preview": 300 } ],
+   "note": "الشعار وحده داخل الدائرة الآمنة (قطر 756 من 1080). خلفية كاملة حتى لا يظهر أي حواف في القصّ الدائري."
+  },
+  {
+   "file": "02_profile_avatar_alt.png", "w": 1080, "h": 1080,
+   "title": "الصورة الشخصية — البديلة الفاتحة", "en": "Profile Avatar · Alt (light)", "platform": "FB · IG · TikTok · YouTube · X · Telegram",
+   "safe": [ { "type": "circle", "cx": 540, "cy": 540, "r": 378, "label": "الدائرة الآمنة 70%" } ],
+   "avoid": [],
+   "crops": [ { "type": "circle", "cx": 540, "cy": 540, "r": 540, "label": "القصّ الدائري للمنصّات", "preview": 300 } ],
+   "note": "النسخة المقلوبة: سطح فاتح مع إطار كحلي — اختَر الأعلى تباينًا مع بقية هويتك على كل منصّة."
+  },
+  {
+   "file": "03_facebook_cover.png", "w": 1640, "h": 924,
+   "title": "غلاف صفحة فيسبوك", "en": "Facebook Page Cover", "platform": "Facebook · desktop + mobile",
+   "safe": [ { "type": "rect", "x": 180, "y": 150, "w": 1280, "h": 624, "label": "المنطقة الآمنة 1280×624" } ],
+   "avoid": [
+    { "type": "rect", "x": 0, "y": 640, "w": 440, "h": 284, "label": "تداخل صورة الصفحة — أسفل اليسار" },
+    { "type": "rect", "x": 1200, "y": 640, "w": 440, "h": 284, "label": "أبقِ الزاوية خالية — أسفل اليمين" }
+   ],
+   "crops": [
+    { "type": "rect", "x": 0, "y": 150, "w": 1640, "h": 624, "label": "سطح المكتب 820×312", "preview": 540, "thumb": 540,
+      "avatar": { "shape": "circle", "x": 64, "y": 384, "d": 340 } },
+    { "type": "rect", "x": 0, "y": 0, "w": 1640, "h": 924, "label": "الجوال 16:9 (الصورة كاملة)", "preview": 330, "thumb": 300,
+      "avatar": { "shape": "circle", "x": 56, "y": 714, "d": 270 } }
+   ],
+   "note": "كل النصوص والشعار داخل 1280×624 في المنتصف. على سطح المكتب يظهر الشريط الأوسط فقط؛ على الجوال تظهر الصورة كاملة."
+  },
+  {
+   "file": "04_youtube_banner.png", "w": 2560, "h": 1440,
+   "title": "بانر قناة يوتيوب", "en": "YouTube Channel Banner", "platform": "YouTube · TV + desktop + mobile",
+   "safe": [ { "type": "rect", "x": 507, "y": 508, "w": 1546, "h": 423, "label": "المنطقة الآمنة 1546×423" } ],
+   "avoid": [],
+   "crops": [
+    { "type": "rect", "x": 0, "y": 0, "w": 2560, "h": 1440, "label": "التلفزيون 2560×1440", "preview": 300 },
+    { "type": "rect", "x": 0, "y": 508, "w": 2560, "h": 423, "label": "سطح المكتب 2560×423", "preview": 560, "thumb": 620 },
+    { "type": "rect", "x": 507, "y": 508, "w": 1546, "h": 423, "label": "الجوال / التابلت 1546×423", "preview": 400, "thumb": 400 }
+   ],
+   "note": "الشعار والنصوص داخل الصندوق الأوسط 1546×423 حتى لا تُقصّ على الجوال. خارجَه خلفية رادار فقط للتلفزيون."
+  },
+  {
+   "file": "05_x_twitter_header.png", "w": 1500, "h": 500,
+   "title": "رأس الصفحة على X", "en": "X (Twitter) Header", "platform": "X · desktop + mobile",
+   "safe": [],
+   "avoid": [ { "type": "rect", "x": 0, "y": 280, "w": 420, "h": 220, "label": "تداخل صورة الملف الشخصي ~420×220" } ],
+   "crops": [ { "type": "rect", "x": 0, "y": 0, "w": 1500, "h": 500, "label": "المعرض الكامل 1500×500", "preview": 600, "thumb": 600,
+      "avatar": { "shape": "circle", "x": 40, "y": 300, "d": 300 } } ],
+   "note": "أسفل اليسار خالٍ تمامًا؛ تظهر فوقه صورة الملف الشخصي على X."
+  },
+  {
+   "file": "06_linkedin_banner.png", "w": 2256, "h": 382,
+   "title": "غلاف صفحة لينكدإن", "en": "LinkedIn Company Page Cover", "platform": "LinkedIn",
+   "safe": [],
+   "avoid": [ { "type": "rect", "x": 0, "y": 162, "w": 440, "h": 220, "label": "تداخل شعار الشركة — أسفل اليسار" } ],
+   "crops": [ { "type": "rect", "x": 0, "y": 0, "w": 2256, "h": 382, "label": "المعرض الكامل 1128×191 (2×)", "preview": 620, "thumb": 640,
+      "avatar": { "shape": "square", "x": 48, "y": 182, "d": 300 } } ],
+   "note": "تخطيط مؤسسي مرسّى على اليمين: الشعار ← العنوان ← شارات الثقة و asarak.com."
+  },
+  {
+   "file": "07_og_share_cover.png", "w": 1200, "h": 630,
+   "title": "صورة معاينة المشاركة", "en": "Open Graph Share Cover", "platform": "WhatsApp · Facebook · X · LinkedIn",
+   "safe": [],
+   "avoid": [],
+   "crops": [
+    { "type": "rect", "x": 0, "y": 0, "w": 1200, "h": 630, "label": "المعاينة العريضة 1.91:1", "preview": 460, "thumb": 470 },
+    { "type": "rect", "x": 285, "y": 0, "w": 630, "h": 630, "label": "القصّ المربّع (المصغّرات)", "preview": 250 }
+   ],
+   "note": "التكوين مرتّب على المحور الأوسط، فيبقى الشعار والعنوان والرابط مقروءين حتى في المعاينة المربّعة."
+  }
+ ]
+}
+</script>
+
+<script>
+const DATA = JSON.parse(document.getElementById('safe-zones').textContent);
+const AVATAR = '01_profile_avatar_primary.png';
+const NS = 'http://www.w3.org/2000/svg';
+const state = { safe: true, avoid: true, crops: false, circle: true, avatar: true };
+
+/* ── overlay helpers ─────────────────────────────────────────────────── */
+function shapeEl(z, stroke, fill) {
+  const e = document.createElementNS(NS, z.type === 'rect' ? 'rect' : 'circle');
+  if (z.type === 'rect') { e.setAttribute('x', z.x); e.setAttribute('y', z.y); e.setAttribute('width', z.w); e.setAttribute('height', z.h); }
+  else { e.setAttribute('cx', z.cx); e.setAttribute('cy', z.cy); e.setAttribute('r', z.r); }
+  e.setAttribute('fill', fill); e.setAttribute('stroke', stroke);
+  e.setAttribute('stroke-width', 2); e.setAttribute('stroke-dasharray', '9 6'); e.setAttribute('vector-effect', 'non-scaling-stroke');
+  return e;
+}
+function dimOutside(a, c) {  // darken everything the platform crops away
+  const W = a.w, H = a.h;
+  if (c.type === 'rect') {
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', `M0 0H${W}V${H}H0Z M${c.x} ${c.y}h${c.w}v${c.h}h${-c.w}Z`);
+    p.setAttribute('fill-rule', 'evenodd'); p.setAttribute('fill', 'rgba(2,8,20,.66)');
+    return p;
+  }
+  const id = 'm' + Math.random().toString(36).slice(2, 8);
+  const defs = document.createElementNS(NS, 'defs');
+  const m = document.createElementNS(NS, 'mask'); m.setAttribute('id', id);
+  const w = document.createElementNS(NS, 'rect'); w.setAttribute('width', W); w.setAttribute('height', H); w.setAttribute('fill', '#fff');
+  const b = document.createElementNS(NS, 'circle'); b.setAttribute('cx', c.cx); b.setAttribute('cy', c.cy); b.setAttribute('r', c.r); b.setAttribute('fill', '#000');
+  m.append(w, b); defs.append(m);
+  const r = document.createElementNS(NS, 'rect'); r.setAttribute('width', W); r.setAttribute('height', H);
+  r.setAttribute('fill', 'rgba(2,8,20,.66)'); r.setAttribute('mask', `url(#${id})`);
+  const g = document.createElementNS(NS, 'g'); g.append(defs, r);
+  return g;
+}
+function buildOverlay(a, i) {
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'ov'); svg.setAttribute('viewBox', `0 0 ${a.w} ${a.h}`); svg.setAttribute('preserveAspectRatio', 'none');
+  const defs = document.createElementNS(NS, 'defs');
+  const pat = document.createElementNS(NS, 'pattern');       // red hatch for keep-clear zones
+  pat.setAttribute('id', 'h' + i); pat.setAttribute('width', 16); pat.setAttribute('height', 16);
+  pat.setAttribute('patternUnits', 'userSpaceOnUse'); pat.setAttribute('patternTransform', 'rotate(45)');
+  const ln = document.createElementNS(NS, 'line');
+  ln.setAttribute('y2', 16); ln.setAttribute('stroke', '#DC2626'); ln.setAttribute('stroke-width', 2.5); ln.setAttribute('opacity', .6);
+  pat.append(ln); defs.append(pat); svg.append(defs);
+
+  a.crops.forEach(c => {
+    const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'lyr lyr--crops');
+    g.append(dimOutside(a, c), shapeEl(c, c.type === 'circle' && c.r >= Math.min(a.w, a.h) / 2 ? '#FFFFFF' : '#94A3B8', 'none'));
+    svg.append(g);
+  });
+  a.safe.forEach(z => { const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'lyr lyr--safe'); g.append(shapeEl(z, '#0CAE79', 'rgba(12,174,121,.10)')); svg.append(g); });
+  a.avoid.forEach(z => { const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'lyr lyr--avoid'); g.append(shapeEl(z, '#DC2626', `url(#h${i})`)); svg.append(g); });
+  return svg;
+}
+function buildLabels(a) {
+  const box = document.createElement('div');
+  const put = (kind, z, left, top, inside) => {
+    const s = document.createElement('span'); s.className = 'lbl lbl--' + kind; s.textContent = z.label; s.dir = 'rtl';
+    s.style.left = (left / a.w * 100) + '%';
+    s.style.top = (top / a.h * 100) + '%';
+    if (!inside) s.style.transform = 'translateY(-110%)';
+    box.append(s);
+  };
+  a.crops.forEach(c => c.type === 'rect' ? put('crop', c, c.x + 10, c.y + 10, true) : null);
+  a.safe.forEach(z => z.type === 'rect' ? put('safe', z, z.x + 10, z.y + 10, true) : put('safe', z, z.cx - 90, z.cy - z.r + 12, true));
+  a.avoid.forEach(z => put('avoid', z, z.x + 10, z.y + z.h - 36, true));
+  return box;
+}
+
+/* ── crop previews (CSS background math, works from file://) ─────────── */
+function cropHTML(a, c, forceAvatar) {
+  const dw = c.preview || 400, k = dw / c.w, dh = Math.round(c.h * k);
+  const st = `width:${dw}px;height:${dh}px;`;
+  let bg, cls = 'crop', inner = '';
+  if (c.type === 'rect') {
+    const size = (a.w / c.w * 100).toFixed(4) + '% auto';
+    const px = c.w < a.w ? (c.x / (a.w - c.w) * 100).toFixed(4) : 0;
+    const py = c.h < a.h ? (c.y / (a.h - c.h) * 100).toFixed(4) : 0;
+    bg = `background-image:url('${a.file}');background-size:${size};background-position:${px}% ${py}%`;
+  } else {
+    cls += ' crop--circle';
+    bg = `border-radius:50%;background-image:url('${a.file}');background-size:100% 100%`;
+  }
+  if (c.avatar && (state.avatar || forceAvatar)) {
+    cls += ' crop--sim';
+    inner = `<span class="sim sim--${c.avatar.shape}" style="left:${(c.avatar.x * k).toFixed(1)}px;top:${(c.avatar.y * k).toFixed(1)}px;width:${(c.avatar.d * k).toFixed(1)}px;height:${(c.avatar.d * k).toFixed(1)}px;background-image:url('${AVATAR}')"></span>`;
+  }
+  return `<figure class="${cls}"><div class="crop__box" style="${st}${bg}">${inner}</div><figcaption>${c.label} <span dir="ltr">(${c.w}×${c.h})</span></figcaption></figure>`;
+}
+
+/* ── gallery ─────────────────────────────────────────────────────────── */
+const gallery = document.getElementById('gallery');
+DATA.assets.forEach((a, i) => {
+  const card = document.createElement('section'); card.className = 'card';
+  card.innerHTML = `
+    <header class="card__head">
+      <span class="card__num">${String(i + 1).padStart(2, '0')}</span>
+      <div class="card__titles"><h2>${a.title}</h2><p>${a.en} · ${a.platform}</p></div>
+      <div class="card__meta"><span class="chip">${a.w} × ${a.h} px</span><a class="chip chip--file" href="${a.file}" download>${a.file}</a></div>
+    </header>`;
+  const stage = document.createElement('div'); stage.className = 'stage';
+  const img = new Image(); img.src = a.file; img.alt = a.en; img.draggable = false;
+  stage.append(img, buildOverlay(a, i), buildLabels(a));
+  const crops = document.createElement('div'); crops.className = 'crops';
+  crops.innerHTML = a.crops.map(c => cropHTML(a, c)).join('');
+  const note = document.createElement('p'); note.className = 'note'; note.textContent = a.note;
+  card.append(stage, crops, note);
+  gallery.append(card);
+});
+
+/* ── real-size test ──────────────────────────────────────────────────── */
+const av = document.getElementById('avatars');
+[['01_profile_avatar_primary.png', 'الأساسية'], ['02_profile_avatar_alt.png', 'البديلة']].forEach(([f, t]) => {
+  const set = document.createElement('div'); set.className = 'avset';
+  [40, 64, 150].forEach(s => {
+    set.innerHTML += `<figure><img src="${f}" width="${s}" height="${s}" style="border-radius:50%" alt="${t} ${s}px"><figcaption>${s}px</figcaption></figure>`;
+  });
+  set.innerHTML += `<figure><img src="${f}" width="150" height="150" style="border-radius:24px" alt=""><figcaption>مربّع 150</figcaption></figure>`;
+  av.innerHTML += `<div class="phone"><h3>الصورة الشخصية ${t}</h3></div>`;
+  const phone = av.lastElementChild; phone.append(set);
+  const cm = document.createElement('div'); cm.className = 'comment'; cm.style.marginTop = '16px';
+  cm.innerHTML = `<img src="${f}" width="40" height="40" alt=""><div><b>أسعارك</b><span>قارن السعر الحقيقي قبل ما تشتري · 40px في التعليقات</span></div>`;
+  phone.append(cm);
+});
+const real = document.getElementById('realsize');
+DATA.assets.forEach(a => a.crops.filter(c => c.thumb).forEach(c => {
+  const d = document.createElement('div'); d.className = 'phone';
+  d.innerHTML = `<h3>${a.en} — ${c.label}</h3>` + cropHTML(a, { ...c, preview: c.thumb }, true);
+  real.append(d);
+}));
+
+/* ── toggles ─────────────────────────────────────────────────────────── */
+const inputs = [...document.querySelectorAll('.tgl input')];
+function apply() {
+  for (const k of Object.keys(state)) document.body.classList.toggle('s-' + k, state[k]);
+  inputs.forEach(el => { el.checked = !!state[el.dataset.k]; });
+  // re-render crop previews so the avatar simulation follows its toggle
+  document.querySelectorAll('#gallery .card').forEach((card, i) => {
+    card.querySelector('.crops').innerHTML = DATA.assets[i].crops.map(c => cropHTML(DATA.assets[i], c)).join('');
+  });
+}
+inputs.forEach(el => el.addEventListener('change', () => { state[el.dataset.k] = el.checked; apply(); }));
+document.getElementById('all').addEventListener('click', () => { for (const k of Object.keys(state)) state[k] = true; apply(); });
+document.getElementById('none').addEventListener('click', () => { for (const k of Object.keys(state)) state[k] = false; apply(); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = { s: 'safe', x: 'avoid', c: 'crops', o: 'circle', a: 'avatar' }[e.key.toLowerCase()];
+  if (k) { state[k] = !state[k]; apply(); }
+});
+apply();
+</script>
+</body>
+</html>

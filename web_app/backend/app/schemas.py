@@ -81,6 +81,19 @@ DiscountVerdict = Literal[
     "RECENT_HIKE",
 ]
 
+RadarVerdictFilter = Literal[
+    "ALL_DEALS",
+    "ALL_HIKES",
+    "ALL_TIME_LOW",
+    "GENUINE_DEAL",
+    "FAKE_DISCOUNT",
+    "PRESALE_HIKE",
+    "NORMAL_PRICE",
+    "NEWLY_TRACKED",
+    "RECENT_DROP",
+    "RECENT_HIKE",
+]
+
 HistoryMaturity = Literal["EARLY", "GROWING", "MATURE"]
 MarketBenchmarkStatus = Literal[
     "CHEAPEST_IN_MARKET",
@@ -139,6 +152,8 @@ class OverviewStatsResponse(BaseModel):
     recent_hikes_today: int = 0
     newly_tracked_today: int = 0
     mature_tracked_count: int = 0
+    all_deals_count: int = 0
+    all_hikes_count: int = 0
 
     @field_serializer("last_pipeline_run_at")
     def serialize_last_run(self, v: Optional[datetime]) -> Optional[str]:

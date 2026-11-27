@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>أسعارك | Asarak — Profile Avatar · 1080×1080</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+/* 540 × 540 CSS px  ·  deviceScaleFactor 2  →  1080 × 1080 px
+   Canvas centre = (270, 270). Circular safe zone = inner 70% → Ø 378 CSS px (radius 189).
+   ?variant=primary → Asarak Navy surface + white-frame emblem (official dark-surface variant)
+   ?variant=alt     → light surface           + navy-frame emblem   (official light-surface variant) */
+.asset{width:540px;height:540px}
+.avatar{position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 46%,var(--asarak-dark-surface) 0%,var(--asarak-navy) 66%)}
+.alt .avatar{background:radial-gradient(circle at 50% 46%,var(--asarak-bg) 0%,var(--asarak-surface) 72%)}
+.alt{--ring:11,25,46;--glow:.13}                        /* navy rings + official hero glow on light */
+.rings i{position:absolute;left:270px;top:270px;border-radius:50%;
+  border:3px solid rgba(var(--ring,12,174,121),var(--o))}
+.rings i{width:300px;height:300px;margin:-150px 0 0 -150px;--o:.17}
+/* emblem box = 340 px (120-unit viewBox). Ink occupies x 10–98 · y 14–106,
+   so the box is offset to place the *ink* bounding box exactly on centre. */
+.mark{position:absolute;left:117px;top:100px;--e:340px}
+</style>
+</head>
+<body>
+<div class="asset" id="asset">
+  <div class="bg">
+    <div class="avatar"></div>
+    <div class="bg__glow" style="--gx:50%;--gy:46%;--gs:58% 58%;--ga:rgba(12,174,121,var(--glow,.20))"></div>
+    <div class="rings" aria-hidden="true"><i></i></div>
+  </div>
+  <div class="fg">
+    <span class="emblem emblem--white mark" role="img" aria-label="Asarak"></span>
+  </div>
+</div>
+<script>
+  // variant switch (?variant=alt) — used by src/render.py
+  if (new URLSearchParams(location.search).get('variant') === 'alt') {
+    document.getElementById('asset').classList.add('alt');
+    document.querySelector('.emblem').classList.replace('emblem--white', 'emblem--navy');
+  }
+</script>
+</body>
+</html>

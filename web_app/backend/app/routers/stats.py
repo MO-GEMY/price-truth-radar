@@ -57,6 +57,14 @@ OVERVIEW_SQL = text(
             COUNT(*) FILTER (WHERE discount_verdict = 'RECENT_HIKE')::INTEGER AS recent_hike_cnt,
             COUNT(*) FILTER (WHERE discount_verdict = 'NEWLY_TRACKED')::INTEGER AS newly_tracked_cnt,
             COUNT(*) FILTER (WHERE tracked_days_count >= 7)::INTEGER AS mature_cnt,
+            COUNT(DISTINCT COALESCE(parent_product_key, product_sk)) FILTER (
+                WHERE in_stock = TRUE
+                  AND discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP')
+            )::INTEGER AS all_deals_cnt,
+            COUNT(DISTINCT COALESCE(parent_product_key, product_sk)) FILTER (
+                WHERE in_stock = TRUE
+                  AND discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')
+            )::INTEGER AS all_hikes_cnt,
             SUM(claimed_discount_pct - real_discount_pct)
                 FILTER (WHERE discount_verdict = 'FAKE_DISCOUNT') AS fake_infl_sum,
             MAX(last_updated_at) AS max_updated_at
@@ -80,6 +88,8 @@ OVERVIEW_SQL = text(
         COALESCE(SUM(recent_hike_cnt), 0)::INTEGER AS recent_hikes_today,
         COALESCE(SUM(newly_tracked_cnt), 0)::INTEGER AS newly_tracked_today,
         COALESCE(SUM(mature_cnt), 0)::INTEGER AS mature_tracked_count,
+        COALESCE(SUM(all_deals_cnt), 0)::INTEGER AS all_deals_count,
+        COALESCE(SUM(all_hikes_cnt), 0)::INTEGER AS all_hikes_count,
         COALESCE(
             ROUND(
                 (SUM(fake_infl_sum) / NULLIF(SUM(fake_cnt), 0))::NUMERIC,
@@ -148,21 +158,39 @@ def get_overview_stats(
         for k, v in (raw_cat_counts.items() if isinstance(raw_cat_counts, dict) else [])
         if str(k) in CATEGORY_METADATA and int(v) > 0
     }
+    fake_discounts_today = int(row["fake_discounts_today"])
+    genuine_deals_today = int(row["genuine_deals_today"])
+    all_time_lows_today = int(row["all_time_lows_today"])
+    presale_hikes_today = int(row["presale_hikes_today"])
+    recent_drops_today = int(row.get("recent_drops_today") or 0)
+    recent_hikes_today = int(row.get("recent_hikes_today") or 0)
+    all_deals_count = (
+        int(row["all_deals_count"])
+        if row.get("all_deals_count") is not None
+        else all_time_lows_today + genuine_deals_today + recent_drops_today
+    )
+    all_hikes_count = (
+        int(row["all_hikes_count"])
+        if row.get("all_hikes_count") is not None
+        else fake_discounts_today + presale_hikes_today + recent_hikes_today
+    )
     result = OverviewStatsResponse(
         total_tracked=int(row["total_tracked"]),
-        fake_discounts_today=int(row["fake_discounts_today"]),
-        genuine_deals_today=int(row["genuine_deals_today"]),
-        all_time_lows_today=int(row["all_time_lows_today"]),
-        presale_hikes_today=int(row["presale_hikes_today"]),
+        fake_discounts_today=fake_discounts_today,
+        genuine_deals_today=genuine_deals_today,
+        all_time_lows_today=all_time_lows_today,
+        presale_hikes_today=presale_hikes_today,
         avg_fake_inflation_pct=float(row["avg_fake_inflation_pct"]),
         last_pipeline_run_at=row["last_pipeline_run_at"],
         available_stores=list(row["available_stores"] or []),
         category_counts=cat_counts,
         cross_store_matches_count=int(row.get("cross_store_matches_count") or 0),
-        recent_drops_today=int(row.get("recent_drops_today") or 0),
-        recent_hikes_today=int(row.get("recent_hikes_today") or 0),
+        recent_drops_today=recent_drops_today,
+        recent_hikes_today=recent_hikes_today,
         newly_tracked_today=int(row.get("newly_tracked_today") or 0),
         mature_tracked_count=int(row.get("mature_tracked_count") or 0),
+        all_deals_count=all_deals_count,
+        all_hikes_count=all_hikes_count,
     )
     api_cache.set(cache_key, result, ttl=21600.0)
     return result

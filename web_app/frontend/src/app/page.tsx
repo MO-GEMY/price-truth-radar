@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import type {
   CategoryFacetsResponse,
   CompareResponse,
-  DiscountVerdict,
   FeedCategoryFilter,
   RadarFeedResponse,
   StatsOverview,
+  VerdictFilter,
 } from "@/types/contract";
+import { getAllDealsCount, getAllHikesCount } from "@/lib/verdicts";
 import {
   fetchCategoryFacets,
   fetchCompare,
@@ -238,15 +239,23 @@ export default function HomePage() {
     });
   }
 
-  function filterByVerdict(nextVerdict: DiscountVerdict) {
+  function filterByVerdict(nextVerdict: VerdictFilter) {
     search.clear();
+    const togglingOff = verdict === nextVerdict;
+    const nextSort = togglingOff
+      ? sort
+      : nextVerdict === "ALL_DEALS"
+        ? "real_discount_pct_desc"
+        : nextVerdict === "ALL_HIKES"
+          ? "claimed_vs_real_gap_desc"
+          : sort;
     updateFilters({
       category,
       subcategory,
       brand,
       store,
-      sort,
-      verdict: verdict === nextVerdict ? "" : nextVerdict,
+      sort: nextSort,
+      verdict: togglingOff ? "" : nextVerdict,
     });
     scrollToResults();
   }
@@ -276,29 +285,19 @@ export default function HomePage() {
 
   const liveStoreCount = storedStats?.available_stores.length ?? 200;
   const liveProductCount = storedStats?.total_tracked ?? null;
-  const realDealsVerdict: DiscountVerdict =
-    storedStats && storedStats.genuine_deals_today > 0
-      ? "GENUINE_DEAL"
-      : "RECENT_DROP";
-  const realDealsCount = storedStats
-    ? storedStats.genuine_deals_today > 0
-      ? storedStats.genuine_deals_today
-      : (storedStats.recent_drops_today ?? 0)
-    : null;
-  const fakeDiscountsVerdict: DiscountVerdict =
-    storedStats && storedStats.fake_discounts_today > 0
-      ? "FAKE_DISCOUNT"
-      : "RECENT_HIKE";
-  const fakeDiscountsCount = storedStats
-    ? storedStats.fake_discounts_today > 0
-      ? storedStats.fake_discounts_today
-      : (storedStats.recent_hikes_today ?? 0)
-    : null;
+  const realDealsVerdict: VerdictFilter = "ALL_DEALS";
+  const realDealsCount = storedStats ? getAllDealsCount(storedStats) : null;
+  const fakeDiscountsVerdict: VerdictFilter = "ALL_HIKES";
+  const fakeDiscountsCount = storedStats ? getAllHikesCount(storedStats) : null;
 
-  function applyVerdictFromTour(nextVerdict: DiscountVerdict) {
+  function applyVerdictFromTour(nextVerdict: VerdictFilter) {
     search.clear();
     updateFilters({
       ...defaultFilters,
+      sort:
+        nextVerdict === "ALL_HIKES"
+          ? "claimed_vs_real_gap_desc"
+          : "real_discount_pct_desc",
       verdict: nextVerdict,
     });
     scrollToResults();

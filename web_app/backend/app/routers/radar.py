@@ -15,36 +15,51 @@ from app.cache import api_cache, set_cache_headers
 from app.database import get_db
 from app.schemas import (
     CategoryFilter,
-    DiscountVerdict,
     MarketBenchmark,
     MarketBenchmarkStatus,
     ProductVerdictItem,
     RadarFeedResponse,
+    RadarVerdictFilter,
 )
 from app.subcategories import build_subcategory_sql_filter, normalize_subcategory_slug
 
 router = APIRouter(prefix="/api/v1/radar", tags=["radar"])
 
+ALL_DEALS_VERDICTS: tuple[str, ...] = ("ALL_TIME_LOW", "GENUINE_DEAL", "RECENT_DROP")
+ALL_HIKES_VERDICTS: tuple[str, ...] = ("FAKE_DISCOUNT", "PRESALE_HIKE", "RECENT_HIKE")
+
 SORT_EXPRESSIONS: dict[str, str] = {
-    # Prioritize verified mature verdicts -> live verified cross-store comparisons ->
-    # recent observed price moves -> remaining catalog (rich & honest during White Friday cold-start).
+    # Prioritize verified mature inflation/hikes -> recent observed hikes ->
+    # live verified cross-store comparisons -> remaining catalog.
     "claimed_vs_real_gap_desc": (
         "CASE "
-        "WHEN tracked_days_count >= 7 AND discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'ALL_TIME_LOW', 'GENUINE_DEAL') THEN 0 "
-        "WHEN canonical_product_key IS NOT NULL AND in_stock = TRUE THEN 1 "
-        "WHEN discount_verdict IN ('RECENT_DROP', 'RECENT_HIKE') AND in_stock = TRUE THEN 2 "
-        "ELSE 3 END ASC, "
-        "(claimed_discount_pct - real_discount_pct) DESC, "
+        "WHEN tracked_days_count >= 7 AND discount_verdict = 'FAKE_DISCOUNT' THEN 0 "
+        "WHEN tracked_days_count >= 7 AND discount_verdict = 'PRESALE_HIKE' THEN 1 "
+        "WHEN discount_verdict = 'RECENT_HIKE' AND in_stock = TRUE THEN 2 "
+        "WHEN canonical_product_key IS NOT NULL AND in_stock = TRUE THEN 3 "
+        "WHEN discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP') AND in_stock = TRUE THEN 4 "
+        "ELSE 5 END ASC, "
+        "GREATEST("
+        "CASE WHEN tracked_days_count >= 7 THEN (claimed_discount_pct - real_discount_pct) ELSE 0.0 END, "
+        "CASE WHEN min_historical_price > 0 AND current_price > min_historical_price "
+        "THEN ((current_price - min_historical_price) / min_historical_price) * 100.0 ELSE 0.0 END"
+        ") DESC, "
         "product_sk ASC"
     ),
+    # Prioritize verified real deals (ALL_TIME_LOW -> GENUINE_DEAL) -> recent observed drops ->
+    # live verified cross-store comparisons -> remaining catalog, ordered by strongest real drop %.
     "real_discount_pct_desc": (
         "CASE "
-        "WHEN tracked_days_count >= 7 AND discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL') THEN 0 "
-        "WHEN discount_verdict = 'RECENT_DROP' AND in_stock = TRUE THEN 1 "
-        "WHEN canonical_product_key IS NOT NULL AND in_stock = TRUE THEN 2 "
-        "ELSE 3 END ASC, "
-        "real_discount_pct DESC, "
-        "CASE WHEN max_historical_price > 0 THEN ((max_historical_price - current_price) / max_historical_price) ELSE 0 END DESC, "
+        "WHEN tracked_days_count >= 7 AND discount_verdict = 'ALL_TIME_LOW' THEN 0 "
+        "WHEN tracked_days_count >= 7 AND discount_verdict = 'GENUINE_DEAL' THEN 1 "
+        "WHEN discount_verdict = 'RECENT_DROP' AND in_stock = TRUE THEN 2 "
+        "WHEN canonical_product_key IS NOT NULL AND in_stock = TRUE THEN 3 "
+        "ELSE 4 END ASC, "
+        "GREATEST("
+        "CASE WHEN tracked_days_count >= 7 THEN real_discount_pct ELSE 0.0 END, "
+        "CASE WHEN max_historical_price > 0 AND current_price < max_historical_price "
+        "THEN ((max_historical_price - current_price) / max_historical_price) * 100.0 ELSE 0.0 END"
+        ") DESC, "
         "product_sk ASC"
     ),
     "price_asc": "current_price ASC, product_sk ASC",
@@ -210,7 +225,7 @@ def get_radar_feed(
     category: CategoryFilter = Query(default="all"),
     subcategory: Optional[str] = Query(default=None),
     brand: Optional[str] = Query(default=None),
-    verdict: Optional[DiscountVerdict] = Query(default=None),
+    verdict: Optional[RadarVerdictFilter] = Query(default=None),
     store: Optional[str] = Query(default=None),
     sort: Literal[
         "real_discount_pct_desc",
@@ -230,7 +245,7 @@ def get_radar_feed(
     else:
         set_cache_headers(response, s_maxage=3600, stale_while_revalidate=86400)
     cache_key = (
-        f"radar:feed:v4:{category}:{norm_sub}:{norm_brand}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
+        f"radar:feed:v5:{category}:{norm_sub}:{norm_brand}:{verdict or ''}:{norm_store}:{sort}:{page}:{limit}"
     )
     cached = api_cache.get(cache_key)
     if cached is not None:
@@ -253,7 +268,18 @@ def get_radar_feed(
         conditions.append("LOWER(TRIM(COALESCE(brand, ''))) = :brand")
         params["brand"] = norm_brand
 
-    if verdict is not None:
+    if verdict == "ALL_DEALS":
+        # Explicit partial-index predicate lets PostgreSQL use idx_mart_verdicts_actionable_verdict directly.
+        conditions.append("discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')")
+        conditions.append("discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP')")
+        conditions.append("in_stock = TRUE")
+    elif verdict == "ALL_HIKES":
+        conditions.append("discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')")
+        conditions.append("discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')")
+        conditions.append("in_stock = TRUE")
+    elif verdict is not None:
+        if verdict not in ("NORMAL_PRICE", "NEWLY_TRACKED"):
+            conditions.append("discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')")
         conditions.append("discount_verdict = :verdict")
         params["verdict"] = verdict
 
@@ -298,12 +324,12 @@ def get_radar_feed(
         dedup_sql = text(
             f"""
             WITH deduped AS (
-                SELECT DISTINCT ON (parent_product_key)
+                SELECT DISTINCT ON (COALESCE(parent_product_key, product_sk))
                     {PRODUCT_SELECT_COLS}
                 FROM gold.mart_product_verdicts
                 {where_clause}
                 ORDER BY
-                    parent_product_key,
+                    COALESCE(parent_product_key, product_sk),
                     in_stock DESC,
                     current_price ASC,
                     product_sk ASC
@@ -328,7 +354,11 @@ def get_radar_feed(
             if verdict is None
             else where_clause
         )
-        count_expr = "COUNT(*)::INTEGER" if verdict is None else "COUNT(DISTINCT parent_product_key)::INTEGER"
+        count_expr = (
+            "COUNT(*)::INTEGER"
+            if verdict is None
+            else "COUNT(DISTINCT COALESCE(parent_product_key, product_sk))::INTEGER"
+        )
         try:
             total = int(
                 db.execute(
@@ -340,7 +370,10 @@ def get_radar_feed(
             db.rollback()
             total = int(
                 db.execute(
-                    text(f"SELECT COUNT(DISTINCT parent_product_key)::INTEGER FROM gold.mart_product_verdicts {where_clause}"),
+                    text(
+                        f"SELECT COUNT(DISTINCT COALESCE(parent_product_key, product_sk))::INTEGER "
+                        f"FROM gold.mart_product_verdicts {where_clause}"
+                    ),
                     params,
                 ).scalar_one()
             )

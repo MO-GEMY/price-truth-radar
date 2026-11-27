@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>أسعارك | Asarak — Link Preview / Open Graph Cover · 1200×630</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+/* 600 × 315 CSS px · deviceScaleFactor 2 → 1200 × 630 px
+   Centre-first composition: logo → headline → trust pills → asarak.com are
+   stacked on the centre axis so the card still reads in square link previews.
+   Floating price chips sit in the four corners only. */
+.asset{width:600px;height:315px}
+.lockup{position:absolute;left:50%;top:22px;--lk-e:46px;transform:translateX(-50%)}
+.headline{position:absolute;left:0;right:0;top:74px;--hl:41px;line-height:1.22;text-align:center;margin:0}
+.pills{position:absolute;left:0;right:0;top:190px;--pl:12px;justify-content:center}
+.url{position:absolute;left:50%;top:238px;--url:14px;transform:translateX(-50%)}
+.chip{position:absolute}
+.chip:not(.price-chip--low){font-size:12.5px;padding:8px 13px;background:rgba(19,39,70,.92);backdrop-filter:blur(6px)}
+.chip.price-chip--low{font-size:12.5px;padding:8px 13px}
+.c1{left:26px;top:30px;transform:rotate(-5deg)}
+.c2{right:26px;top:30px;transform:rotate(4deg)}
+.c3{left:40px;bottom:30px;transform:rotate(4deg)}
+.c4{right:40px;bottom:30px;transform:rotate(-4deg)}
+</style>
+</head>
+<body>
+<div class="asset">
+
+  <!-- ── Radar background: halo centred on the emblem ─────────────────── -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg__base"></div>
+    <div class="bg__grid" style="--cell:30px;--gx:50%;--gy:30%;--gm:78% 96%"></div>
+    <div class="bg__glow" style="--gx:50%;--gy:14%;--gs:74% 78%;--ga:rgba(12,174,121,.20)"></div>
+    <div class="layer">
+      <div class="radar-set" style="--cx:300px;--cy:48px">
+        <i style="--r:124px;--o:.13"></i><i style="--r:212px;--o:.10"></i><i style="--r:300px;--o:.08"></i><i style="--r:388px;--o:.06"></i>
+      </div>
+      <span class="blip" style="--x:30px;--y:178px"></span>
+      <span class="blip" style="--x:570px;--y:178px"></span>
+    </div>
+  </div>
+
+  <!-- ── Foreground ────────────────────────────────────────────────────── -->
+  <div class="fg">
+    <span class="price-chip price-chip--low chip c1"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2 6.2 4.8 9 10 3.2" fill="none" stroke="#0B192E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>أقل سعر · 54,999 ج.م</span>
+    <span class="price-chip chip c2"><span class="dot"></span>58,999 ج.م</span>
+    <span class="price-chip chip c3"><span class="dot"></span>64,200 ج.م</span>
+    <span class="price-chip chip c4"><span class="dot"></span>61,750 ج.م</span>
+
+    <div class="lockup">
+      <span class="emblem emblem--white" role="img" aria-label="Asarak"></span>
+      <span class="wordmark"><span class="wordmark-ar">أسعارك</span><span class="wordmark-en" dir="ltr">Asarak</span></span>
+    </div>
+
+    <h1 class="headline">قارن <span class="hl">السعر الحقيقي</span><br>قبل ما تشتري</h1>
+
+    <div class="pills">
+      <span class="pill"><b class="num">+200</b> متجر مصري</span>
+      <span class="pill"><b class="num">+265</b> ألف منتج</span>
+      <span class="pill">مقارنة فورية للأسعار</span>
+    </div>
+
+    <span class="url" dir="ltr">asarak.com</span>
+  </div>
+</div>
+</body>
+</html>

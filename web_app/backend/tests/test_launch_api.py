@@ -1300,6 +1300,112 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(resp2.status_code, 200)
         self.assertEqual(len(fake_db.calls), 1)
 
+    def test_unified_all_deals_and_all_hikes_counts_and_radar_filters(self) -> None:
+        now = datetime(2026, 11, 27, 9, 0, 0, tzinfo=timezone.utc)
+        sample_deal = {
+            "product_sk": "sk_deal_recent",
+            "canonical_product_key": None,
+            "store_name": "amazon_eg",
+            "category": "electronics",
+            "sub_category": "smartphones",
+            "brand": "Samsung",
+            "product_title": "Samsung Galaxy A55 256GB",
+            "product_url": "https://www.amazon.eg/-/en/dp/B0TEST1234",
+            "image_url": "https://cdn.example.com/a55.jpg",
+            "attributes_json": {},
+            "current_price": 18500.0,
+            "claimed_original_price": 21000.0,
+            "rolling_60d_median": 20000.0,
+            "min_historical_price": 18500.0,
+            "max_historical_price": 21000.0,
+            "claimed_discount_pct": 11.9,
+            "real_discount_pct": 7.5,
+            "discount_verdict": "RECENT_DROP",
+            "scarcity_flag": False,
+            "in_stock": True,
+            "last_updated_at": now,
+            "tracked_days_count": 3,
+            "history_maturity": "EARLY",
+            "verified_historical_median": None,
+            "total_count": 1240,
+        }
+        sample_hike = {
+            **sample_deal,
+            "product_sk": "sk_hike_recent",
+            "product_title": "Sony WH-1000XM5 Headphones",
+            "current_price": 19500.0,
+            "min_historical_price": 16000.0,
+            "max_historical_price": 19500.0,
+            "discount_verdict": "RECENT_HIKE",
+            "total_count": 485,
+        }
+
+        def handler(sql: str, _params: dict[str, Any]) -> _FakeResult:
+            if "AS all_deals_count" in sql:
+                return _FakeResult(
+                    rows=[
+                        {
+                            "total_tracked": 434000,
+                            "fake_discounts_today": 12,
+                            "genuine_deals_today": 4,
+                            "all_time_lows_today": 3,
+                            "presale_hikes_today": 5,
+                            "recent_drops_today": 1233,
+                            "recent_hikes_today": 468,
+                            "newly_tracked_today": 410000,
+                            "mature_tracked_count": 2500,
+                            "all_deals_count": 1240,
+                            "all_hikes_count": 485,
+                            "avg_fake_inflation_pct": 18.4,
+                            "last_pipeline_run_at": now,
+                            "available_stores": ["amazon_eg", "noon"],
+                            "category_counts": {"electronics": 50000},
+                            "cross_store_matches_count": 18000,
+                        }
+                    ]
+                )
+            if "discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')" in sql:
+                return _FakeResult(rows=[sample_hike])
+            if "discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP') AND in_stock = TRUE" in sql:
+                return _FakeResult(rows=[sample_deal])
+            return _FakeResult(rows=[])
+
+        fake_db = _FakeReadDB(handler)
+        app.dependency_overrides[get_db] = lambda: fake_db
+        client = TestClient(app)
+
+        # 1. Overview stats returns unified all_deals_count & all_hikes_count alongside legacy fields
+        stats_resp = client.get("/api/v1/stats/overview")
+        self.assertEqual(stats_resp.status_code, 200)
+        stats_body = stats_resp.json()
+        self.assertEqual(stats_body["genuine_deals_today"], 4)
+        self.assertEqual(stats_body["all_deals_count"], 1240)
+        self.assertEqual(stats_body["all_hikes_count"], 485)
+
+        # 2. ALL_DEALS grouped radar filter uses partial index predicate, in_stock=TRUE, no CURRENT_DATE
+        deals_resp = client.get("/api/v1/radar/feed?verdict=ALL_DEALS&sort=real_discount_pct_desc&page=1&limit=12")
+        self.assertEqual(deals_resp.status_code, 200)
+        deals_body = deals_resp.json()
+        self.assertEqual(deals_body["total"], 1240)
+        self.assertEqual(deals_body["items"][0]["discount_verdict"], "RECENT_DROP")
+        deals_sql = fake_db.calls[-1]
+        self.assertIn("discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')", deals_sql)
+        self.assertIn("discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP')", deals_sql)
+        self.assertIn("in_stock = TRUE", deals_sql)
+        self.assertNotIn("CURRENT_DATE", deals_sql)
+
+        # 3. ALL_HIKES grouped radar filter uses partial index predicate, in_stock=TRUE, no CURRENT_DATE
+        hikes_resp = client.get("/api/v1/radar/feed?verdict=ALL_HIKES&sort=claimed_vs_real_gap_desc&page=1&limit=12")
+        self.assertEqual(hikes_resp.status_code, 200)
+        hikes_body = hikes_resp.json()
+        self.assertEqual(hikes_body["total"], 485)
+        self.assertEqual(hikes_body["items"][0]["discount_verdict"], "RECENT_HIKE")
+        hikes_sql = fake_db.calls[-1]
+        self.assertIn("discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')", hikes_sql)
+        self.assertIn("discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')", hikes_sql)
+        self.assertIn("in_stock = TRUE", hikes_sql)
+        self.assertNotIn("CURRENT_DATE", hikes_sql)
+
 
 if __name__ == "__main__":
     unittest.main()

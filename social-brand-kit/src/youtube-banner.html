@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>أسعارك | Asarak — YouTube Channel Banner · 2560×1440</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+/* 1280 × 720 CSS px · deviceScaleFactor 2 → 2560 × 1440 px
+   Universal safe zone 1546×423 px = CSS x 253.5→1026.5 · y 254.25→465.75.
+   All logo / copy / UI lives in the content box x 278→1002 · y 278→442 (24 px inside it).
+   Radar rings are sized to arc AROUND that zone, never through it. */
+.asset{width:1280px;height:720px}
+.url{position:absolute;left:278px;top:278px;--url:13px}
+.price-stack{position:absolute;left:278px;top:321px}
+.lockup{position:absolute;right:278px;top:278px;--lk-e:46px}
+.headline{position:absolute;right:278px;top:330px;--hl:42px;line-height:1.25;text-align:start;margin:0;white-space:nowrap}
+.pills{position:absolute;right:278px;top:392px;--pl:11.5px}
+.price-chip{font-size:12px;padding:7px 12px}
+.price-chip--low{font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="asset">
+
+  <!-- ── Radar background: focused below the canvas so the rings frame the band ── -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg__base"></div>
+    <div class="bg__grid" style="--cell:44px;--gx:50%;--gy:76%;--gm:96% 128%"></div>
+    <div class="bg__glow" style="--gx:50%;--gy:106%;--gs:82% 92%;--ga:rgba(12,174,121,.24)"></div>
+    <div class="bg__glow" style="--gx:50%;--gy:-8%;--gs:70% 50%;--ga:rgba(12,174,121,.07)"></div>
+    <div class="layer">
+      <div class="radar-set" style="--cx:640px;--cy:900px">
+        <i style="--r:200px;--o:.17"></i><i style="--r:340px;--o:.13"></i>
+        <i style="--r:780px;--o:.13"></i><i style="--r:940px;--o:.11"></i><i style="--r:1100px;--o:.09"></i><i style="--r:1260px;--o:.07"></i>
+      </div>
+      <div class="sweep" style="--cx:640px;--cy:900px;--r:340px"></div>
+      <span class="blip" style="--x:421px;--y:640px"></span>
+      <span class="blip" style="--x:859px;--y:640px"></span>
+      <span class="blip" style="--x:296px;--y:200px"></span>
+      <span class="blip" style="--x:984px;--y:200px"></span>
+      <span class="blip" style="--x:116px;--y:120px"></span>
+      <span class="blip" style="--x:1164px;--y:120px"></span>
+    </div>
+  </div>
+
+  <!-- ── Foreground (inside the 1546×423 safe zone) ────────────────────── -->
+  <div class="fg">
+    <span class="url" dir="ltr">asarak.com</span>
+
+    <div class="price-stack">
+      <span class="price-chip price-chip--low"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2 6.2 4.8 9 10 3.2" fill="none" stroke="#0B192E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>54,999 ج.م</span>
+      <span class="price-chip"><span class="dot"></span>58,999 ج.م</span>
+    </div>
+
+    <div class="lockup">
+      <span class="emblem emblem--white" role="img" aria-label="Asarak"></span>
+      <span class="wordmark"><span class="wordmark-ar">أسعارك</span><span class="wordmark-en" dir="ltr">Asarak</span></span>
+    </div>
+
+    <h1 class="headline">قارن <span class="hl">السعر الحقيقي</span> قبل ما تشتري</h1>
+
+    <div class="pills">
+      <span class="pill"><b class="num">+200</b> متجر مصري</span>
+      <span class="pill"><b class="num">+265</b> ألف منتج</span>
+      <span class="pill">مقارنة فورية للأسعار</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
