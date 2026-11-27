@@ -2,14 +2,14 @@ name: Daily Stores Batch Matrix (Offline Tiered Pipeline)
 
 on:
   schedule:
-    # Off-peak UTC slot (03:17 UTC = 05:17 AM Cairo EET / 06:17 AM EEST) to avoid GitHub
+    # Off-peak UTC slot (00:37 UTC = 02:37 AM Cairo EET / 03:37 AM EEST) to avoid GitHub
     # Actions UTC midnight cron starvation:
     #   - Sun-Fri: daily refresh of Tier-1 (Priority 1 Major Brands + Priority 2 Major Stores)
     #              + rotated Tier-2 (every 3 days) + rotated Tier-3 (every 5 days)
     #   - Saturday: deep discovery sweep across scheduled tiered shards in the same single window
     # Neon stays 100% SUSPENDED (0 CU) during ALL HTTP scraping; opens ONCE at the end for COPY + dbt + TRUNCATE.
-    - cron: '17 3 * * 0-5'
-    - cron: '17 3 * * 6'
+    - cron: '37 0 * * 0-5'
+    - cron: '37 0 * * 6'
   workflow_dispatch:
     inputs:
       mode:
@@ -88,7 +88,7 @@ jobs:
           schedule_expr = os.environ.get("EVENT_SCHEDULE", "").strip()
           if dispatch_mode in ("daily", "discover", "expand"):
               mode = dispatch_mode
-          elif schedule_expr == "17 3 * * 6":
+          elif schedule_expr == "37 0 * * 6":
               mode = "discover"
           else:
               mode = "daily"
