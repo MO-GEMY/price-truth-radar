@@ -23,7 +23,7 @@ import { categoryLabels, visibleCategories } from "@/lib/browse-state";
 import { formatNumber, formatSubCategory } from "@/lib/format";
 import { useLanguage } from "@/lib/i18n";
 import { storeDisplayName } from "@/lib/stores";
-import { getAllDealsCount, getAllHikesCount } from "@/lib/verdicts";
+import { getScopedDealsCount, getScopedHikesCount } from "@/lib/verdicts";
 
 export const verdictOptions: VerdictFilter[] = [
   "ALL_DEALS",
@@ -137,11 +137,13 @@ export function FeedFilters({
       ? formatSubCategory(value.subcategory, lang)
       : "";
 
-  // Unified catalog-wide quick verdict tabs (never collapse to a narrow mature-only subset)
+  // Dynamically scoped quick verdict counts (global for "all", exact per category/subcategory otherwise)
   const dropVerdict: VerdictFilter = "ALL_DEALS";
-  const dropCount = stats ? getAllDealsCount(stats) : null;
+  const dropCount = getScopedDealsCount(stats, value.category, value.subcategory, facets);
   const reviewVerdict: VerdictFilter = "ALL_HIKES";
-  const reviewCount = stats ? getAllHikesCount(stats) : null;
+  const reviewCount = getScopedHikesCount(stats, value.category, value.subcategory, facets);
+  const scopedCountsPending =
+    value.category !== "all" && (dropCount === null || reviewCount === null);
 
   const modalActiveCount = [
     value.brand,
@@ -443,7 +445,7 @@ export function FeedFilters({
             <span>{t("feed.quickAll")}</span>
           </button>
 
-          {(dropCount === null || dropCount > 0) && (
+          {(dropCount === null || dropCount > 0 || value.verdict === dropVerdict) && (
             <button
               type="button"
               className="is-deal"
@@ -459,15 +461,22 @@ export function FeedFilters({
             >
               <TrendingDown size={14} aria-hidden="true" />
               <span>{t("feed.quickDrops")}</span>
-              {typeof dropCount === "number" && dropCount > 0 && (
+              {typeof dropCount === "number" ? (
                 <span className="ptr-chip-count">
                   <bdi>{formatNumber(dropCount, lang)}</bdi>
                 </span>
-              )}
+              ) : scopedCountsPending ? (
+                <span
+                  className="ptr-chip-count opacity-60"
+                  aria-hidden="true"
+                >
+                  …
+                </span>
+              ) : null}
             </button>
           )}
 
-          {(reviewCount === null || reviewCount > 0) && (
+          {(reviewCount === null || reviewCount > 0 || value.verdict === reviewVerdict) && (
             <button
               type="button"
               className="is-scandal"
@@ -483,11 +492,18 @@ export function FeedFilters({
             >
               <ShieldAlert size={14} aria-hidden="true" />
               <span>{t("feed.quickHikes")}</span>
-              {typeof reviewCount === "number" && reviewCount > 0 && (
+              {typeof reviewCount === "number" ? (
                 <span className="ptr-chip-count">
                   <bdi>{formatNumber(reviewCount, lang)}</bdi>
                 </span>
-              )}
+              ) : scopedCountsPending ? (
+                <span
+                  className="ptr-chip-count opacity-60"
+                  aria-hidden="true"
+                >
+                  …
+                </span>
+              ) : null}
             </button>
           )}
         </div>

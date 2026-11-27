@@ -145,6 +145,8 @@ export interface StatsOverview {
   last_pipeline_run_at: string;
   available_stores: string[];
   category_counts?: Record<string, number>;
+  category_deals_counts?: Record<string, number>;
+  category_hikes_counts?: Record<string, number>;
   cross_store_matches_count?: number;
   recent_drops_today?: number;
   recent_hikes_today?: number;
@@ -188,6 +190,8 @@ export interface CategoryFacetsResponse {
   category: Category;
   subcategory?: string | null;
   total_in_stock: number;
+  all_deals_count?: number | null;
+  all_hikes_count?: number | null;
   subcategories: SubcategoryFacetItem[];
   stores: StoreFacetItem[];
   brands: BrandFacetItem[];

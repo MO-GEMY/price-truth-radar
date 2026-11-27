@@ -170,6 +170,8 @@ class TestFacetsAndScopedEndpoints(unittest.TestCase):
             sub_row[f"cnt_{idx}"] = 420 if spec.slug == "oils_ghee" else (310 if spec.slug == "dairy_cheese" else 0)
         facets_row = {
             "scoped_total": 1500,
+            "all_deals_count": 215,
+            "all_hikes_count": 88,
             "stores": [{"slug": "carrefour_eg", "count": 900}, {"slug": "hyperone", "count": 600}],
             "brands": [{"name": "Crystal", "count": 120}, {"name": "Juhayna", "count": 95}],
         }
@@ -183,10 +185,17 @@ class TestFacetsAndScopedEndpoints(unittest.TestCase):
         data = resp1.json()
         self.assertEqual(data["category"], "groceries")
         self.assertEqual(data["total_in_stock"], 1500)
+        self.assertEqual(data["all_deals_count"], 215)
+        self.assertEqual(data["all_hikes_count"], 88)
         self.assertEqual([s["slug"] for s in data["subcategories"]], ["oils_ghee", "dairy_cheese"])
         self.assertEqual([s["slug"] for s in data["stores"]], ["carrefour_eg", "hyperone"])
         self.assertEqual([b["name"] for b in data["brands"]], ["Crystal", "Juhayna"])
         self.assertEqual(len(fake_db.calls), 2)
+        facets_sql_cat = fake_db.calls[1][0]
+        self.assertIn("discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')", facets_sql_cat)
+        self.assertIn("discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP')", facets_sql_cat)
+        self.assertIn("discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')", facets_sql_cat)
+        self.assertIn("COUNT(DISTINCT COALESCE(parent_product_key, product_sk))", facets_sql_cat)
 
         # Second call must hit in-memory api_cache with ZERO DB queries
         resp2 = client.get("/api/v1/categories/facets?category=groceries")
@@ -194,11 +203,13 @@ class TestFacetsAndScopedEndpoints(unittest.TestCase):
         self.assertEqual(resp2.json(), data)
         self.assertEqual(len(fake_db.calls), 2)
 
-        # Subcategory-scoped call reuses cached subcategory counts (only 1 DB query for scoped stores/brands!)
+        # Subcategory-scoped call reuses cached subcategory counts (only 1 DB query for scoped stores/brands/verdicts!)
         fake_db._responses.append(
             [
                 {
                     "scoped_total": 420,
+                    "all_deals_count": 64,
+                    "all_hikes_count": 19,
                     "stores": [{"slug": "carrefour_eg", "count": 420}],
                     "brands": [{"name": "Crystal", "count": 120}],
                 }
@@ -209,6 +220,8 @@ class TestFacetsAndScopedEndpoints(unittest.TestCase):
         d3 = resp3.json()
         self.assertEqual(d3["subcategory"], "oils_ghee")
         self.assertEqual(d3["total_in_stock"], 420)
+        self.assertEqual(d3["all_deals_count"], 64)
+        self.assertEqual(d3["all_hikes_count"], 19)
         self.assertEqual([s["slug"] for s in d3["subcategories"]], ["oils_ghee", "dairy_cheese"])
         self.assertEqual([s["slug"] for s in d3["stores"]], ["carrefour_eg"])
         self.assertEqual(len(fake_db.calls), 3)

@@ -1360,6 +1360,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
                             "last_pipeline_run_at": now,
                             "available_stores": ["amazon_eg", "noon"],
                             "category_counts": {"electronics": 50000},
+                            "category_deals_counts": {"electronics": 619},
+                            "category_hikes_counts": {"electronics": 210},
                             "cross_store_matches_count": 18000,
                         }
                     ]
@@ -1381,6 +1383,8 @@ class TestLaunchBackendAPI(unittest.TestCase):
         self.assertEqual(stats_body["genuine_deals_today"], 4)
         self.assertEqual(stats_body["all_deals_count"], 1240)
         self.assertEqual(stats_body["all_hikes_count"], 485)
+        self.assertEqual(stats_body["category_deals_counts"], {"electronics": 619})
+        self.assertEqual(stats_body["category_hikes_counts"], {"electronics": 210})
 
         # 2. ALL_DEALS grouped radar filter uses partial index predicate, in_stock=TRUE, no CURRENT_DATE
         deals_resp = client.get("/api/v1/radar/feed?verdict=ALL_DEALS&sort=real_discount_pct_desc&page=1&limit=12")

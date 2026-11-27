@@ -147,6 +147,8 @@ class OverviewStatsResponse(BaseModel):
     last_pipeline_run_at: Optional[datetime]
     available_stores: list[str] = Field(default_factory=list)
     category_counts: dict[str, int] = Field(default_factory=dict)
+    category_deals_counts: dict[str, int] = Field(default_factory=dict)
+    category_hikes_counts: dict[str, int] = Field(default_factory=dict)
     cross_store_matches_count: int = 0
     recent_drops_today: int = 0
     recent_hikes_today: int = 0
@@ -194,6 +196,8 @@ class CategoryFacetsResponse(BaseModel):
     category: Category
     subcategory: Optional[str] = None
     total_in_stock: int = 0
+    all_deals_count: Optional[int] = None
+    all_hikes_count: Optional[int] = None
     subcategories: list[SubcategoryFacetItem] = Field(default_factory=list)
     stores: list[StoreFacetItem] = Field(default_factory=list)
     brands: list[BrandFacetItem] = Field(default_factory=list)

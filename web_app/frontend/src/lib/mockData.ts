@@ -893,6 +893,35 @@ export function getMockStatsOverview(): StatsOverview {
       )
       .map((p) => p.parent_product_key ?? `${p.store_name}::${p.product_sk}`),
   );
+  const categoryDealsSets = new Map<string, Set<string>>();
+  const categoryHikesSets = new Map<string, Set<string>>();
+  for (const p of products) {
+    if (!p.in_stock) continue;
+    const parentKey = p.parent_product_key ?? `${p.store_name}::${p.product_sk}`;
+    if (
+      p.discount_verdict === "ALL_TIME_LOW" ||
+      p.discount_verdict === "GENUINE_DEAL" ||
+      p.discount_verdict === "RECENT_DROP"
+    ) {
+      const set = categoryDealsSets.get(p.category) ?? new Set<string>();
+      set.add(parentKey);
+      categoryDealsSets.set(p.category, set);
+    } else if (
+      p.discount_verdict === "FAKE_DISCOUNT" ||
+      p.discount_verdict === "PRESALE_HIKE" ||
+      p.discount_verdict === "RECENT_HIKE"
+    ) {
+      const set = categoryHikesSets.get(p.category) ?? new Set<string>();
+      set.add(parentKey);
+      categoryHikesSets.set(p.category, set);
+    }
+  }
+  const categoryDealsCounts: Record<string, number> = {};
+  const categoryHikesCounts: Record<string, number> = {};
+  for (const cat of Object.keys(categoryCounts)) {
+    categoryDealsCounts[cat] = categoryDealsSets.get(cat)?.size ?? 0;
+    categoryHikesCounts[cat] = categoryHikesSets.get(cat)?.size ?? 0;
+  }
   return {
     total_tracked: products.length,
     fake_discounts_today: count("FAKE_DISCOUNT"),
@@ -907,6 +936,8 @@ export function getMockStatsOverview(): StatsOverview {
     last_pipeline_run_at: MOCK_NOW,
     available_stores: getMockStoreNames(),
     category_counts: categoryCounts,
+    category_deals_counts: categoryDealsCounts,
+    category_hikes_counts: categoryHikesCounts,
     cross_store_matches_count: crossStoreMatchesCount,
   };
 }
@@ -1252,10 +1283,30 @@ export function getMockCategoryFacets(
       brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
     }
   }
+  const scopedDealParents = new Set<string>();
+  const scopedHikeParents = new Set<string>();
+  for (const p of scoped) {
+    const parentKey = p.parent_product_key ?? `${p.store_name}::${p.product_sk}`;
+    if (
+      p.discount_verdict === "ALL_TIME_LOW" ||
+      p.discount_verdict === "GENUINE_DEAL" ||
+      p.discount_verdict === "RECENT_DROP"
+    ) {
+      scopedDealParents.add(parentKey);
+    } else if (
+      p.discount_verdict === "FAKE_DISCOUNT" ||
+      p.discount_verdict === "PRESALE_HIKE" ||
+      p.discount_verdict === "RECENT_HIKE"
+    ) {
+      scopedHikeParents.add(parentKey);
+    }
+  }
   return {
     category,
     subcategory: normSub || null,
     total_in_stock: scoped.length,
+    all_deals_count: scopedDealParents.size,
+    all_hikes_count: scopedHikeParents.size,
     subcategories: Array.from(subCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([slug, count]) => ({

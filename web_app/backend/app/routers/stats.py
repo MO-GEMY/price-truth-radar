@@ -59,10 +59,12 @@ OVERVIEW_SQL = text(
             COUNT(*) FILTER (WHERE tracked_days_count >= 7)::INTEGER AS mature_cnt,
             COUNT(DISTINCT COALESCE(parent_product_key, product_sk)) FILTER (
                 WHERE in_stock = TRUE
+                  AND discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')
                   AND discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP')
             )::INTEGER AS all_deals_cnt,
             COUNT(DISTINCT COALESCE(parent_product_key, product_sk)) FILTER (
                 WHERE in_stock = TRUE
+                  AND discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')
                   AND discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')
             )::INTEGER AS all_hikes_cnt,
             SUM(claimed_discount_pct - real_discount_pct)
@@ -72,7 +74,11 @@ OVERVIEW_SQL = text(
         GROUP BY category, store_name
     ),
     cat_totals AS (
-        SELECT category, SUM(cnt)::INTEGER AS cnt
+        SELECT
+            category,
+            SUM(cnt)::INTEGER AS cnt,
+            SUM(all_deals_cnt)::INTEGER AS deals_cnt,
+            SUM(all_hikes_cnt)::INTEGER AS hikes_cnt
         FROM base
         WHERE category IS NOT NULL
         GROUP BY category
@@ -106,6 +112,14 @@ OVERVIEW_SQL = text(
             (SELECT JSONB_OBJECT_AGG(category, cnt) FROM cat_totals),
             '{}'::JSONB
         ) AS category_counts,
+        COALESCE(
+            (SELECT JSONB_OBJECT_AGG(category, deals_cnt) FROM cat_totals),
+            '{}'::JSONB
+        ) AS category_deals_counts,
+        COALESCE(
+            (SELECT JSONB_OBJECT_AGG(category, hikes_cnt) FROM cat_totals),
+            '{}'::JSONB
+        ) AS category_hikes_counts,
         COALESCE(
             (SELECT COUNT(*)::INTEGER FROM gold.mart_cross_store_matches),
             0
@@ -158,6 +172,18 @@ def get_overview_stats(
         for k, v in (raw_cat_counts.items() if isinstance(raw_cat_counts, dict) else [])
         if str(k) in CATEGORY_METADATA and int(v) > 0
     }
+    raw_cat_deals = row.get("category_deals_counts") or {}
+    cat_deals_counts = {
+        str(k): int(v)
+        for k, v in (raw_cat_deals.items() if isinstance(raw_cat_deals, dict) else [])
+        if str(k) in CATEGORY_METADATA and int(v) >= 0
+    }
+    raw_cat_hikes = row.get("category_hikes_counts") or {}
+    cat_hikes_counts = {
+        str(k): int(v)
+        for k, v in (raw_cat_hikes.items() if isinstance(raw_cat_hikes, dict) else [])
+        if str(k) in CATEGORY_METADATA and int(v) >= 0
+    }
     fake_discounts_today = int(row["fake_discounts_today"])
     genuine_deals_today = int(row["genuine_deals_today"])
     all_time_lows_today = int(row["all_time_lows_today"])
@@ -184,6 +210,8 @@ def get_overview_stats(
         last_pipeline_run_at=row["last_pipeline_run_at"],
         available_stores=list(row["available_stores"] or []),
         category_counts=cat_counts,
+        category_deals_counts=cat_deals_counts,
+        category_hikes_counts=cat_hikes_counts,
         cross_store_matches_count=int(row.get("cross_store_matches_count") or 0),
         recent_drops_today=recent_drops_today,
         recent_hikes_today=recent_hikes_today,
@@ -305,7 +333,7 @@ def _load_category_facets(
 ) -> CategoryFacetsResponse:
     set_cache_headers(response, s_maxage=21600, stale_while_revalidate=86400)
     norm_sub = normalize_subcategory_slug(subcategory)
-    cache_key = f"stats:cat_facets:v1:{category}:{norm_sub}"
+    cache_key = f"stats:cat_facets:v2:{category}:{norm_sub}"
     cached = api_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -323,7 +351,7 @@ def _load_category_facets(
     facets_sql = text(
         f"""
         WITH scoped AS (
-            SELECT store_name, brand
+            SELECT store_name, brand, parent_product_key, product_sk, discount_verdict
             FROM gold.mart_product_verdicts
             WHERE category = :category
               AND in_stock = TRUE
@@ -347,6 +375,18 @@ def _load_category_facets(
         )
         SELECT
             (SELECT COUNT(*)::INTEGER FROM scoped) AS scoped_total,
+            (
+                SELECT COUNT(DISTINCT COALESCE(parent_product_key, product_sk))::INTEGER
+                FROM scoped
+                WHERE discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')
+                  AND discount_verdict IN ('ALL_TIME_LOW', 'GENUINE_DEAL', 'RECENT_DROP')
+            ) AS all_deals_count,
+            (
+                SELECT COUNT(DISTINCT COALESCE(parent_product_key, product_sk))::INTEGER
+                FROM scoped
+                WHERE discount_verdict NOT IN ('NORMAL_PRICE', 'NEWLY_TRACKED')
+                  AND discount_verdict IN ('FAKE_DISCOUNT', 'PRESALE_HIKE', 'RECENT_HIKE')
+            ) AS all_hikes_count,
             COALESCE(
                 (SELECT JSONB_AGG(JSONB_BUILD_OBJECT('slug', slug, 'count', cnt) ORDER BY cnt DESC, slug ASC) FROM store_agg),
                 '[]'::JSONB
@@ -372,10 +412,14 @@ def _load_category_facets(
         if isinstance(item, dict) and item.get("name") and int(item.get("count") or 0) > 0
     ]
 
+    raw_deals_cnt = row.get("all_deals_count")
+    raw_hikes_cnt = row.get("all_hikes_count")
     result = CategoryFacetsResponse(
         category=category,
         subcategory=norm_sub or None,
         total_in_stock=int(row.get("scoped_total") or 0) if norm_sub else total_in_stock,
+        all_deals_count=int(raw_deals_cnt) if raw_deals_cnt is not None else None,
+        all_hikes_count=int(raw_hikes_cnt) if raw_hikes_cnt is not None else None,
         subcategories=subcategories,
         stores=stores,
         brands=brands,

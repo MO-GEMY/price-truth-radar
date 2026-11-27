@@ -8,7 +8,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type {
+  CategoryFacetsResponse,
   DiscountVerdict,
+  FeedCategoryFilter,
   HistoryMaturity,
   MarketBenchmark,
   PriceHistoryPoint,
@@ -50,6 +52,78 @@ export function getAllHikesCount(stats: StatsOverview): number {
     (stats.presale_hikes_today ?? 0) +
     (stats.recent_hikes_today ?? 0)
   );
+}
+
+/**
+ * Returns the exact in-stock deals count for the active `(category, subcategory)` scope.
+ * Never falls back to global totals when a category or subcategory is selected.
+ */
+export function getScopedDealsCount(
+  stats: StatsOverview | null | undefined,
+  category: FeedCategoryFilter,
+  subcategory: string,
+  facets?: CategoryFacetsResponse | null,
+): number | null {
+  if (category === "all") {
+    return stats ? getAllDealsCount(stats) : null;
+  }
+  const normSub = subcategory.trim().toLowerCase();
+  const facetsMatchScope =
+    facets !== null &&
+    facets !== undefined &&
+    facets.category === category &&
+    (facets.subcategory ?? "").trim().toLowerCase() === normSub;
+
+  if (
+    facetsMatchScope &&
+    typeof facets.all_deals_count === "number" &&
+    Number.isFinite(facets.all_deals_count)
+  ) {
+    return facets.all_deals_count;
+  }
+  if (!normSub) {
+    const catCount = stats?.category_deals_counts?.[category];
+    if (typeof catCount === "number" && Number.isFinite(catCount)) {
+      return catCount;
+    }
+  }
+  return null;
+}
+
+/**
+ * Returns the exact in-stock hikes/fake discounts count for the active `(category, subcategory)` scope.
+ * Never falls back to global totals when a category or subcategory is selected.
+ */
+export function getScopedHikesCount(
+  stats: StatsOverview | null | undefined,
+  category: FeedCategoryFilter,
+  subcategory: string,
+  facets?: CategoryFacetsResponse | null,
+): number | null {
+  if (category === "all") {
+    return stats ? getAllHikesCount(stats) : null;
+  }
+  const normSub = subcategory.trim().toLowerCase();
+  const facetsMatchScope =
+    facets !== null &&
+    facets !== undefined &&
+    facets.category === category &&
+    (facets.subcategory ?? "").trim().toLowerCase() === normSub;
+
+  if (
+    facetsMatchScope &&
+    typeof facets.all_hikes_count === "number" &&
+    Number.isFinite(facets.all_hikes_count)
+  ) {
+    return facets.all_hikes_count;
+  }
+  if (!normSub) {
+    const catCount = stats?.category_hikes_counts?.[category];
+    if (typeof catCount === "number" && Number.isFinite(catCount)) {
+      return catCount;
+    }
+  }
+  return null;
 }
 
 export interface VerdictTone {
