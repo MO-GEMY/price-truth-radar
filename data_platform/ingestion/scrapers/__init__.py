@@ -71,6 +71,7 @@ from .groceries import (
 )
 from .hyperone import HyperOneScraper
 from .matcher import MatchSummary, assign_canonical_keys, compute_candidate_key
+from .mi_egypt import MiEgyptScraper
 from .noon import NoonScraper
 from .platform_stores import (
     PLATFORM_SCRAPER_CLASSES,
@@ -118,6 +119,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     DalydressScraper.store_name: DalydressScraper,
     DejavuScraper.store_name: DejavuScraper,
     HyperOneScraper.store_name: HyperOneScraper,
+    MiEgyptScraper.store_name: MiEgyptScraper,
     NoonScraper.store_name: NoonScraper,
     RaneenScraper.store_name: RaneenScraper,
     RayaShopScraper.store_name: RayaShopScraper,

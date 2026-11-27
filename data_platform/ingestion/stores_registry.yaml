@@ -497,17 +497,17 @@ stores:
   priority_group: long_tail
 - store_key: mi_egypt
   display_name: Mi Store Egypt
-  platform: woocommerce
+  platform: custom
   base_url: https://mistore-eg.com
   category: electronics
   vertical: core
   region_mode: cloud
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: woo non-JSON; shopify non-JSON
-  tier: 3
-  priority_group: long_tail
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  notes: Official Xiaomi Egypt Angular+Laravel API (api.mistore-eg.com/api/customer/products/search, EGP, no WAF)
+  tier: 1
+  priority_group: major_brands
 - store_key: samsung_eg
   display_name: Samsung Egypt eStore
   platform: custom
