@@ -16,10 +16,12 @@ from typing import Any, Literal, Optional
 import yaml
 
 from .adapters import (
+    EasyOrdersBaseScraper,
     MagentoGraphQLBaseScraper,
     ShopifyBaseScraper,
     SllrBaseScraper,
     WooCommerceBaseScraper,
+    WuiltBaseScraper,
 )
 from .base import BaseScraper, Category, ScrapeVertical
 
@@ -27,8 +29,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_REGISTRY_PATH = Path(__file__).resolve().parents[1] / "stores_registry.yaml"
 
-PlatformType = Literal["shopify", "woocommerce", "magento_graphql", "sllr", "custom"]
+PlatformType = Literal["shopify", "woocommerce", "magento_graphql", "sllr", "easyorders", "wuilt", "custom"]
 RegionMode = Literal["cloud", "local_only"]
+PricingMode = Literal["direct_egp", "fx_estimated"]
 
 # Map registry categories (and legacy aliases) onto canonical top-level categories
 _CATEGORY_CONTRACT_MAP: dict[str, Category] = {
@@ -72,6 +75,7 @@ class StoreRegistryEntry:
     category: str
     vertical: ScrapeVertical
     region_mode: RegionMode = "cloud"
+    pricing_mode: PricingMode = "direct_egp"
     enabled: bool = False
     verified: bool = False
     batch: str = "default"
@@ -148,6 +152,11 @@ def load_stores_registry(
             category=str(item.get("category") or "electronics").strip().lower(),
             vertical=str(item.get("vertical") or "core").strip().lower(),  # type: ignore[arg-type]
             region_mode=str(item.get("region_mode") or "cloud").strip().lower(),  # type: ignore[arg-type]
+            pricing_mode=(
+                "fx_estimated"
+                if str(item.get("pricing_mode") or "").strip().lower() == "fx_estimated"
+                else "direct_egp"
+            ),
             enabled=bool(item.get("enabled", False)),
             verified=bool(item.get("verified", False)),
             batch=str(item.get("batch") or "default").strip(),
@@ -233,6 +242,18 @@ def build_platform_scraper_class(entry: StoreRegistryEntry) -> Optional[type[Bas
         if "per_page" in cfg:
             common_attrs["per_page"] = int(cfg["per_page"])
         return type(cls_name, (SllrBaseScraper,), common_attrs)
+
+    if entry.platform == "easyorders":
+        if cfg.get("api_key_env"):
+            common_attrs["api_key_env"] = str(cfg["api_key_env"]).strip()
+        if cfg.get("collection_paths"):
+            common_attrs["collection_paths"] = tuple(cfg["collection_paths"])
+        return type(cls_name, (EasyOrdersBaseScraper,), common_attrs)
+
+    if entry.platform == "wuilt":
+        if cfg.get("wuilt_store_id"):
+            common_attrs["wuilt_store_id"] = str(cfg["wuilt_store_id"]).strip()
+        return type(cls_name, (WuiltBaseScraper,), common_attrs)
 
     return None
 

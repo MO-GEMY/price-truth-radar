@@ -514,13 +514,13 @@ stores:
   base_url: https://www.samsung.com/eg
   category: electronics
   vertical: core
-  region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_electronics
-  notes: 404 no store API
-  tier: 3
-  priority_group: long_tail
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  notes: Official Samsung Egypt Product Finder JSON API (searchapi.samsung.com siteCode=eg, EGP, no WAF)
+  tier: 1
+  priority_group: major_brands
 - store_key: huawei_eg
   display_name: Huawei Egypt Store
   platform: custom
@@ -1113,12 +1113,12 @@ stores:
   category: fashion
   vertical: fashion
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_fashion
-  notes: 403 Cloudflare challenge
-  tier: 3
-  priority_group: long_tail
+  enabled: true
+  verified: true
+  batch: local_fashion
+  notes: Official Max Fashion Egypt SSR ItemList JSON-LD (EGP, curl_cffi local_only)
+  tier: 1
+  priority_group: major_brands
 - store_key: adidas_eg
   display_name: Adidas Egypt
   platform: custom
@@ -3635,3 +3635,43 @@ stores:
     default_brand: Madiesta
     override_brand: true
   notes: Verified live Sllr storefront (api.sllr.co EGP football jerseys & fanwear, no WAF)
+- store_key: oraimo_eg
+  display_name: Oraimo Egypt
+  platform: custom
+  base_url: https://eg.oraimo.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_1
+  tier: 1
+  priority_group: major_brands
+  notes: Official Oraimo Egypt store SSR .site-item + EANs (eg.oraimo.com, EGP, no WAF)
+- store_key: bath_and_body_works_eg
+  display_name: Bath & Body Works Egypt
+  platform: custom
+  base_url: https://www.bathandbodyworks.com.eg
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  notes: Official Bath & Body Works Egypt Alshaya Algolia catalog (bbw_prod_eg_product_list, EGP, no WAF)
+- store_key: the_body_shop_eg
+  display_name: The Body Shop Egypt (Est. EGP)
+  platform: custom
+  base_url: https://www.thebodyshop.ae
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  pricing_mode: fx_estimated
+  enabled: true
+  verified: true
+  batch: major_brands_2
+  tier: 1
+  priority_group: major_brands
+  notes: Regional UAE Shopify catalog (thebodyshop.ae, AED -> FX-estimated EGP with Egypt calibration)

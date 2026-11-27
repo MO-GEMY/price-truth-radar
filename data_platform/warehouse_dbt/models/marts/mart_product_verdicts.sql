@@ -381,7 +381,13 @@ SELECT
                 'panel', attributes_json -> 'panel',
                 'anc', attributes_json -> 'anc',
                 'battery_hours', attributes_json -> 'battery_hours',
-                'warranty', attributes_json -> 'warranty'
+                'warranty', attributes_json -> 'warranty',
+                'is_estimated_price', CASE
+                    WHEN COALESCE((attributes_json ->> 'is_estimated_price')::BOOLEAN, FALSE)
+                    THEN to_jsonb(TRUE)
+                END,
+                'source_currency', attributes_json -> 'source_currency',
+                'source_price', attributes_json -> 'source_price'
             )
         ),
         '{}'::jsonb
@@ -447,5 +453,52 @@ SELECT
     first_seen_date::DATE AS first_seen_date,
     tracked_days_count::INTEGER AS tracked_days_count,
     history_maturity::VARCHAR AS history_maturity,
-    verified_historical_median::NUMERIC(12,2) AS verified_historical_median
+    verified_historical_median::NUMERIC(12,2) AS verified_historical_median,
+    COALESCE((attributes_json ->> 'is_estimated_price')::BOOLEAN, FALSE)::BOOLEAN AS is_estimated_price,
+    NULLIF(UPPER(TRIM(attributes_json ->> 'source_currency')), '')::VARCHAR AS source_currency,
+    CASE
+        WHEN (attributes_json ->> 'source_price') ~ '^[0-9]+(\.[0-9]+)?$'
+        THEN (attributes_json ->> 'source_price')::NUMERIC(12,2)
+    END AS source_price,
+    CASE
+        WHEN COALESCE((attributes_json ->> 'is_estimated_price')::BOOLEAN, FALSE)
+        THEN ROUND(
+            current_price * COALESCE(
+                (
+                    SELECT LEAST(1.45, GREATEST(1.00,
+                        PERCENTILE_CONT(0.5) WITHIN GROUP (
+                            ORDER BY loc.current_price / NULLIF(metrics.current_price, 0)
+                        )::NUMERIC
+                    ))
+                    FROM {{ ref('stg_products') }} loc
+                    WHERE loc.canonical_product_key IS NOT NULL
+                      AND LOWER(loc.brand) = LOWER(metrics.brand)
+                      AND COALESCE((loc.attributes_json ->> 'is_estimated_price')::BOOLEAN, FALSE) = FALSE
+                      AND loc.in_stock = TRUE
+                      AND loc.current_price > 0
+                ),
+                1.15
+            ),
+            2
+        )::NUMERIC(12,2)
+    END AS estimated_egp_price,
+    COALESCE(
+        (
+            SELECT COUNT(DISTINCT loc.store_name)::INTEGER
+            FROM {{ ref('stg_products') }} loc
+            WHERE metrics.canonical_product_key IS NOT NULL
+              AND loc.canonical_product_key = metrics.canonical_product_key
+              AND COALESCE((loc.attributes_json ->> 'is_estimated_price')::BOOLEAN, FALSE) = FALSE
+              AND loc.in_stock = TRUE
+        ),
+        0
+    )::INTEGER AS local_sellers_count,
+    (
+        SELECT MIN(loc.current_price)::NUMERIC(12,2)
+        FROM {{ ref('stg_products') }} loc
+        WHERE metrics.canonical_product_key IS NOT NULL
+          AND loc.canonical_product_key = metrics.canonical_product_key
+          AND COALESCE((loc.attributes_json ->> 'is_estimated_price')::BOOLEAN, FALSE) = FALSE
+          AND loc.in_stock = TRUE
+    ) AS local_min_price_egp
 FROM metrics

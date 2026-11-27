@@ -207,6 +207,42 @@ export const STORE_META: Record<string, StoreMeta> = {
     accent: "#16a34a",
     urlLookup: true,
   },
+  mi_egypt: {
+    name: { en: "Mi Store Egypt", ar: "شاومي مصر" },
+    domain: "mistore-eg.com",
+    accent: "#ff6900",
+    urlLookup: true,
+  },
+  samsung_eg: {
+    name: { en: "Samsung Egypt", ar: "سامسونج مصر" },
+    domain: "samsung.com",
+    accent: "#1428a0",
+    urlLookup: true,
+  },
+  max_fashion_eg: {
+    name: { en: "Max Fashion Egypt", ar: "ماكس فاشون مصر" },
+    domain: "maxfashion.com",
+    accent: "#e11d48",
+    urlLookup: true,
+  },
+  oraimo_eg: {
+    name: { en: "Oraimo Egypt", ar: "أورايمو مصر" },
+    domain: "eg.oraimo.com",
+    accent: "#84cc16",
+    urlLookup: true,
+  },
+  bath_and_body_works_eg: {
+    name: { en: "Bath & Body Works Egypt", ar: "باث آند بودي وركس مصر" },
+    domain: "bathandbodyworks.com.eg",
+    accent: "#2563eb",
+    urlLookup: true,
+  },
+  the_body_shop_eg: {
+    name: { en: "The Body Shop (Est. EGP)", ar: "ذا بودي شوب (سعر تقريبي)" },
+    domain: "thebodyshop.ae",
+    accent: "#15803d",
+    urlLookup: false,
+  },
 };
 
 /** Stores highlighted in the direct-link guidance (largest catalogs first). */

@@ -190,6 +190,17 @@ class TestTieredRegistryAndWavePlanning(unittest.TestCase):
         self.assertEqual(mi_entry.region_mode, "cloud")
         self.assertEqual(mi_entry.tier, 1)
         self.assertEqual(mi_entry.priority_group, "major_brands")
+        enabled_map = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
+        for key, expected_mode in (
+            ("samsung_eg", "cloud"),
+            ("oraimo_eg", "cloud"),
+            ("bath_and_body_works_eg", "cloud"),
+            ("max_fashion_eg", "local_only"),
+        ):
+            self.assertIn(key, SCRAPER_REGISTRY)
+            self.assertIn(key, enabled_map)
+            self.assertEqual(enabled_map[key].region_mode, expected_mode)
+            self.assertEqual(enabled_map[key].tier, 1)
 
         # Verify AmazonEgScraper recovers from transient 503s (does NOT abort on strike=1)
         class _FakeResp:

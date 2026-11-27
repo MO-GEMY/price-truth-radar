@@ -73,6 +73,13 @@ from .hyperone import HyperOneScraper
 from .matcher import MatchSummary, assign_canonical_keys, compute_candidate_key
 from .mi_egypt import MiEgyptScraper
 from .noon import NoonScraper
+from .official_brand_stores import (
+    OFFICIAL_BRAND_SCRAPER_CLASSES,
+    BathAndBodyWorksEgScraper,
+    MaxFashionEgScraper,
+    OraimoEgScraper,
+    SamsungEgScraper,
+)
 from .platform_stores import (
     PLATFORM_SCRAPER_CLASSES,
     AbuAufScraper,
@@ -132,6 +139,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     **{cls.store_name: cls for cls in PLATFORM_SCRAPER_CLASSES},
     **{cls.store_name: cls for cls in EXPANSION_SCRAPER_CLASSES},
     **{cls.store_name: cls for cls in WAVE2_EXPANSION_SCRAPER_CLASSES},
+    **{cls.store_name: cls for cls in OFFICIAL_BRAND_SCRAPER_CLASSES},
 }
 
 # Dynamically register any enabled platform stores declared in `stores_registry.yaml`

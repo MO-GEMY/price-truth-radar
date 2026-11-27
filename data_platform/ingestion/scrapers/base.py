@@ -450,6 +450,11 @@ _COMPACT_RAW_ATTR_KEYS: frozenset[str] = frozenset(
         "anc",
         "battery_hours",
         "warranty",
+        # Global-to-Egypt FX estimated pricing metadata (pricing_mode: fx_estimated)
+        "is_estimated_price",
+        "source_currency",
+        "source_price",
+        "fx_rate",
     }
 )
 

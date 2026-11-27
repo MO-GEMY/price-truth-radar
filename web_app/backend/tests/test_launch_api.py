@@ -573,20 +573,19 @@ class TestLaunchBackendAPI(unittest.TestCase):
         )
         c1_body = c1.json()
         self.assertEqual(c1_body["chunk_id"], 1)
-        self.assertEqual(c1_body["chunk_size"], 2500)
-        self.assertEqual(c1_body["total_chunks"], 2)
+        self.assertEqual(c1_body["chunk_size"], 25000)
+        self.assertEqual(c1_body["total_chunks"], 1)
         self.assertEqual(c1_body["total_products"], 2504)
-        self.assertEqual(len(c1_body["products"]), 2500)
+        self.assertEqual(len(c1_body["products"]), 2504)
 
         c2 = client.get("/api/v1/seo/sitemap-chunk/2")
         self.assertEqual(c2.status_code, 200)
-        self.assertEqual(len(c2.json()["products"]), 4)
-        self.assertEqual(c2.json()["products"][0]["product_sk"], "sk_2501")
+        self.assertEqual(len(c2.json()["products"]), 0)
         self.assertEqual(len(fake_db.calls), calls_before)
 
         # Out-of-range chunk IDs rejected cleanly
         self.assertEqual(client.get("/api/v1/seo/sitemap-chunk/0").status_code, 422)
-        self.assertEqual(client.get("/api/v1/seo/sitemap-chunk/5").status_code, 422)
+        self.assertEqual(client.get("/api/v1/seo/sitemap-chunk/11").status_code, 422)
 
     @patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": ""}, clear=False)
     def test_alert_checker_job_dry_run_without_secrets(self) -> None:

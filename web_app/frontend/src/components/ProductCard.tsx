@@ -139,6 +139,9 @@ export function ProductCard({
     !hasPriceRange &&
     product.claimed_original_price !== null &&
     product.claimed_original_price > product.current_price + 0.5;
+  const isEstimatedPrice = Boolean(
+    product.is_estimated_price || product.attributes_json?.is_estimated_price,
+  );
   const href = productHref(product.product_sk, from, !live);
 
   if (view === "grid") {
@@ -240,6 +243,11 @@ export function ProductCard({
                     <p className="ptr-price">
                       <bdi>{formatPrice(product.current_price, lang)}</bdi>
                     </p>
+                    {isEstimatedPrice && (
+                      <span className="ptr-badge ptr-badge-amber text-[11px]">
+                        {lang === "ar" ? "سعر تقريبي" : "Est. EGP"}
+                      </span>
+                    )}
                     {showClaimedStrike && product.claimed_original_price && (
                       <span
                         className="ptr-claimed-ref"

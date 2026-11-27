@@ -120,6 +120,13 @@ export interface Product {
   market_benchmark?: MarketBenchmark | null;
   applicable_coupons?: ApplicableCoupon[];
   estimated_price_after_coupon?: number | null;
+  /** Global-to-Egypt FX estimated pricing fields (pricing_mode: fx_estimated). */
+  is_estimated_price?: boolean;
+  source_currency?: string | null;
+  source_price?: number | null;
+  estimated_egp_price?: number | null;
+  local_sellers_count?: number;
+  local_min_price_egp?: number | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -269,6 +276,13 @@ export interface AlternativeListing {
   unit_price_unit?: "kg" | "L" | string | null;
   applicable_coupons?: ApplicableCoupon[];
   estimated_price_after_coupon?: number | null;
+  /** Global-to-Egypt FX estimated pricing fields (pricing_mode: fx_estimated). */
+  is_estimated_price?: boolean;
+  source_currency?: string | null;
+  source_price?: number | null;
+  estimated_egp_price?: number | null;
+  local_sellers_count?: number;
+  local_min_price_egp?: number | null;
 }
 
 export interface ProductVariant {
@@ -330,6 +344,13 @@ export interface CompareListing {
   unit_price_unit?: "kg" | "L" | string | null;
   applicable_coupons?: ApplicableCoupon[];
   estimated_price_after_coupon?: number | null;
+  /** Global-to-Egypt FX estimated pricing fields (pricing_mode: fx_estimated). */
+  is_estimated_price?: boolean;
+  source_currency?: string | null;
+  source_price?: number | null;
+  estimated_egp_price?: number | null;
+  local_sellers_count?: number;
+  local_min_price_egp?: number | null;
 }
 
 export interface CrossStoreMatch {
@@ -400,6 +421,13 @@ export interface HighlightItem {
   market_benchmark?: MarketBenchmark | null;
   applicable_coupons?: ApplicableCoupon[];
   estimated_price_after_coupon?: number | null;
+  /** Global-to-Egypt FX estimated pricing fields (pricing_mode: fx_estimated). */
+  is_estimated_price?: boolean;
+  source_currency?: string | null;
+  source_price?: number | null;
+  estimated_egp_price?: number | null;
+  local_sellers_count?: number;
+  local_min_price_egp?: number | null;
 }
 
 export interface RadarHighlights {
