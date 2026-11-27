@@ -152,8 +152,8 @@ try {
         $LoadArgs = @(
             $PipelineScript, "load-and-transform",
             "--artifacts-dir", $StagingDir,
-            "--warn-mb", "900",
-            "--stop-mb", "970",
+            "--warn-mb", "4500",
+            "--stop-mb", "4900",
             "--soft-exit-on-stop"
         )
         if ($DryRun) {

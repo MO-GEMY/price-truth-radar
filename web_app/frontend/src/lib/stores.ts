@@ -138,6 +138,12 @@ export const STORE_META: Record<string, StoreMeta> = {
     name: { en: "Breadfast", ar: "بريدفاست" },
     domain: "breadfast.com",
     accent: "#fb923c",
+    urlLookup: false,
+  },
+  talabat_eg: {
+    name: { en: "Talabat Egypt", ar: "طلبات مصر" },
+    domain: "talabat.com",
+    accent: "#ff5a00",
     urlLookup: true,
   },
   /* ---- Electronics, PC & appliances candidates ---- */

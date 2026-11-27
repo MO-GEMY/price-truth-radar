@@ -766,12 +766,25 @@ stores:
   category: groceries
   vertical: groceries
   region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_groceries
-  notes: shopify non-JSON; woo HTTP 404
-  tier: 3
-  priority_group: long_tail
+  enabled: true
+  verified: true
+  batch: local_groceries
+  notes: Hybrid Mobile-API (BREADFAST_API_BASE) & local HAR/JSON feed ingestion (data/manual_feeds/breadfast)
+  tier: 2
+  priority_group: mid_specialty
+- store_key: talabat_eg
+  display_name: Talabat Egypt
+  platform: custom
+  base_url: https://www.talabat.com/egypt
+  category: groceries
+  vertical: groceries
+  region_mode: local_only
+  enabled: true
+  verified: true
+  batch: local_groceries
+  notes: Sanctioned Authorized-API (TALABAT_API_BASE) & local HAR/JSON feed ingestion (data/manual_feeds/talabat_eg)
+  tier: 2
+  priority_group: mid_specialty
 - store_key: goodsmart
   display_name: GoodsMart
   platform: custom

@@ -37,6 +37,7 @@ from .brand_normalizer import (
     is_placeholder_brand,
     normalize_product_brand,
 )
+from .breadfast import BreadfastScraper
 from .btech import BTechScraper
 from .currency_guard import (
     ALLOWED_COUNTRY,
@@ -105,11 +106,13 @@ from .seoudi import SeoudiScraper
 from .shopify import DalydressScraper, DejavuScraper, ShopifyScraper, TownTeamScraper
 from .sigma import SigmaScraper
 from .spinneys import SpinneysScraper
+from .talabat_eg import TalabatEgScraper
 from .two_b import TwoBScraper
 
 SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     AmazonEgScraper.store_name: AmazonEgScraper,
     AswaqMozhelaScraper.store_name: AswaqMozhelaScraper,
+    BreadfastScraper.store_name: BreadfastScraper,
     BTechScraper.store_name: BTechScraper,
     DalydressScraper.store_name: DalydressScraper,
     DejavuScraper.store_name: DejavuScraper,
@@ -120,6 +123,7 @@ SCRAPER_REGISTRY: dict[str, type[BaseScraper]] = {
     SeoudiScraper.store_name: SeoudiScraper,
     SigmaScraper.store_name: SigmaScraper,
     SpinneysScraper.store_name: SpinneysScraper,
+    TalabatEgScraper.store_name: TalabatEgScraper,
     TownTeamScraper.store_name: TownTeamScraper,
     TwoBScraper.store_name: TwoBScraper,
     **{cls.store_name: cls for cls in PLATFORM_SCRAPER_CLASSES},
