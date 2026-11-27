@@ -147,6 +147,34 @@ class TestTieredRegistryAndWavePlanning(unittest.TestCase):
             self.assertEqual(entries[key].priority_group, "major_brands")
             self.assertIn(key, SCRAPER_REGISTRY, f"Store {key} not synthesized in SCRAPER_REGISTRY")
 
+    def test_amazon_eg_is_p1_top_priority_with_all_10_category_shards(self) -> None:
+        from data_platform.ingestion.scrapers.amazon_eg import (
+            AMAZON_EG_DEPARTMENT_QUERIES,
+            AMAZON_EG_DEPARTMENT_SHARD_ORDER,
+        )
+        from data_platform.ingestion.scrapers.base import CANONICAL_CATEGORIES
+
+        plan = plan_tiered_waves_for_day(1, region_mode="cloud", tier2_cadence_days=3, tier3_cadence_days=5)
+        self.assertEqual(plan["priority_1_stores"][0], "amazon_eg")
+        first_five = [s["shard"] for s in plan["shards"][:5]]
+        self.assertEqual(
+            first_five,
+            [
+                "p1_amazon_eg_electronics",
+                "p1_amazon_eg_home_appliances",
+                "p1_amazon_eg_fashion_beauty",
+                "p1_amazon_eg_groceries_health",
+                "p1_amazon_eg_home_sports_baby_pet",
+            ],
+        )
+        covered_cats = {
+            cat
+            for grp in AMAZON_EG_DEPARTMENT_SHARD_ORDER
+            for _, cat, _ in AMAZON_EG_DEPARTMENT_QUERIES[grp]
+        }
+        self.assertEqual(covered_cats, set(CANONICAL_CATEGORIES))
+        self.assertIn("super_supplements", SCRAPER_REGISTRY)
+
     def test_strict_priority_order_and_tier2_tier3_rotation(self) -> None:
         plan_d1 = plan_tiered_waves_for_day(1, region_mode="cloud", tier2_cadence_days=3, tier3_cadence_days=5)
         priorities = [s["priority"] for s in plan_d1["shards"]]
@@ -247,12 +275,12 @@ class TestWorkflowAndDbtHygieneGuards(unittest.TestCase):
         self.assertEqual(env.get("DATABASE_URL_ADMIN"), "")
         self.assertEqual(env.get("DATABASE_URL_READONLY"), "")
 
-        # Verify load-match-dbt runs strictly after scrape-offline with 900/970 circuit breaker
+        # Verify load-match-dbt runs strictly after scrape-offline with upgraded circuit breaker
         load_job = wf["jobs"]["load-match-dbt"]
         self.assertIn("scrape-offline", load_job["needs"])
         load_cmd = " ".join(str(s.get("run", "")) for s in load_job["steps"])
-        self.assertIn("--warn-mb 900", load_cmd)
-        self.assertIn("--stop-mb 970", load_cmd)
+        self.assertIn("--warn-mb 4500", load_cmd)
+        self.assertIn("--stop-mb 4900", load_cmd)
 
     def test_dbt_mart_verdicts_has_45d_oos_hygiene_and_preserves_history(self) -> None:
         sql = (REPO_ROOT / "data_platform" / "warehouse_dbt" / "models" / "marts" / "mart_product_verdicts.sql").read_text(encoding="utf-8")

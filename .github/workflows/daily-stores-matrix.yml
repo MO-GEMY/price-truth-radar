@@ -199,7 +199,7 @@ jobs:
           fi
           python scripts/offline_tiered_pipeline.py load-and-transform \
             --artifacts-dir staging_artifacts \
-            --warn-mb 900 \
-            --stop-mb 970 \
+            --warn-mb 4500 \
+            --stop-mb 4900 \
             --soft-exit-on-stop \
             $EXTRA

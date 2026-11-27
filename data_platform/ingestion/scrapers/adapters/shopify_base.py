@@ -256,11 +256,11 @@ class ShopifyBaseScraper(BaseScraper):
     base_url: str = ""
     default_brand: str = ""
     override_brand: bool = False
-    default_limit: int = 180
-    discover_limit: int = 950
-    expand_max_pages: int = 6
-    groceries_limit: int = 180
-    discover_groceries_limit: int = 750
+    default_limit: int = 2500
+    discover_limit: int = 8000
+    expand_max_pages: int = 25
+    groceries_limit: int = 2500
+    discover_groceries_limit: int = 8000
     max_variants_per_product: int = 12
     supported_verticals: tuple[ScrapeVertical, ...] = ("fashion",)
     collection_handles: tuple[tuple[str, Category, str], ...] = ()  # (sub_category, category, handle)

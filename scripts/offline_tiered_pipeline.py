@@ -92,7 +92,12 @@ def _cmd_plan(args: argparse.Namespace) -> int:
             ]
         else:
             allowed = {tok.strip() for tok in raw_filter.split(",") if tok.strip()}
-            filtered = [s for s in plan["shards"] if s["shard"].lower() in allowed]
+            filtered = [
+                s
+                for s in plan["shards"]
+                if s["shard"].lower() in allowed
+                or any(st.split(":", 1)[0].lower() in allowed for st in s.get("stores") or [])
+            ]
             if not filtered:
                 # Match individual store keys
                 matched_stores = [
@@ -122,6 +127,7 @@ def _scrape_one_store_offline(
     mode: ScrapeMode,
     delay: float,
     limit_override: Optional[int] = None,
+    department_group: Optional[str] = None,
 ) -> tuple[str, list[RawProductSnapshot], dict[str, Any]]:
     scraper_cls = SCRAPER_REGISTRY.get(store_key)
     if scraper_cls is None:
@@ -132,16 +138,20 @@ def _scrape_one_store_offline(
     started = time.monotonic()
     try:
         with PoliteHttpClient(min_delay_seconds=delay) as http_client:
+            extra_kwargs: dict[str, Any] = {}
+            if department_group:
+                extra_kwargs["department_group"] = department_group
             scraper = scraper_cls(
                 http_client,
                 mode=mode,
                 vertical=eff_vertical,
                 tracked_external_ids=set(),
+                **extra_kwargs,
             )
             eff_limit = scraper.get_target_limit(mode, eff_vertical) if limit_override is None else limit_override
             recs = scraper.scrape(limit=eff_limit)
             meta = {
-                "store": store_key,
+                "store": f"{store_key}:{department_group}" if department_group else store_key,
                 "vertical": eff_vertical,
                 "status": "OK" if recs else "EMPTY",
                 "scraped": len(recs),
@@ -156,7 +166,7 @@ def _scrape_one_store_offline(
             store_key,
             [],
             {
-                "store": store_key,
+                "store": f"{store_key}:{department_group}" if department_group else store_key,
                 "vertical": eff_vertical,
                 "status": "FAILED",
                 "scraped": 0,
@@ -179,15 +189,27 @@ def _cmd_scrape_shard(args: argparse.Namespace) -> int:
         reg_entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
         raw_stores = [s.strip().lower() for s in raw_stores_arg.split(",") if s.strip()]
 
-    targets: list[tuple[str, ScrapeVertical]] = []
-    for skey in raw_stores:
+    targets: list[tuple[str, ScrapeVertical, Optional[str]]] = []
+    for raw_tok in raw_stores:
+        if ":" in raw_tok:
+            skey, dept = raw_tok.split(":", 1)
+            skey = skey.strip()
+            dept = dept.strip() or None
+        else:
+            skey, dept = raw_tok, None
+
+        if dept is not None:
+            if skey in SCRAPER_REGISTRY:
+                targets.append((skey, SCRAPER_REGISTRY[skey].supported_verticals[0], dept))
+            continue
+
         entry = reg_entries.get(skey)
         if entry is None:
             if skey in SCRAPER_REGISTRY:
-                targets.append((skey, SCRAPER_REGISTRY[skey].supported_verticals[0]))
+                targets.append((skey, SCRAPER_REGISTRY[skey].supported_verticals[0], None))
             continue
         for vert in entry.all_verticals:
-            targets.append((skey, vert))
+            targets.append((skey, vert, None))
 
     mode: ScrapeMode = "discover" if args.mode == "discovery" else args.mode
     out_path = Path(args.out)
@@ -205,8 +227,9 @@ def _cmd_scrape_shard(args: argparse.Namespace) -> int:
                 mode=mode,
                 delay=args.delay,
                 limit_override=args.limit,
+                department_group=dept,
             )
-            for skey, vert in targets
+            for skey, vert, dept in targets
         ]
         for fut in as_completed(futs):
             _, recs, meta = fut.result()

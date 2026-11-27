@@ -49,6 +49,124 @@ from .noon import (
 
 logger = logging.getLogger(__name__)
 
+# 5 parallel Priority-1 department shards covering ALL 10 canonical Asarak categories.
+# Splitting Amazon Egypt into department shards lets GitHub Actions matrix runners
+# scrape the full catalog concurrently every day without timing out.
+AMAZON_EG_DEPARTMENT_SHARD_ORDER: tuple[str, ...] = (
+    "electronics",
+    "home_appliances",
+    "fashion_beauty",
+    "groceries_health",
+    "home_sports_baby_pet",
+)
+
+AMAZON_EG_DEPARTMENT_QUERIES: dict[str, list[tuple[str, Category, str]]] = {
+    "electronics": [
+        ("smartphones", "electronics", "samsung galaxy smartphone"),
+        ("smartphones", "electronics", "apple iphone"),
+        ("smartphones", "electronics", "xiaomi redmi smartphone"),
+        ("smartphones", "electronics", "oppo reno realme honor smartphone"),
+        ("smartphones", "electronics", "infinix tecno nokia vivo smartphone"),
+        ("laptops", "electronics", "gaming laptop rtx"),
+        ("laptops", "electronics", "lenovo hp dell laptop"),
+        ("laptops", "electronics", "asus acer msi apple macbook laptop"),
+        ("tablets", "electronics", "ipad samsung galaxy tab lenovo tablet"),
+        ("monitors", "electronics", "gaming monitor 144hz samsung lg"),
+        ("gaming", "electronics", "playstation ps5 xbox nintendo controller"),
+        ("gaming", "electronics", "gaming keyboard mouse headset"),
+        ("headphones", "electronics", "wireless headphones anc earbuds"),
+        ("headphones", "electronics", "apple airpods jbl soundcore anker earbuds"),
+        ("speakers", "electronics", "bluetooth speaker soundbar jbl"),
+        ("wearables", "electronics", "smartwatch apple watch samsung amazfit"),
+        ("storage", "electronics", "ssd nvme external hard drive flash drive"),
+        ("components", "electronics", "nvidia rtx ryzen intel motherboard ram psu"),
+        ("networking", "electronics", "tp-link wifi router mesh extender"),
+        ("printers", "electronics", "hp epson canon laser printer"),
+        ("cameras", "electronics", "canon sony nikon gopro dji camera"),
+        ("accessories", "electronics", "anker ugreen power bank charger usb c hub"),
+    ],
+    "home_appliances": [
+        ("tvs", "home_appliances", "smart tv 4k samsung lg"),
+        ("tvs", "home_appliances", "tcl tornado sharp toshiba xiaomi smart tv"),
+        ("air_conditioners", "home_appliances", "inverter air conditioner carrier midea sharp"),
+        ("air_conditioners", "home_appliances", "fresh tornado unionaire air conditioner"),
+        ("refrigerators", "home_appliances", "refrigerator no frost sharp toshiba lg"),
+        ("refrigerators", "home_appliances", "beko zanussi fresh kiriazi refrigerator"),
+        ("freezers", "home_appliances", "deep freezer vertical chest"),
+        ("washing_machines", "home_appliances", "automatic washing machine lg samsung bosch"),
+        ("washing_machines", "home_appliances", "zanussi beko toshiba hoover washing machine"),
+        ("dishwashers", "home_appliances", "dishwasher automatic bosch beko lg"),
+        ("cookers", "home_appliances", "gas cooker 5 burner fresh unionaire zanussi"),
+        ("ovens", "home_appliances", "built in oven electric oven"),
+        ("microwaves", "home_appliances", "microwave oven sharp tornado fresh"),
+        ("water_heaters", "home_appliances", "electric gas water heater ariston olympic"),
+        ("vacuums", "home_appliances", "vacuum cleaner hoover philips bosch tornado"),
+        ("kitchen_appliances", "home_appliances", "air fryer philips ninja tefal"),
+        ("kitchen_appliances", "home_appliances", "espresso coffee machine delonghi nespresso"),
+        ("kitchen_appliances", "home_appliances", "blender food processor kenwood braun moulinex"),
+        ("kitchen_appliances", "home_appliances", "electric kettle toaster sandwich maker"),
+        ("irons", "home_appliances", "steam iron garment steamer philips tefal"),
+        ("fans", "home_appliances", "stand fan wall fan tornado fresh"),
+    ],
+    "fashion_beauty": [
+        ("footwear", "fashion", "nike adidas running sneakers shoes"),
+        ("footwear", "fashion", "skechers puma reebok new balance shoes"),
+        ("hoodies", "fashion", "men women hoodie sweatshirt cotton"),
+        ("apparel", "fashion", "men jeans polo t-shirt shirt jacket"),
+        ("apparel", "fashion", "women dress cardigan blouse pants"),
+        ("watches_jewelry", "fashion", "casio seiko fossil wristwatch men women"),
+        ("accessories", "fashion", "backpack leather wallet sunglasses belt"),
+        ("skincare", "beauty", "cerave la roche posay skincare cleanser"),
+        ("skincare", "beauty", "bioderma vichy eucerin sunscreen serum"),
+        ("skincare", "beauty", "garnier neutrogena nivea the ordinary skincare"),
+        ("perfumes", "beauty", "eau de parfum perfume men women"),
+        ("perfumes", "beauty", "lattafa armaf rasasi dior versace perfume"),
+        ("haircare", "beauty", "loreal kerastase pantene shampoo haircare"),
+        ("makeup", "beauty", "maybelline loreal nyx lipstick mascara foundation"),
+        ("personal_care", "beauty", "braun philips trimmer shaver epilator hair dryer"),
+        ("personal_care", "beauty", "oral b electric toothbrush deodorant body wash"),
+    ],
+    "groceries_health": [
+        ("oils_ghee", "groceries", "crystal afia sunflower olive oil"),
+        ("oils_ghee", "groceries", "rawabi fern ganna ghee butter"),
+        ("rice_pasta", "groceries", "el maleka italiano regina pasta"),
+        ("rice_pasta", "groceries", "el doha el saa rice flour sugar"),
+        ("dairy_cheese", "groceries", "juhayna almarai lamar milk"),
+        ("dairy_cheese", "groceries", "obour land domty president cheese"),
+        ("tea_coffee", "groceries", "nescafe lipton el arosa tea coffee"),
+        ("tea_coffee", "groceries", "abu auf davidoff jacobs starbucks coffee"),
+        ("canned_sauces", "groceries", "heinz harvest vitrac tomato paste jam honey"),
+        ("canned_sauces", "groceries", "sunshine rio mare tuna canned food"),
+        ("beverages", "groceries", "juhayna pepsi schweppes mineral water juice"),
+        ("detergents", "groceries", "ariel persil tide laundry detergent"),
+        ("detergents", "groceries", "fairy pril dettol clorox downy cleaning"),
+        ("snacks", "groceries", "cadbury galaxy nutella chocolate biscuits chips"),
+        ("vitamins", "health", "vitamins omega 3 magnesium zinc centrum"),
+        ("vitamins", "health", "now foods solgar vitamin d3 multivitamin"),
+        ("supplements", "health", "whey protein creatine optimum nutrition muscletech"),
+        ("medical_devices", "health", "blood pressure monitor thermometer oximeter"),
+    ],
+    "home_sports_baby_pet": [
+        ("cookware", "home_furniture", "tefal neoflam zahran cookware set"),
+        ("cookware", "home_furniture", "luminarc pyrex korkmaz granite cookware"),
+        ("bedding", "home_furniture", "memory foam pillow bedsheet duvet mattress"),
+        ("furniture", "home_furniture", "office chair gaming chair study desk"),
+        ("home_decor", "home_furniture", "storage organizer shelf carpet curtain lamp"),
+        ("fitness", "sports", "dumbbells barbell resistance bands home gym"),
+        ("sports_gear", "sports", "treadmill exercise bike yoga mat"),
+        ("sports_gear", "sports", "football basketball swimming cycling helmet"),
+        ("camping", "sports", "camping tent sleeping bag thermos bottle"),
+        ("baby_care", "baby_kids", "pampers molfix babyjoy baby diapers wipes"),
+        ("baby_care", "baby_kids", "chicco avent baby bottle formula feeding"),
+        ("baby_gear", "baby_kids", "baby stroller car seat high chair crib"),
+        ("toys", "baby_kids", "lego barbie hot wheels intex kids toys"),
+        ("school_supplies", "baby_kids", "school backpack stationery calculator notebook"),
+        ("pet_food", "pet_care", "royal canin purina cat dog dry food"),
+        ("pet_food", "pet_care", "whiskas friskies felix wet cat food"),
+        ("pet_supplies", "pet_care", "cat litter box pet carrier collar toys"),
+    ],
+}
+
 # Curated high-overlap search queries interleaved across ALL major Amazon Egypt departments
 AMAZON_EG_QUERIES: list[tuple[str, Category, str]] = [
     ("smartphones", "electronics", "samsung galaxy smartphone"),
@@ -339,19 +457,88 @@ def _extract_amazon_image(card: Tag) -> Optional[str]:
 
 
 class AmazonEgScraper(BaseScraper):
-    """Live scraper for Amazon Egypt across electronics, home_appliances, and fashion."""
+    """Live full-catalog scraper for Amazon Egypt across ALL 10 canonical categories.
+
+    Supports optional `department_group` sharding (`electronics`, `home_appliances`,
+    `fashion_beauty`, `groceries_health`, `home_sports_baby_pet`) so Priority-1 matrix
+    runners can scrape all Amazon Egypt departments concurrently without timing out.
+    """
 
     store_name = "amazon_eg"
     category: Category = "electronics"
     base_url = "https://www.amazon.eg"
-    default_limit = 500
-    discover_limit = 2000
+    default_limit = 2000
+    discover_limit = 5000
     expand_limit = 15000
-    groceries_limit = 400
-    discover_groceries_limit = 1200
+    groceries_limit = 1000
+    discover_groceries_limit = 2500
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
-    min_delay_seconds = 3.5
+    min_delay_seconds = 3.0
     request_timeout = 30.0
+
+    def __init__(
+        self,
+        *args: Any,
+        department_group: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        clean_group = (department_group or "").strip().lower() or None
+        if clean_group is not None and clean_group not in AMAZON_EG_DEPARTMENT_QUERIES:
+            raise ValueError(
+                f"Unknown Amazon Egypt department_group={clean_group!r}; "
+                f"expected one of {AMAZON_EG_DEPARTMENT_SHARD_ORDER}"
+            )
+        self.department_group = clean_group
+
+    def _resolve_queries(self) -> list[tuple[str, Category, str]]:
+        """Resolve query list for the active department shard (or full 10-category sweep)."""
+        if self.department_group is not None:
+            base = list(AMAZON_EG_DEPARTMENT_QUERIES[self.department_group])
+            if self.mode in ("discover", "expand"):
+                # Append deep brand/model queries matching this department shard's categories
+                shard_cats = {cat for _, cat, _ in base}
+                extra_pool = (
+                    AMAZON_EG_DISCOVER_EXTRA_QUERIES
+                    + AMAZON_EG_EXPAND_EXTRA_QUERIES
+                    + AMAZON_EG_GROCERY_EXPAND_QUERIES
+                )
+                seen_q = {q.lower() for _, _, q in base}
+                for sub, cat, q in extra_pool:
+                    if cat in shard_cats and q.lower() not in seen_q:
+                        base.append((sub, cat, q))
+                        seen_q.add(q.lower())
+            return base
+
+        if self.vertical == "groceries":
+            return (
+                AMAZON_EG_GROCERY_QUERIES + AMAZON_EG_GROCERY_EXPAND_QUERIES
+                if self.mode in ("discover", "expand")
+                else AMAZON_EG_GROCERY_QUERIES
+            )
+        if self.mode == "expand":
+            return (
+                AMAZON_EG_QUERIES
+                + AMAZON_EG_DISCOVER_EXTRA_QUERIES
+                + AMAZON_EG_EXPAND_EXTRA_QUERIES
+                + AMAZON_EG_GROCERY_QUERIES
+                + AMAZON_EG_GROCERY_EXPAND_QUERIES
+            )
+        if self.mode == "discover":
+            return (
+                AMAZON_EG_QUERIES
+                + AMAZON_EG_DISCOVER_EXTRA_QUERIES
+                + AMAZON_EG_GROCERY_QUERIES
+            )
+        # Daily unsharded fallback: interleaved across all 5 department shards (all 10 categories)
+        interleaved: list[tuple[str, Category, str]] = []
+        buckets = [AMAZON_EG_DEPARTMENT_QUERIES[g] for g in AMAZON_EG_DEPARTMENT_SHARD_ORDER]
+        max_len = max(len(b) for b in buckets)
+        for idx in range(max_len):
+            for bucket in buckets:
+                if idx < len(bucket):
+                    interleaved.append(bucket[idx])
+        return interleaved
 
     def scrape(self, limit: Optional[int] = None) -> list[RawProductSnapshot]:
         target_limit = self.get_target_limit() if limit is None else limit
@@ -363,32 +550,18 @@ class AmazonEgScraper(BaseScraper):
         today = now.date()
 
         is_groceries = self.vertical == "groceries"
-        if is_groceries:
-            queries = (
-                AMAZON_EG_GROCERY_QUERIES + AMAZON_EG_GROCERY_EXPAND_QUERIES
-                if self.mode == "expand"
-                else AMAZON_EG_GROCERY_QUERIES
-            )
-        elif self.mode == "expand":
-            queries = AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES + AMAZON_EG_EXPAND_EXTRA_QUERIES
-        elif self.mode == "discover":
-            queries = AMAZON_EG_QUERIES + AMAZON_EG_DISCOVER_EXTRA_QUERIES
-        else:
-            queries = AMAZON_EG_QUERIES
+        queries = self._resolve_queries()
 
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
-        per_query_cap = (
-            max(2, math.ceil(target_limit / len(queries)))
-            if is_groceries
-            else max(3, math.ceil(target_limit / len(queries)))
-        )
+        per_query_cap = max(3, math.ceil(target_limit / max(1, len(queries))))
         if self.mode == "expand":
             max_pages = max(5, min(7, self.expand_max_pages or 7))
             per_query_cap = max(per_query_cap, 280)
-        elif is_groceries:
-            max_pages = 5 if self.mode == "discover" else 2
+        elif self.mode == "discover":
+            max_pages = 6
+            per_query_cap = max(per_query_cap, 180)
         else:
-            max_pages = 6 if self.mode == "discover" else (2 if target_limit <= 120 else 3)
+            max_pages = 2 if target_limit <= 120 else (4 if self.department_group else 3)
         throttled = False
         consecutive_throttles = 0
 

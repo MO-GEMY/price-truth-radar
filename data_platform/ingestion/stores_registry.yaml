@@ -34,12 +34,12 @@ stores:
   vertical: core
   extra_verticals:
   - groceries
-  region_mode: local_only  # HTTP 503 bot-wall on GitHub Actions US cloud IPs; runs cleanly from Egypt residential IP
+  region_mode: cloud  # Priority #1 daily store split into 5 parallel department shards across all 10 categories; graceful throttle fallback
   enabled: true
   verified: true
   batch: core_1
   tier: 1
-  priority_group: major_stores
+  priority_group: major_brands
 - store_key: raneen
   display_name: Raneen
   platform: custom
@@ -2792,13 +2792,13 @@ stores:
   base_url: https://super-eg.com
   category: health
   vertical: groceries
-  region_mode: local_only
-  enabled: false
-  verified: false
-  batch: expansion_health
-  notes: 403 Cloudflare challenge
-  tier: 3
-  priority_group: long_tail
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: pharma_1
+  notes: Verified live WooCommerce Store API (EGP health & supplements)
+  tier: 2
+  priority_group: mid_specialty
 - store_key: tdawi
   display_name: Tdawi Pharmacy
   platform: custom

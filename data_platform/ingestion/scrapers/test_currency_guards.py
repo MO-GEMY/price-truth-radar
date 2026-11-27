@@ -346,13 +346,17 @@ class TestIngestionCurrencyFlipCircuitBreaker(unittest.TestCase):
         from data_platform.ingestion.scrapers.registry_loader import load_stores_registry
 
         entries = {e.store_key: e for e in load_stores_registry(enabled_only=True)}
-        for key in ("okhtein", "azza_fahmy", "amazon_eg", "egyptlaptop", "dubaiphone", "spinneys", "elaraby"):
+        for key in ("okhtein", "azza_fahmy", "egyptlaptop", "dubaiphone", "spinneys", "elaraby"):
             self.assertIn(key, entries)
             self.assertEqual(
                 entries[key].region_mode,
                 "local_only",
                 f"{key} blocks or geo-redirects US cloud IPs and must remain local_only",
             )
+        # Amazon Egypt is promoted to Priority #1 cloud with 5 parallel department shards
+        self.assertEqual(entries["amazon_eg"].region_mode, "cloud")
+        self.assertEqual(entries["amazon_eg"].tier, 1)
+        self.assertEqual(entries["amazon_eg"].priority_group, "major_brands")
 
         wf_dir = Path(__file__).resolve().parents[3] / ".github" / "workflows"
         wf_names = sorted(p.name for p in wf_dir.glob("*.yml"))
@@ -361,7 +365,7 @@ class TestIngestionCurrencyFlipCircuitBreaker(unittest.TestCase):
         matrix_wf = yaml.safe_load((wf_dir / "daily-stores-matrix.yml").read_text(encoding="utf-8"))
         matrix_on = matrix_wf.get("on") or matrix_wf.get(True)
         matrix_crons = [c["cron"] for c in matrix_on["schedule"]]
-        self.assertEqual(matrix_crons, ["17 3 * * 0-5", "17 3 * * 6"])
+        self.assertEqual(matrix_crons, ["37 0 * * 0-5", "37 0 * * 6"])
         load_cmd = " ".join(str(s.get("run", "")) for s in matrix_wf["jobs"]["load-match-dbt"]["steps"])
         self.assertIn("--run-alerts", load_cmd)
 

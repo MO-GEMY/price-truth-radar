@@ -49,7 +49,17 @@ _CATEGORY_CONTRACT_MAP: dict[str, Category] = {
     "books": "baby_kids",
 }
 
-DEFAULT_REGISTRY_MAX_PRODUCTS = 650
+DEFAULT_REGISTRY_MAX_PRODUCTS = 5000
+
+# Amazon Egypt runs as #1 Priority-1 store split into 5 parallel department shards
+# so every canonical category refreshes daily without GitHub Actions runner timeouts.
+AMAZON_EG_P1_SHARD_SPECS: tuple[tuple[str, str], ...] = (
+    ("p1_amazon_eg_electronics", "amazon_eg:electronics"),
+    ("p1_amazon_eg_home_appliances", "amazon_eg:home_appliances"),
+    ("p1_amazon_eg_fashion_beauty", "amazon_eg:fashion_beauty"),
+    ("p1_amazon_eg_groceries_health", "amazon_eg:groceries_health"),
+    ("p1_amazon_eg_home_sports_baby_pet", "amazon_eg:home_sports_baby_pet"),
+)
 
 
 @dataclass(frozen=True)
@@ -87,7 +97,9 @@ class StoreRegistryEntry:
 
     @property
     def priority_rank(self) -> tuple[int, int, str]:
-        """Strict wave ordering: Priority 1 (major_brands) -> Priority 2 (major_stores) -> Tier 2 -> Tier 3."""
+        """Strict wave ordering: Amazon EG (#1 P1) -> Priority 1 (major_brands) -> Priority 2 (major_stores) -> Tier 2 -> Tier 3."""
+        if self.store_key == "amazon_eg":
+            return (0, 0, self.store_key)
         if self.tier == 1:
             sub = 0 if self.priority_group == "major_brands" else 1
             return (1, sub, self.store_key)
@@ -167,16 +179,13 @@ def build_platform_scraper_class(entry: StoreRegistryEntry) -> Optional[type[Bas
         "base_url": entry.base_url,
         "supported_verticals": entry.all_verticals,
     }
-    tier_default_max = 3000 if entry.tier == 1 else (1200 if entry.tier == 2 else DEFAULT_REGISTRY_MAX_PRODUCTS)
+    tier_default_max = 15000 if entry.tier == 1 else (8000 if entry.tier == 2 else DEFAULT_REGISTRY_MAX_PRODUCTS)
+    tier_default_daily = 5000 if entry.tier == 1 else (2500 if entry.tier == 2 else 1500)
     effective_max = entry.max_products or entry.discover_limit or tier_default_max
-    if entry.default_limit:
-        common_attrs["default_limit"] = min(entry.default_limit, effective_max)
-        if entry.vertical == "groceries":
-            common_attrs["groceries_limit"] = min(entry.default_limit, effective_max)
-    elif entry.tier == 1:
-        common_attrs["default_limit"] = 450
-        if entry.vertical == "groceries":
-            common_attrs["groceries_limit"] = 450
+    eff_daily = min(entry.default_limit, effective_max) if entry.default_limit else min(tier_default_daily, effective_max)
+    common_attrs["default_limit"] = eff_daily
+    if entry.vertical == "groceries":
+        common_attrs["groceries_limit"] = eff_daily
     if effective_max:
         common_attrs["discover_limit"] = effective_max
         if entry.vertical == "groceries":
@@ -338,7 +347,19 @@ def plan_tiered_waves_for_day(
             )
         return shards
 
-    p1_shards = _chunk(p1_stores, "p1_major_brands", size=12)
+    amazon_shards: list[dict[str, Any]] = []
+    other_p1_stores = [s for s in p1_stores if s != "amazon_eg"]
+    if "amazon_eg" in p1_stores:
+        for shard_name, store_spec in AMAZON_EG_P1_SHARD_SPECS:
+            amazon_shards.append(
+                {
+                    "shard": shard_name,
+                    "priority": "p1_major_brands",
+                    "stores": [store_spec],
+                }
+            )
+
+    p1_shards = amazon_shards + _chunk(other_p1_stores, "p1_major_brands", size=12)
     p2_shards = _chunk(p2_stores, "p2_major_stores", size=10)
     p3_shards = _chunk(t2_today, "p3_tier2", size=14) + _chunk(t3_today, "p3_tier3", size=14)
 

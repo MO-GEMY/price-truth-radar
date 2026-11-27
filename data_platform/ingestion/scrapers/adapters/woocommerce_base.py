@@ -242,10 +242,10 @@ class WooCommerceBaseScraper(BaseScraper):
     default_brand: str = ""
     override_brand: bool = False
     use_impersonation: bool = False
-    default_limit: int = 180
-    discover_limit: int = 800
-    groceries_limit: int = 180
-    discover_groceries_limit: int = 750
+    default_limit: int = 2500
+    discover_limit: int = 8000
+    groceries_limit: int = 2500
+    discover_groceries_limit: int = 8000
     max_variants_per_product: int = 12
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds: float = 1.5
