@@ -61,11 +61,11 @@ class JumiaScraper(BaseScraper):
     base_url = "https://www.jumia.com.eg"
     default_limit = 300
     discover_limit = 900
-    expand_limit = 15000
-    groceries_limit = 200
-    fashion_limit = 200
+    expand_limit = 30000
+    groceries_limit = 2000
+    fashion_limit = 3000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries", "fashion")
-    min_delay_seconds = 1.8
+    min_delay_seconds = 2.0
     request_timeout = 25.0
 
     _CORE_URLS: tuple[tuple[str, Category, str], ...] = (
@@ -113,8 +113,13 @@ class JumiaScraper(BaseScraper):
     )
     _FASHION_URLS: tuple[tuple[str, Category, str], ...] = (
         ("apparel", "fashion", "https://www.jumia.com.eg/category-fashion-by-jumia/"),
+        ("mens_wear", "fashion", "https://www.jumia.com.eg/mens-clothing/"),
+        ("womens_wear", "fashion", "https://www.jumia.com.eg/womens-clothing/"),
         ("shoes", "fashion", "https://www.jumia.com.eg/mens-shoes/"),
         ("shoes", "fashion", "https://www.jumia.com.eg/womens-shoes/"),
+        ("bags", "fashion", "https://www.jumia.com.eg/mens-bags/"),
+        ("bags", "fashion", "https://www.jumia.com.eg/womens-bags/"),
+        ("watches", "fashion", "https://www.jumia.com.eg/watches/"),
     )
 
     def _active_urls(self) -> tuple[tuple[str, Category, str], ...]:
@@ -141,13 +146,14 @@ class JumiaScraper(BaseScraper):
         per_cat_cap = max(8, math.ceil(target_limit / max(1, len(urls))))
         if self.mode == "expand":
             max_pages = max(12, min(40, self.expand_max_pages or 25))
-            per_cat_cap = max(per_cat_cap, 1000)
+            per_cat_cap = max(per_cat_cap, 1200)
         else:
             max_pages = 5 if self.mode == "discover" else 2
-        blocked = False
+        consecutive_throttles = 0
+        max_consecutive_throttles = 4
 
         with ImpersonatedHttpClient(
-            impersonate="chrome",
+            impersonate="firefox",
             timeout=self.request_timeout,
             max_retries=3,
             backoff_base=2.0,
@@ -155,7 +161,7 @@ class JumiaScraper(BaseScraper):
             jitter_range=(0.4, 1.1),
         ) as client:
             for default_sub, cat_name, cat_url in urls:
-                if len(collected) >= target_limit or blocked:
+                if len(collected) >= target_limit or consecutive_throttles >= max_consecutive_throttles:
                     break
                 cat_collected = 0
                 for page in range(1, max_pages + 1):
@@ -172,13 +178,23 @@ class JumiaScraper(BaseScraper):
                             min_html_bytes=4096,
                         )
                     except ThrottledResponseError as exc:
-                        logger.warning("[jumia] WAF/throttle block on %s (%s); exiting gracefully.", cat_url, exc)
-                        blocked = True
+                        consecutive_throttles += 1
+                        logger.warning(
+                            "[jumia] WAF/throttle block on %s (%s) [strike %d/%d]; cooling down and continuing.",
+                            cat_url,
+                            exc,
+                            consecutive_throttles,
+                            max_consecutive_throttles,
+                        )
+                        if consecutive_throttles < max_consecutive_throttles:
+                            import time as _t
+                            _t.sleep(8.0)
                         break
                     except Exception as exc:
                         logger.warning("[jumia] Error fetching %s page %d: %s", cat_url, page, exc)
                         break
 
+                    consecutive_throttles = 0
                     self.pages_fetched += 1
                     soup = BeautifulSoup(resp.text, "html.parser")
                     cards = soup.select("article.prd")
@@ -404,7 +420,7 @@ class ElGhazawyScraper(BaseScraper):
         max_pages = 4 if self.mode == "discover" else 2
 
         with ImpersonatedHttpClient(
-            impersonate="chrome",
+            impersonate="firefox",
             timeout=self.request_timeout,
             max_retries=3,
             backoff_base=1.5,
@@ -510,7 +526,7 @@ class HomzmartScraper(BaseScraper):
             max_pages = 2
 
         with ImpersonatedHttpClient(
-            impersonate="chrome",
+            impersonate="firefox",
             timeout=self.request_timeout,
             max_retries=3,
             backoff_base=2.0,

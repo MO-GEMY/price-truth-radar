@@ -255,6 +255,7 @@ def _cmd_scrape_shard(args: argparse.Namespace) -> int:
                 k = (row["store_name"], row["external_id"], row["snapshot_date"])
                 deduped[k] = row
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = out_path.with_suffix(".tmp.gz")
     with gzip.open(tmp_path, "wt", encoding="utf-8", compresslevel=6) as gz:
         for row in deduped.values():
@@ -395,7 +396,16 @@ def _cmd_load_and_transform(args: argparse.Namespace) -> int:
 
             if to_load:
                 t_cp = time.perf_counter()
-                n_copied = bulk_copy_snapshots_to_neon(to_load, conn=conn)
+                try:
+                    n_copied = bulk_copy_snapshots_to_neon(to_load, conn=conn)
+                except (psycopg2.OperationalError, psycopg2.InterfaceError) as exc:
+                    print(f"WAVE_COPY_RETRY | wave={wave_name} | transient Neon drop ({exc}); reconnecting...", flush=True)
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    conn = psycopg2.connect(db_url)
+                    n_copied = bulk_copy_snapshots_to_neon(to_load, conn=conn)
                 total_copied += n_copied
                 print(
                     f"WAVE_COPY | wave={wave_name} | mode={wave_dec.mode} "

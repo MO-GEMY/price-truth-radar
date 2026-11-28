@@ -316,8 +316,9 @@ class FreshEgScraper(_SimpleMagentoGraphQLScraper):
     include_stock_status = True
     default_brand = "Fresh"
     override_brand = True
-    default_limit = 300
-    discover_limit = 600
+    default_limit = 1500
+    discover_limit = 4000
+    expand_limit = 10000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     search_queries: tuple[tuple[str, str, Category], ...] = (
         ("refrigerator", "refrigerators", "home_appliances"),
@@ -434,8 +435,9 @@ class ChefaaScraper(BaseScraper):
     store_name = "chefaa"
     category: Category = "health"
     base_url = "https://chefaa.com"
-    default_limit = 300
-    discover_limit = 600
+    default_limit = 1500
+    discover_limit = 4000
+    expand_limit = 10000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 1.8
     request_timeout = 25.0
@@ -589,8 +591,9 @@ class SeifPharmaciesScraper(BaseScraper):
     store_name = "seif_pharmacies"
     category: Category = "health"
     base_url = "https://seif-online.com"
-    default_limit = 300
-    discover_limit = 600
+    default_limit = 1500
+    discover_limit = 4000
+    expand_limit = 10000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
     min_delay_seconds = 1.5
     request_timeout = 30.0
@@ -634,8 +637,8 @@ class SeifPharmaciesScraper(BaseScraper):
                 )
                 page = ctx.new_page()
                 logger.info("[seif_pharmacies] Establishing browser session on seif-online.com")
-                page.goto("https://seif-online.com/en/products", wait_until="networkidle", timeout=30000)
-                page.wait_for_timeout(1200)
+                page.goto("https://seif-online.com/en/products", wait_until="domcontentloaded", timeout=35000)
+                page.wait_for_timeout(2000)
 
                 for default_sub, cat_slug in self._CAT_SLUGS:
                     if len(collected) >= target_limit:
@@ -759,8 +762,9 @@ class IkeaEgScraper(BaseScraper):
     store_name = "ikea_eg"
     category: Category = "home_furniture"
     base_url = "https://www.ikea.com/eg/en"
-    default_limit = 300
-    discover_limit = 600
+    default_limit = 1500
+    discover_limit = 4000
+    expand_limit = 10000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core",)
     min_delay_seconds = 1.2
     request_timeout = 20.0
