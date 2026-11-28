@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 const PRODUCT_SITEMAP_CHUNKS = 4;
 
-const SITEMAP_CACHE_HEADER = "public, s-maxage=604800, stale-while-revalidate=604800";
+const SITEMAP_CACHE_HEADER = "public, s-maxage=3600, stale-while-revalidate=86400";
 
 function escapeXml(value: string): string {
   return value
@@ -55,6 +55,7 @@ export function GET(): Response {
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": SITEMAP_CACHE_HEADER,
       "CDN-Cache-Control": SITEMAP_CACHE_HEADER,
+      "Cloudflare-CDN-Cache-Control": SITEMAP_CACHE_HEADER,
     },
   });
 }

@@ -6,10 +6,11 @@ import { buildProductDescription, productMetadata } from "./metadata";
 import { ProductReceipt } from "./receipt";
 
 /**
- * 24-hour ISR/CDN cache window so crawler visits to canonical product pages
- * are served from Cloudflare Edge instead of waking Neon PostgreSQL.
+ * 1-hour ISR/CDN cache window (+ 24h stale-while-revalidate via next.config.ts)
+ * so repeat visitors and crawlers are served from Cloudflare Edge instead of
+ * invoking the Worker CPU or waking Neon PostgreSQL.
  */
-export const revalidate = 86400;
+export const revalidate = 3600;
 
 interface ProductPageProps {
   params: Promise<{ product_sk: string }>;

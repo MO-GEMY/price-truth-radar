@@ -76,46 +76,58 @@ export function buildProductJsonLd(
   }
 
   if (alternatives.length > 0) {
-    const allListings = [
-      {
-        price: product.current_price,
-        in_stock: product.in_stock,
-        store_name: product.store_name,
-        url: selfOfferUrl,
-      },
-      ...alternatives.map((alt) => ({
-        price: alt.price,
-        in_stock: alt.in_stock,
-        store_name: alt.store_name,
-        url: retailerHref(alt.product_url) ?? absoluteUrl(`/products/${encodeURIComponent(alt.product_sk)}`),
-      })),
-    ].filter((offer) => Number.isFinite(offer.price) && offer.price > 0);
+    const offers: Record<string, unknown>[] = [];
+    let inStockCount = 0;
+    let inStockMin = Infinity;
+    let inStockMax = -Infinity;
+    let allMin = Infinity;
+    let allMax = -Infinity;
 
-    const inStockListings = allListings.filter((o) => o.in_stock);
-    const pricePool = inStockListings.length > 0 ? inStockListings : allListings;
-    const prices = pricePool.map((o) => o.price);
-    const lowPrice = cleanPrice(Math.min(...prices));
-    const highPrice = cleanPrice(Math.max(...prices));
+    const pushOffer = (price: number, inStock: boolean, storeName: string, url: string) => {
+      if (!Number.isFinite(price) || price <= 0) return;
+      if (price < allMin) allMin = price;
+      if (price > allMax) allMax = price;
+      if (inStock) {
+        inStockCount++;
+        if (price < inStockMin) inStockMin = price;
+        if (price > inStockMax) inStockMax = price;
+      }
+      offers.push({
+        "@type": "Offer",
+        priceCurrency: "EGP",
+        price: cleanPrice(price),
+        availability: inStock ? IN_STOCK : OUT_OF_STOCK,
+        itemCondition: NEW_CONDITION,
+        url,
+        seller: {
+          "@type": "Organization",
+          name: storeDisplayName(storeName, "en"),
+        },
+      });
+    };
+
+    pushOffer(product.current_price, product.in_stock, product.store_name, selfOfferUrl);
+    for (let i = 0; i < alternatives.length; i++) {
+      const alt = alternatives[i];
+      pushOffer(
+        alt.price,
+        alt.in_stock,
+        alt.store_name,
+        retailerHref(alt.product_url) ?? absoluteUrl(`/products/${encodeURIComponent(alt.product_sk)}`),
+      );
+    }
+
+    const lowPrice = cleanPrice(inStockCount > 0 ? inStockMin : allMin);
+    const highPrice = cleanPrice(inStockCount > 0 ? inStockMax : allMax);
 
     schema.offers = {
       "@type": "AggregateOffer",
       priceCurrency: "EGP",
       lowPrice,
       highPrice,
-      offerCount: allListings.length,
-      availability: inStockListings.length > 0 ? IN_STOCK : OUT_OF_STOCK,
-      offers: allListings.map((offer) => ({
-        "@type": "Offer",
-        priceCurrency: "EGP",
-        price: cleanPrice(offer.price),
-        availability: offer.in_stock ? IN_STOCK : OUT_OF_STOCK,
-        itemCondition: NEW_CONDITION,
-        url: offer.url,
-        seller: {
-          "@type": "Organization",
-          name: storeDisplayName(offer.store_name, "en"),
-        },
-      })),
+      offerCount: offers.length,
+      availability: inStockCount > 0 ? IN_STOCK : OUT_OF_STOCK,
+      offers,
     };
   } else if (
     product.has_multiple_variants &&
@@ -155,16 +167,23 @@ export function buildProductJsonLd(
   return schema;
 }
 
+const JSONLD_ESCAPE_RE = /[<>&\u2028\u2029]/g;
+const JSONLD_ESCAPE_MAP: Record<string, string> = {
+  "<": "\\u003c",
+  ">": "\\u003e",
+  "&": "\\u0026",
+  "\u2028": "\\u2028",
+  "\u2029": "\\u2029",
+};
+
 /**
  * Serializes a JSON-LD payload safely for embedding inside a `<script>` tag,
  * neutralizing `</script>`, HTML angle brackets, ampersands, and JS line
- * separators against XSS injection.
+ * separators against XSS injection in a single regex pass.
  */
 export function serializeJsonLd(payload: Record<string, unknown>): string {
-  return JSON.stringify(payload)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
+  return JSON.stringify(payload).replace(
+    JSONLD_ESCAPE_RE,
+    (ch) => JSONLD_ESCAPE_MAP[ch],
+  );
 }

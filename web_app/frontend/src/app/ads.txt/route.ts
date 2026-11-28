@@ -21,6 +21,8 @@ function normalizePublisherId(rawClient: string): string | null {
   return withoutCaPrefix.toLowerCase();
 }
 
+const ADS_TXT_CACHE = "public, s-maxage=3600, stale-while-revalidate=86400";
+
 export function GET() {
   const rawClient = process.env.NEXT_PUBLIC_ADSENSE_CLIENT ?? "";
   const publisherId = normalizePublisherId(rawClient);
@@ -39,7 +41,9 @@ export function GET() {
     status: 200,
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": ADS_TXT_CACHE,
+      "CDN-Cache-Control": ADS_TXT_CACHE,
+      "Cloudflare-CDN-Cache-Control": ADS_TXT_CACHE,
     },
   });
 }

@@ -33,20 +33,25 @@ export function buildProductDescription(detail: ProductDetailResponse): string {
     ? `السعر الحالي ${priceText} ج.م. في ${storeAr}.`
     : `السعر المرصود ${priceText} ج.م. في ${storeAr} (غير متوفر حالياً).`;
 
-  // 1. Exact cross-store matches take priority when available
+  // 1. Exact cross-store matches take priority when available (single-pass O(n))
   if (alternatives.length > 0) {
-    const distinctStores = new Set([
-      product.store_name,
-      ...alternatives.map((a) => a.store_name),
-    ]).size;
-    const storeCount = Math.max(2, distinctStores);
-    const inStockAlts = alternatives.filter(
-      (a) => a.in_stock && Number.isFinite(a.price) && a.price > 0,
-    );
-    const cheapestAlt = inStockAlts.reduce<(typeof inStockAlts)[number] | null>(
-      (best, cur) => (!best || cur.price < best.price ? cur : best),
-      null,
-    );
+    const distinctStores = new Set<string>([product.store_name]);
+    let cheapestAlt: (typeof alternatives)[number] | null = null;
+    let highestAlt: (typeof alternatives)[number] | null = null;
+
+    for (let i = 0; i < alternatives.length; i++) {
+      const alt = alternatives[i];
+      distinctStores.add(alt.store_name);
+      if (!Number.isFinite(alt.price) || alt.price <= 0) continue;
+      if (alt.in_stock && (!cheapestAlt || alt.price < cheapestAlt.price)) {
+        cheapestAlt = alt;
+      }
+      if (alt.price > product.current_price && (!highestAlt || alt.price > highestAlt.price)) {
+        highestAlt = alt;
+      }
+    }
+
+    const storeCount = Math.max(2, distinctStores.size);
 
     if (cheapestAlt && cheapestAlt.price < product.current_price) {
       const diff = product.current_price - cheapestAlt.price;
@@ -54,13 +59,9 @@ export function buildProductDescription(detail: ProductDetailResponse): string {
       return `${lead} متوفر أرخص في ${cheapestStoreAr} بسعر ${formatEgpPlain(cheapestAlt.price)} ج.م. (وفر ${formatEgpPlain(diff)} ج.م. عبر ${storeCount} متاجر).`;
     }
 
-    const higherAlt = alternatives
-      .filter((a) => Number.isFinite(a.price) && a.price > product.current_price)
-      .sort((a, b) => b.price - a.price)[0];
-
-    if (product.in_stock && higherAlt) {
-      const diff = higherAlt.price - product.current_price;
-      const otherStoreAr = storeDisplayName(higherAlt.store_name, "ar");
+    if (product.in_stock && highestAlt) {
+      const diff = highestAlt.price - product.current_price;
+      const otherStoreAr = storeDisplayName(highestAlt.store_name, "ar");
       return `${lead} أرخص سعر مرصود بين ${storeCount} متاجر — أقل بـ ${formatEgpPlain(diff)} ج.م. من ${otherStoreAr}.`;
     }
 

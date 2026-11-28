@@ -18,10 +18,10 @@ import { ProductCard } from "@/components/ProductCard";
 
 /**
  * Clean, query-string-free canonical category landing page (`/category/<slug>`).
- * Cached 24h at Cloudflare Edge + Next.js ISR (`revalidate = 86400`) to stay
- * crawler-friendly while keeping Neon scaled to zero.
+ * Cached 5m fresh + 1h SWR at Cloudflare Edge (`revalidate = 300`) to keep
+ * Worker CPU near zero while keeping Neon scaled to zero.
  */
-export const revalidate = 86400;
+export const revalidate = 300;
 
 const CATEGORY_SSR_TIMEOUT_MS = 4500;
 const CATEGORY_SSR_LIMIT = 24;
@@ -116,8 +116,10 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
   },
 };
 
+const CANONICAL_CATEGORY_SET = new Set<string>(CANONICAL_CATEGORIES);
+
 function isCanonicalCategory(slug: string): slug is Category {
-  return (CANONICAL_CATEGORIES as readonly string[]).includes(slug);
+  return CANONICAL_CATEGORY_SET.has(slug);
 }
 
 async function loadCategoryFeed(slug: Category): Promise<RadarFeedResponse | null> {

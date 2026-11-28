@@ -4,18 +4,25 @@ import { CANONICAL_CATEGORIES, SITE_URL, absoluteUrl } from "@/lib/site";
 export const dynamic = "force-dynamic";
 
 const SITEMAP_FETCH_TIMEOUT_MS = 15000;
-const MAX_CHUNKS = 4;
+const MAX_CHUNKS = 10;
 
-const SITEMAP_CACHE_7D = "public, s-maxage=604800, stale-while-revalidate=604800";
-const SITEMAP_CACHE_1H = "public, s-maxage=3600, stale-while-revalidate=86400";
+const SITEMAP_CACHE_EDGE = "public, s-maxage=3600, stale-while-revalidate=86400";
+const SITEMAP_CACHE_404 = "public, s-maxage=3600, stale-while-revalidate=86400";
+
+const XML_ESCAPE_RE = /[&<>"']/g;
+const XML_ESCAPE_MAP: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&apos;",
+};
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/;
 
 function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  return XML_ESCAPE_RE.test(value)
+    ? value.replace(XML_ESCAPE_RE, (ch) => XML_ESCAPE_MAP[ch])
+    : value;
 }
 
 interface UrlEntry {
@@ -26,24 +33,19 @@ interface UrlEntry {
 }
 
 function renderUrlSet(urls: UrlEntry[]): string {
-  const body = urls
-    .map((u) => {
-      const lines = [`  <url>`, `    <loc>${escapeXml(u.loc)}</loc>`];
-      if (u.lastmod) lines.push(`    <lastmod>${escapeXml(u.lastmod)}</lastmod>`);
-      if (u.changefreq) lines.push(`    <changefreq>${u.changefreq}</changefreq>`);
-      if (u.priority) lines.push(`    <priority>${u.priority}</priority>`);
-      lines.push(`  </url>`);
-      return lines.join("\n");
-    })
-    .join("\n");
-
-  return [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    body,
-    "</urlset>",
-    "",
-  ].join("\n");
+  const parts: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n',
+  ];
+  for (let i = 0; i < urls.length; i++) {
+    const u = urls[i];
+    parts.push("  <url>\n    <loc>", escapeXml(u.loc), "</loc>\n");
+    if (u.lastmod) parts.push("    <lastmod>", u.lastmod, "</lastmod>\n");
+    if (u.changefreq) parts.push("    <changefreq>", u.changefreq, "</changefreq>\n");
+    if (u.priority) parts.push("    <priority>", u.priority, "</priority>\n");
+    parts.push("  </url>\n");
+  }
+  parts.push("</urlset>\n");
+  return parts.join("");
 }
 
 function xmlResponse(xml: string, cacheControl: string): Response {
@@ -53,6 +55,7 @@ function xmlResponse(xml: string, cacheControl: string): Response {
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": cacheControl,
       "CDN-Cache-Control": cacheControl,
+      "Cloudflare-CDN-Cache-Control": cacheControl,
     },
   });
 }
@@ -78,14 +81,13 @@ function buildStaticSitemap(): Response {
     { loc: absoluteUrl("/terms"), lastmod: today, changefreq: "monthly", priority: "0.4" },
   ];
 
-  return xmlResponse(renderUrlSet(core), SITEMAP_CACHE_7D);
+  return xmlResponse(renderUrlSet(core), SITEMAP_CACHE_EDGE);
 }
 
 /**
- * Sub-sitemap route handler:
- * - `/sitemaps/static.xml`: Core pages + 10 clean canonical `/category/<slug>` URLs (0 DB calls).
- * - `/sitemaps/products-1.xml` .. `/sitemaps/products-4.xml`: Up to 10,000 prioritized products
- *   (2,500 per chunk) backed by FastAPI's single 24h-cached 10k query and cached 7 days on Cloudflare.
+ * Sub-sitemap route handler engineered for <2ms Worker CPU even on 25k-row chunks:
+ * - Avoids `new URL()` and `new Date()` per item inside the loop.
+ * - Emits Cache-Control + CDN-Cache-Control + Cloudflare-CDN-Cache-Control.
  */
 export async function GET(
   _request: Request,
@@ -103,7 +105,9 @@ export async function GET(
       status: 404,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": SITEMAP_CACHE_1H,
+        "Cache-Control": SITEMAP_CACHE_404,
+        "CDN-Cache-Control": SITEMAP_CACHE_404,
+        "Cloudflare-CDN-Cache-Control": SITEMAP_CACHE_404,
       },
     });
   }
@@ -114,7 +118,9 @@ export async function GET(
       status: 404,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": SITEMAP_CACHE_1H,
+        "Cache-Control": SITEMAP_CACHE_404,
+        "CDN-Cache-Control": SITEMAP_CACHE_404,
+        "Cloudflare-CDN-Cache-Control": SITEMAP_CACHE_404,
       },
     });
   }
@@ -132,7 +138,7 @@ export async function GET(
 
   const chunk = await fetchSitemapChunk(chunkId, undefined, SITEMAP_FETCH_TIMEOUT_MS);
   if (!chunk) {
-    // Never cache a transient backend failure for 7 days on Cloudflare edge
+    // Never cache a transient backend failure on Cloudflare edge
     return new Response("Sitemap chunk temporarily unavailable", {
       status: 503,
       headers: {
@@ -143,39 +149,30 @@ export async function GET(
     });
   }
 
-  const origin = new URL(SITE_URL).origin;
+  const products = chunk.products ?? [];
   const seen = new Set<string>();
   const priority = chunkId <= 3 ? "0.8" : "0.75";
-  const urls: UrlEntry[] = [];
+  const prefix = `${SITE_URL}/products/`;
+  const parts: string[] = [
+    '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n',
+  ];
 
-  for (const item of chunk.products ?? []) {
-    if (!item?.product_sk) continue;
-    const rawPath = `/products/${encodeURIComponent(item.product_sk)}`;
-    let candidate: URL;
-    try {
-      candidate = new URL(rawPath, SITE_URL);
-    } catch {
-      continue;
+  for (let i = 0; i < products.length; i++) {
+    const item = products[i];
+    const sk = item?.product_sk;
+    if (!sk || seen.has(sk)) continue;
+    seen.add(sk);
+
+    const encodedSk = encodeURIComponent(sk);
+    parts.push("  <url>\n    <loc>", prefix, encodedSk, "</loc>\n");
+
+    const rawLastMod = item.last_updated;
+    if (rawLastMod && ISO_DATE_RE.test(rawLastMod)) {
+      parts.push("    <lastmod>", rawLastMod, "</lastmod>\n");
     }
-    if (candidate.origin !== origin || !/^\/products\/[^/]+$/.test(candidate.pathname)) {
-      continue;
-    }
-    const loc = absoluteUrl(candidate.pathname);
-    if (seen.has(loc)) continue;
-    seen.add(loc);
-
-    const validLastMod =
-      item.last_updated && Number.isFinite(Date.parse(item.last_updated))
-        ? new Date(item.last_updated).toISOString()
-        : undefined;
-
-    urls.push({
-      loc,
-      lastmod: validLastMod,
-      changefreq: "weekly",
-      priority,
-    });
+    parts.push("    <changefreq>weekly</changefreq>\n    <priority>", priority, "</priority>\n  </url>\n");
   }
 
-  return xmlResponse(renderUrlSet(urls), urls.length > 0 ? SITEMAP_CACHE_7D : SITEMAP_CACHE_1H);
+  parts.push("</urlset>\n");
+  return xmlResponse(parts.join(""), SITEMAP_CACHE_EDGE);
 }

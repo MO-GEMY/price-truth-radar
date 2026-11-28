@@ -4,7 +4,7 @@ import { isTrustedCoupon } from "@/lib/coupons";
 import { absoluteUrl, SITE_NAME } from "@/lib/site";
 import { CouponsDirectory } from "./CouponsDirectory";
 
-export const revalidate = 1800;
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: `كوبونات وأكواد الخصم في مصر | ${SITE_NAME}`,

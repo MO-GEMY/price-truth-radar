@@ -8,7 +8,7 @@ import { mockProductDetail } from "./mockData";
  * metadata generation; clients can still retry interactively if needed.
  */
 const SSR_PRODUCT_TIMEOUT_MS = 4500;
-const PRODUCT_SSR_REVALIDATE_SECONDS = 86400; // 24h edge/SSR cache shield
+const PRODUCT_SSR_REVALIDATE_SECONDS = 3600; // 1h ISR + 24h Edge SWR shield
 
 export type ProductLoad =
   | { status: "ready"; result: ApiResult<ProductDetailResponse> }

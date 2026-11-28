@@ -716,20 +716,44 @@ export const STORE_META: Record<string, StoreMeta> = {
 /** Stores highlighted in the direct-link guidance (largest catalogs first). */
 export const FEATURED_LINK_STORES = ["noon", "amazon_eg", "btech", "2b", "sigma"] as const;
 
+/**
+ * O(1) Map index built once per Worker isolate for fast, prototype-safe lookups
+ * across all tracked Egyptian stores (no linear scans or prototype chain hits).
+ */
+const STORE_META_MAP: ReadonlyMap<string, StoreMeta> = new Map(
+  Object.entries(STORE_META),
+);
+
+/**
+ * Bounded per-isolate memo cache for slugs not explicitly listed in STORE_META,
+ * avoiding repeated regex split/map/join allocations during SSR & card rendering.
+ */
+const PRETTIFIED_SLUG_CACHE = new Map<string, string>();
+const MAX_PRETTIFIED_CACHE_SIZE = 512;
+
 function prettifySlug(slug: string): string {
-  return slug
-    .split(/[_-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  const cached = PRETTIFIED_SLUG_CACHE.get(slug);
+  if (cached !== undefined) return cached;
+
+  const formatted =
+    slug
+      .split(/[_-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ") || slug;
+
+  if (PRETTIFIED_SLUG_CACHE.size < MAX_PRETTIFIED_CACHE_SIZE) {
+    PRETTIFIED_SLUG_CACHE.set(slug, formatted);
+  }
+  return formatted;
 }
 
 export function storeDisplayName(slug: string, lang: Lang): string {
-  const meta = STORE_META[slug];
+  const meta = STORE_META_MAP.get(slug);
   if (meta) return meta.name[lang];
-  return prettifySlug(slug) || slug;
+  return prettifySlug(slug);
 }
 
 export function storeAccent(slug: string): string {
-  return STORE_META[slug]?.accent ?? "#64748b";
+  return STORE_META_MAP.get(slug)?.accent ?? "#64748b";
 }
