@@ -170,7 +170,7 @@ export function ProductCard({
           </button>
         )}
 
-        <Link className="asarak-grid-card__link" href={href}>
+        <Link className="asarak-grid-card__link" href={href} prefetch={false}>
           <div className="asarak-grid-card__media">
             <ProductImage
               src={product.image_url}
@@ -306,7 +306,7 @@ export function ProductCard({
       className="ptr-list-item"
       data-tour={tourTarget ? "product-card" : undefined}
     >
-      <Link className="ptr-list-link" href={href}>
+      <Link className="ptr-list-link" href={href} prefetch={false}>
         <div className="ptr-result-identity">
           <ProductImage
             src={product.image_url}
