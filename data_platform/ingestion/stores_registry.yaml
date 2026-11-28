@@ -4689,3 +4689,991 @@ stores:
   tier: 2
   priority_group: mid_specialty
   notes: Verified live shopify EGP store (scale sprint batch 2)
+- store_key: kawkab_eg
+  display_name: Kawkab Egypt
+  platform: shopify
+  base_url: https://kawkab.eg
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: eat_good_eg
+  display_name: Eat Good
+  platform: shopify
+  base_url: https://eatgoodco.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: zain_nuts
+  display_name: Zain Nuts
+  platform: shopify
+  base_url: https://zainnuts.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: caffee_egy
+  display_name: CaffeeEgy
+  platform: shopify
+  base_url: https://caffeeegy.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: linah_farms
+  display_name: Linah Farms
+  platform: shopify
+  base_url: https://linahfarms.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: the_coffee_market
+  display_name: The Coffee Market
+  platform: shopify
+  base_url: https://thecoffee-market.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: egy_bookstore
+  display_name: Egypt Book Store
+  platform: shopify
+  base_url: https://egybookstore.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: mix_manga
+  display_name: Mix Manga Store
+  platform: shopify
+  base_url: https://mixmangastore.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: the_notbook
+  display_name: Not.Book
+  platform: shopify
+  base_url: https://thenotbookstore.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: mofkera
+  display_name: Mofkera
+  platform: shopify
+  base_url: https://mofkera.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: bzoor_store
+  display_name: BZOOR Art Supplies
+  platform: shopify
+  base_url: https://bzoorstore.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: triconuts
+  display_name: Triconuts
+  platform: shopify
+  base_url: https://triconuts.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: toy_ground_eg
+  display_name: The Toy Ground Egypt
+  platform: shopify
+  base_url: https://thetoygroundegypt.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: happy_bufo
+  display_name: Happy Bufo
+  platform: shopify
+  base_url: https://happybufo.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: baba_saleh
+  display_name: Baba Saleh Sports
+  platform: shopify
+  base_url: https://babasaleh.com
+  category: sports
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: hayaa_fashion
+  display_name: Hayaa Fashion
+  platform: shopify
+  base_url: https://hayaafashioneg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: the_black_closet
+  display_name: The Black Closet
+  platform: shopify
+  base_url: https://theblackcloset.co
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: hayal_eg
+  display_name: Hayal
+  platform: shopify
+  base_url: https://www.hayal-eg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: tallah_fashion
+  display_name: Tallah Fashion
+  platform: shopify
+  base_url: https://tallahfashion.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: abaya_company
+  display_name: Abaya Company
+  platform: shopify
+  base_url: https://www.abayacompany.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: hejabi_eg
+  display_name: Hejabi Egypt
+  platform: shopify
+  base_url: https://hejabiegypt.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: jozee_boutique
+  display_name: Jozee Boutique
+  platform: shopify
+  base_url: https://jozeeboutique.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: lady_tabtab
+  display_name: LadyTabtab
+  platform: shopify
+  base_url: https://ladytabtab.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: youture_beauty
+  display_name: Youture Beauty
+  platform: shopify
+  base_url: https://youturebeauty.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: the_bath_land
+  display_name: The Bath Land
+  platform: shopify
+  base_url: https://thebathland.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: hanafy_eg
+  display_name: Hanafy Pigment EG
+  platform: shopify
+  base_url: https://hanafy.com.eg
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: loolia_closet_eg
+  display_name: Loolia Closet Egypt
+  platform: shopify
+  base_url: https://eg.looliacloset.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: cosmare
+  display_name: Cosmare
+  platform: shopify
+  base_url: https://cosmare.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: noba_eg
+  display_name: NOBA Egypt
+  platform: shopify
+  base_url: https://nobaeg.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: el_beaute_eg
+  display_name: El Beaute Egypt
+  platform: shopify
+  base_url: https://elbeaute-eg.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: numai_shop
+  display_name: Numai
+  platform: shopify
+  base_url: https://numai.shop
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: xoxo_eg
+  display_name: XOXO Beauty
+  platform: shopify
+  base_url: https://xoxo-eg.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: real_beauty_eg
+  display_name: Real Beauty Egypt
+  platform: shopify
+  base_url: https://realbeautyegy.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: etara_shop
+  display_name: Etara Shop
+  platform: shopify
+  base_url: https://etarashop.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: beauty_code_eg
+  display_name: The Beauty Code EG
+  platform: shopify
+  base_url: https://beautycodeeg.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: impala_eg
+  display_name: Impala Cosmetics EG
+  platform: shopify
+  base_url: https://impalaegypt.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: fathy_ibrahim
+  display_name: Fathy Ibrahim
+  platform: shopify
+  base_url: https://fathyibrahim.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: elswefy
+  display_name: Elswefy
+  platform: shopify
+  base_url: https://elswefy.net
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: hitch_eg
+  display_name: Hitch Egypt
+  platform: shopify
+  base_url: https://hitch-eg.com
+  category: electronics
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_3
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_3)
+- store_key: al_fouad_pharmacy
+  display_name: Al Fouad Pharmacies
+  platform: shopify
+  base_url: https://alfouadpharmacies.com
+  category: health
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: wise_pharmacy
+  display_name: Wise Pharmacy
+  platform: shopify
+  base_url: https://wise-offers.com
+  category: health
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: re3aya_pharmacy
+  display_name: Re3aya Pharmacy
+  platform: shopify
+  base_url: https://re3ayapharmacy.com
+  category: health
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: the_beauty_pharm
+  display_name: The Beauty Pharm
+  platform: shopify
+  base_url: https://thebeautypharm.com
+  category: health
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: sekem_online
+  display_name: Sekem Online
+  platform: shopify
+  base_url: https://sekemonline.com
+  category: health
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: alba_egypt
+  display_name: Alba Pharma Egypt
+  platform: shopify
+  base_url: https://alba-egypt.com
+  category: beauty
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: drug_station
+  display_name: Drug Station
+  platform: shopify
+  base_url: https://drug-station.co
+  category: health
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: hareer_x_hareer
+  display_name: Hareer x Hareer
+  platform: shopify
+  base_url: https://hareerxhareer.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: the_nest_eg
+  display_name: The Nest Egypt
+  platform: shopify
+  base_url: https://thenestegypt.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: the_mob_collective
+  display_name: The Mob Collective
+  platform: shopify
+  base_url: https://themobcollective.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: uptowels
+  display_name: UpTowels
+  platform: shopify
+  base_url: https://uptowels.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: tm_home_eg
+  display_name: TM Home Egypt
+  platform: shopify
+  base_url: https://tm-home-eg.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: lilly_home_eg
+  display_name: Lilly Home Egypt
+  platform: shopify
+  base_url: https://eg.lilly-home.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: mens_club_eg
+  display_name: Mens Club Egypt
+  platform: shopify
+  base_url: https://mensclubcollection.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: ninos_kids
+  display_name: Ninos Kids
+  platform: shopify
+  base_url: https://ninoskids.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: ziggy_pupps
+  display_name: Ziggy Pupps
+  platform: shopify
+  base_url: https://ziggypupps.com
+  category: pet_care
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_4
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_4)
+- store_key: bibliothek_eg
+  display_name: Bibliothek Egypt
+  platform: shopify
+  base_url: https://bibliothek-eg.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_5
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_5)
+- store_key: auc_bookstores
+  display_name: AUC Bookstores
+  platform: shopify
+  base_url: https://aucbookstores.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_5
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_5)
+- store_key: al_balsam
+  display_name: Al-Balsam Bookstore
+  platform: shopify
+  base_url: https://al-balsam.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_5
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_5)
+- store_key: abc_academic
+  display_name: Academic Bookshop
+  platform: shopify
+  base_url: https://abcacademic.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_5
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_5)
+- store_key: dar_al_jilani
+  display_name: Dar Al-Jilani
+  platform: shopify
+  base_url: https://daraljilani.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_5
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_5)
+- store_key: sector10_books
+  display_name: Sector10 Bookstore
+  platform: shopify
+  base_url: https://sector-10.com
+  category: baby_kids
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_5
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_5)
+- store_key: brother_pharma
+  display_name: Brother Pharma
+  platform: shopify
+  base_url: https://ebrotherpharma.com
+  category: health
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_5
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_5)
+- store_key: inhabit_eg
+  display_name: Inhabit Furniture
+  platform: shopify
+  base_url: https://inhabiteg.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: noog_eg
+  display_name: Noog Egypt
+  platform: shopify
+  base_url: https://noogeg.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: baity_eg
+  display_name: Baity Egypt
+  platform: shopify
+  base_url: https://baityegypt.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: tekton_house
+  display_name: Tekton Furniture
+  platform: shopify
+  base_url: https://tekton-house.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: beitouti
+  display_name: Beitouti
+  platform: shopify
+  base_url: https://beitouti.store
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: hs_homedecor
+  display_name: HS Home Decor
+  platform: shopify
+  base_url: https://hs-homedecor.com
+  category: home_furniture
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: varna_shoe
+  display_name: Varna Shoe
+  platform: shopify
+  base_url: https://varnashoe.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: desert_eg
+  display_name: Desert Shoes
+  platform: shopify
+  base_url: https://deserteg.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: bulga_eg
+  display_name: Bulga
+  platform: shopify
+  base_url: https://bulga.co
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: sahara_collection
+  display_name: The Sahara Collection
+  platform: shopify
+  base_url: https://thesahara-collection.com
+  category: fashion
+  vertical: fashion
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: atum_eg
+  display_name: Atum Sportswear
+  platform: shopify
+  base_url: https://atumegypt.com
+  category: sports
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: arena_sport_eg
+  display_name: Arena Egypt
+  platform: shopify
+  base_url: https://arenasporteg.com
+  category: sports
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: xtep_eg
+  display_name: Xtep Egypt
+  platform: shopify
+  base_url: https://xtep.eg
+  category: sports
+  vertical: core
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)
+- store_key: reefna_food
+  display_name: Reefna Food
+  platform: shopify
+  base_url: https://reefnafood.com
+  category: groceries
+  vertical: groceries
+  region_mode: cloud
+  enabled: true
+  verified: true
+  batch: scale_sprint_6
+  tier: 2
+  priority_group: mid_specialty
+  notes: Verified live shopify EGP store (scale_sprint_6)

@@ -61,9 +61,9 @@ class JumiaScraper(BaseScraper):
     base_url = "https://www.jumia.com.eg"
     default_limit = 300
     discover_limit = 900
-    expand_limit = 30000
+    expand_limit = 200000
     groceries_limit = 2000
-    fashion_limit = 3000
+    fashion_limit = 5000
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries", "fashion")
     min_delay_seconds = 2.0
     request_timeout = 25.0
@@ -145,8 +145,8 @@ class JumiaScraper(BaseScraper):
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(8, math.ceil(target_limit / max(1, len(urls))))
         if self.mode == "expand":
-            max_pages = max(12, min(40, self.expand_max_pages or 25))
-            per_cat_cap = max(per_cat_cap, 1200)
+            max_pages = max(15, min(50, self.expand_max_pages or 40))
+            per_cat_cap = max(per_cat_cap, 3000)
         else:
             max_pages = 5 if self.mode == "discover" else 2
         consecutive_throttles = 0
@@ -519,7 +519,7 @@ class HomzmartScraper(BaseScraper):
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_cat_cap = max(8, math.ceil(target_limit / len(self._CATEGORY_URLS)))
         if self.mode == "expand":
-            max_pages = min(40, max(15, self.expand_max_pages))
+            max_pages = min(100, max(25, self.expand_max_pages))
         elif self.mode == "discover":
             max_pages = 5
         else:

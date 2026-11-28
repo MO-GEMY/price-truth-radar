@@ -141,6 +141,10 @@ def _scrape_one_store_offline(
             extra_kwargs: dict[str, Any] = {}
             if department_group:
                 extra_kwargs["department_group"] = department_group
+            # --limit 0 means uncapped full-catalog mode (500K ceiling; paginate until natural end)
+            uncapped = limit_override == 0
+            if uncapped and mode == "expand":
+                extra_kwargs["expand_max_pages"] = 200
             scraper = scraper_cls(
                 http_client,
                 mode=mode,
@@ -148,7 +152,12 @@ def _scrape_one_store_offline(
                 tracked_external_ids=set(),
                 **extra_kwargs,
             )
-            eff_limit = scraper.get_target_limit(mode, eff_vertical) if limit_override is None else limit_override
+            if uncapped:
+                eff_limit = 500_000
+            elif limit_override is None:
+                eff_limit = scraper.get_target_limit(mode, eff_vertical)
+            else:
+                eff_limit = limit_override
             recs = scraper.scrape(limit=eff_limit)
             meta = {
                 "store": f"{store_key}:{department_group}" if department_group else store_key,

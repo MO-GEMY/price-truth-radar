@@ -611,8 +611,8 @@ class AmazonEgScraper(BaseScraper):
         effective_delay = max(self.min_delay_seconds, self.http.min_delay_seconds)
         per_query_cap = max(3, math.ceil(target_limit / max(1, len(queries))))
         if self.mode == "expand":
-            max_pages = max(5, min(7, self.expand_max_pages or 7))
-            per_query_cap = max(per_query_cap, 280)
+            max_pages = max(7, min(15, self.expand_max_pages or 10))
+            per_query_cap = max(per_query_cap, 600)
         elif self.mode == "discover":
             max_pages = 6
             per_query_cap = max(per_query_cap, 180)

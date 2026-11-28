@@ -178,6 +178,37 @@ NOON_EXPAND_EXTRA_SEEDS: list[tuple[str, Category, str]] = [
     ("water_heaters", "home_appliances", "https://www.noon.com/egypt-en/search/?q=water+heater"),
     ("perfumes", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/fragrance/"),
     ("skincare", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/skin-care/"),
+    # Deep leaf-category & brand shards for uncapped full-catalog sweeps
+    ("smartphones", "electronics", "https://www.noon.com/egypt-en/search/?q=infinix+tecno+vivo+nokia"),
+    ("smartphones", "electronics", "https://www.noon.com/egypt-en/search/?q=samsung+galaxy+a+series"),
+    ("laptops", "electronics", "https://www.noon.com/egypt-en/search/?q=macbook+ipad+apple"),
+    ("gaming", "electronics", "https://www.noon.com/egypt-en/search/?q=playstation+xbox+nintendo"),
+    ("headphones", "electronics", "https://www.noon.com/egypt-en/search/?q=anker+soundcore+jbl+sony"),
+    ("accessories", "electronics", "https://www.noon.com/egypt-en/search/?q=ugreen+oraimo+power+bank+charger"),
+    ("tvs", "home_appliances", "https://www.noon.com/egypt-en/search/?q=smart+tv+4k+samsung+lg+tcl+tornado"),
+    ("refrigerators", "home_appliances", "https://www.noon.com/egypt-en/search/?q=toshiba+sharp+fresh+beko+refrigerator"),
+    ("washing_machines", "home_appliances", "https://www.noon.com/egypt-en/search/?q=lg+samsung+zanussi+beko+washing+machine"),
+    ("cookers", "home_appliances", "https://www.noon.com/egypt-en/search/?q=gas+cooker+fresh+unionaire+zanussi"),
+    ("kitchen_appliances", "home_appliances", "https://www.noon.com/egypt-en/search/?q=kenwood+braun+moulinex+tefal+blender"),
+    ("cookware", "home_furniture", "https://www.noon.com/egypt-en/search/?q=tefal+neoflam+zahran+cookware+set"),
+    ("bedding", "home_furniture", "https://www.noon.com/egypt-en/search/?q=bedsheet+duvet+pillow+mattress"),
+    ("furniture", "home_furniture", "https://www.noon.com/egypt-en/search/?q=office+chair+desk+table+organizer"),
+    ("apparel", "fashion", "https://www.noon.com/egypt-en/fashion/men-31225/"),
+    ("apparel", "fashion", "https://www.noon.com/egypt-en/fashion/women-31229/"),
+    ("kids_fashion", "baby_kids", "https://www.noon.com/egypt-en/fashion/kids-31231/"),
+    ("footwear", "fashion", "https://www.noon.com/egypt-en/search/?q=nike+adidas+puma+skechers+sneakers"),
+    ("watches_jewelry", "fashion", "https://www.noon.com/egypt-en/search/?q=casio+fossil+seiko+watch"),
+    ("bags", "fashion", "https://www.noon.com/egypt-en/search/?q=backpack+handbag+luggage+suitcase"),
+    ("skincare", "beauty", "https://www.noon.com/egypt-en/search/?q=cerave+la+roche+posay+bioderma+vichy"),
+    ("haircare", "beauty", "https://www.noon.com/egypt-en/search/?q=loreal+garnier+pantene+shampoo"),
+    ("makeup", "beauty", "https://www.noon.com/egypt-en/search/?q=maybelline+nyx+essence+makeup"),
+    ("perfumes", "beauty", "https://www.noon.com/egypt-en/search/?q=lattafa+armaf+dior+versace+perfume"),
+    ("vitamins", "health", "https://www.noon.com/egypt-en/search/?q=vitamins+omega+magnesium+protein+creatine"),
+    ("baby_care", "baby_kids", "https://www.noon.com/egypt-en/search/?q=pampers+molfix+chicco+avent+stroller"),
+    ("toys", "baby_kids", "https://www.noon.com/egypt-en/search/?q=lego+barbie+hot+wheels+kids+toys"),
+    ("pet_food", "pet_care", "https://www.noon.com/egypt-en/search/?q=cat+dog+food+royal+canin+whiskas+litter"),
+    ("sports_gear", "sports", "https://www.noon.com/egypt-en/search/?q=dumbbells+treadmill+yoga+mat+bicycle"),
+    ("stationery", "baby_kids", "https://www.noon.com/egypt-en/search/?q=school+backpack+stationery+books"),
     ("makeup", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/makeup-16230/"),
     ("haircare", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/beauty/hair-care/"),
     ("personal_care", "beauty", "https://www.noon.com/egypt-en/beauty-and-health/personal-care/"),
@@ -514,7 +545,7 @@ class NoonScraper(BaseScraper):
     base_url = "https://www.noon.com"
     default_limit = 500
     discover_limit = 2000
-    expand_limit = 20000
+    expand_limit = 200000
     groceries_limit = 400
     discover_groceries_limit = 1200
     supported_verticals: tuple[ScrapeVertical, ...] = ("core", "groceries")
@@ -550,8 +581,8 @@ class NoonScraper(BaseScraper):
             else max(5, math.ceil(target_limit / len(seeds)))
         )
         if self.mode == "expand":
-            max_pages = max(12, min(35, self.expand_max_pages or 25))
-            per_cat_cap = max(per_cat_cap, 900)
+            max_pages = max(15, min(60, self.expand_max_pages or 40))
+            per_cat_cap = max(per_cat_cap, 5000)
         elif is_groceries:
             max_pages = 6 if self.mode == "discover" else 3
         else:
