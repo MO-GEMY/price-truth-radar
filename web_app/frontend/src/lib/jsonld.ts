@@ -1,16 +1,16 @@
 /**
- * XSS-safe Schema.org Product + Offer / AggregateOffer JSON-LD generator for
+ * XSS-safe Schema.org Product + AggregateOffer JSON-LD generator for
  * product detail pages (`/products/[product_sk]`).
+ *
+ * Uses `AggregateOffer` across all products because Asarak (`asarak.com`) is a
+ * price-comparison aggregator rather than a direct merchant.
  */
 
 import type { ProductDetailResponse } from "@/types/contract";
-import { retailerHref } from "./offers";
 import { DEFAULT_OG_IMAGE_PATH, absoluteUrl, verifiedHttpsImageUrl } from "./site";
-import { storeDisplayName } from "./stores";
 
 const IN_STOCK = "https://schema.org/InStock";
 const OUT_OF_STOCK = "https://schema.org/OutOfStock";
-const NEW_CONDITION = "https://schema.org/NewCondition";
 const GTIN_RE = /^\d{8}(?:\d{4,6})?$/;
 
 function cleanPrice(value: number): number {
@@ -44,8 +44,6 @@ export function buildProductJsonLd(
 ): Record<string, unknown> {
   const { product, alternatives } = detail;
   const image = verifiedHttpsImageUrl(product.image_url) ?? absoluteUrl(DEFAULT_OG_IMAGE_PATH);
-  const sellerName = storeDisplayName(product.store_name, "en");
-  const selfOfferUrl = retailerHref(product.product_url) ?? canonicalUrl;
 
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -75,94 +73,56 @@ export function buildProductJsonLd(
     else schema.gtin = gtin;
   }
 
-  if (alternatives.length > 0) {
-    const offers: Record<string, unknown>[] = [];
-    let inStockCount = 0;
-    let inStockMin = Infinity;
-    let inStockMax = -Infinity;
-    let allMin = Infinity;
-    let allMax = -Infinity;
+  let validOfferCount = 0;
+  let inStockCount = 0;
+  let inStockMin = Infinity;
+  let allMin = Infinity;
+  let allMax = -Infinity;
 
-    const pushOffer = (price: number, inStock: boolean, storeName: string, url: string) => {
-      if (!Number.isFinite(price) || price <= 0) return;
-      if (price < allMin) allMin = price;
-      if (price > allMax) allMax = price;
-      if (inStock) {
-        inStockCount++;
-        if (price < inStockMin) inStockMin = price;
-        if (price > inStockMax) inStockMax = price;
-      }
-      offers.push({
-        "@type": "Offer",
-        priceCurrency: "EGP",
-        price: cleanPrice(price),
-        availability: inStock ? IN_STOCK : OUT_OF_STOCK,
-        itemCondition: NEW_CONDITION,
-        url,
-        seller: {
-          "@type": "Organization",
-          name: storeDisplayName(storeName, "en"),
-        },
-      });
-    };
-
-    pushOffer(product.current_price, product.in_stock, product.store_name, selfOfferUrl);
-    for (let i = 0; i < alternatives.length; i++) {
-      const alt = alternatives[i];
-      pushOffer(
-        alt.price,
-        alt.in_stock,
-        alt.store_name,
-        retailerHref(alt.product_url) ?? absoluteUrl(`/products/${encodeURIComponent(alt.product_sk)}`),
-      );
+  const recordPrice = (price: number, inStock: boolean, countAsOffer: boolean) => {
+    if (!Number.isFinite(price) || price <= 0) return;
+    if (countAsOffer) validOfferCount++;
+    if (price < allMin) allMin = price;
+    if (price > allMax) allMax = price;
+    if (inStock) {
+      if (countAsOffer) inStockCount++;
+      if (price < inStockMin) inStockMin = price;
     }
+  };
 
-    const lowPrice = cleanPrice(inStockCount > 0 ? inStockMin : allMin);
-    const highPrice = cleanPrice(inStockCount > 0 ? inStockMax : allMax);
-
-    schema.offers = {
-      "@type": "AggregateOffer",
-      priceCurrency: "EGP",
-      lowPrice,
-      highPrice,
-      offerCount: offers.length,
-      availability: inStockCount > 0 ? IN_STOCK : OUT_OF_STOCK,
-      offers,
-    };
-  } else if (
-    product.has_multiple_variants &&
-    typeof product.min_variant_price === "number" &&
-    typeof product.max_variant_price === "number" &&
-    product.min_variant_price > 0 &&
-    product.max_variant_price > product.min_variant_price
-  ) {
-    schema.offers = {
-      "@type": "AggregateOffer",
-      priceCurrency: "EGP",
-      lowPrice: cleanPrice(product.min_variant_price),
-      highPrice: cleanPrice(product.max_variant_price),
-      offerCount: Math.max(2, product.variant_count ?? 2),
-      availability: product.in_stock ? IN_STOCK : OUT_OF_STOCK,
-      url: selfOfferUrl,
-      seller: {
-        "@type": "Organization",
-        name: sellerName,
-      },
-    };
-  } else {
-    schema.offers = {
-      "@type": "Offer",
-      priceCurrency: "EGP",
-      price: cleanPrice(product.current_price),
-      availability: product.in_stock ? IN_STOCK : OUT_OF_STOCK,
-      itemCondition: NEW_CONDITION,
-      url: selfOfferUrl,
-      seller: {
-        "@type": "Organization",
-        name: sellerName,
-      },
-    };
+  recordPrice(product.current_price, product.in_stock, true);
+  if (product.has_multiple_variants) {
+    if (typeof product.min_variant_price === "number") {
+      recordPrice(product.min_variant_price, product.in_stock, false);
+    }
+    if (typeof product.max_variant_price === "number") {
+      recordPrice(product.max_variant_price, product.in_stock, false);
+    }
   }
+  for (let i = 0; i < alternatives.length; i++) {
+    const alt = alternatives[i];
+    recordPrice(alt.price, alt.in_stock, true);
+  }
+
+  const resolvedLow = inStockCount > 0 && Number.isFinite(inStockMin)
+    ? inStockMin
+    : Number.isFinite(allMin)
+      ? allMin
+      : product.current_price;
+  const lowPrice = cleanPrice(resolvedLow);
+  const highPrice = cleanPrice(
+    Number.isFinite(allMax) && allMax >= resolvedLow ? allMax : resolvedLow,
+  );
+
+  schema.offers = {
+    "@type": "AggregateOffer",
+    priceCurrency: "EGP",
+    lowPrice,
+    highPrice,
+    offerCount: Math.max(1, validOfferCount),
+    availability: inStockCount > 0 ? IN_STOCK : OUT_OF_STOCK,
+    url: canonicalUrl,
+  };
 
   return schema;
 }
